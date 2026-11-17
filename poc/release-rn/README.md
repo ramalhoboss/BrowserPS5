@@ -100,7 +100,7 @@ BrowserPS5 is a full web browser for jailbroken PS5 consoles: its own port of a 
 
 ## Requirements
 
-- A **jailbroken PS5** with an **ELF loader on port 9021** (etaHEN starts one).
+- A **jailbroken PS5** with an **ELF loader on port 9021** (etaHEN starts one). It must be running **every time the browser is opened**, not only to install it: the browser is two programs, the title you open and its interface, and at every start the title hands the interface (`browser.elf`) to the loader on `127.0.0.1:9021`. With no loader answering, the title shows its loading screen and closes. It was tested with the loader etaHEN starts.
 - **ShadowMountPlus** running: it puts titles installed in `/data/homebrew` on the home screen. Without it the browser's files are installed but no tile appears.
 - An **internet connection**. A network cable is worth it for large downloads.
 - To send the ELF from a PC: any payload sender, or the `send.ps1` (Windows PowerShell) that comes in the zip.
@@ -117,8 +117,11 @@ BrowserPS5 is a full web browser for jailbroken PS5 consoles: its own port of a 
    ```
 
    The result must match the line for `BrowserPS5.elf` in `SHA256SUMS.txt`.
-3. **Load your jailbreak** on the PS5 and make sure ShadowMountPlus is running.
-4. **Send `BrowserPS5.elf` to port 9021** with the payload sender you already use. On Windows, the included `send.ps1` does it:
+3. **Load your jailbreak** on the PS5 and make sure the ELF loader (port 9021) and ShadowMountPlus are running.
+4. **Run `BrowserPS5.elf` once**, the way you run any other payload:
+
+   - **Payload Manager** (or another manager on the console): add `BrowserPS5.elf` to it and run it. It is an installer: run it once, and **do not put it in a list that loads at every start**, or the browser is installed again each time the console starts.
+   - **From a PC**: send it to port 9021 with the payload sender you already use (some setups only let the console itself use the loader: use the manager on the console then). On Windows, the included `send.ps1` does it:
 
    ```powershell
    .\send.ps1 -Ps5 <your PS5's IP> -Elf .\BrowserPS5.elf
@@ -224,6 +227,7 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 | No BrowserPS5 tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | The ELF loader is not answering on port 9021: load etaHEN (or your loader) again and open the browser again. If it still closes, please report it with `browser-title.txt` (below), your console and how you load your payloads |
 | *"is open: nothing was installed"* | Close BrowserPS5 (Options → Close application) and send the installer again |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |
 | A video service will not play | It needs DRM, which BrowserPS5 does not have |

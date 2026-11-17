@@ -279,12 +279,14 @@ Some of the problems that had to be solved on the way, each documented where it 
 | | |
 | --- | --- |
 | **Tested** | One PS5, system software **13.60**, with etaHEN and ShadowMountPlus |
-| **Needs** | A jailbroken PS5 with an **ELF loader on port 9021** (etaHEN starts one) and **ShadowMountPlus** running |
+| **Needs** | A jailbroken PS5 with an **ELF loader on port 9021** (etaHEN starts one) and **ShadowMountPlus**, both running **every time the browser is opened**, not only to install it |
 | **Other firmwares** | Not tested. Almost everything finds the system's functions by name. The PS5's own keyboard is bound for 13.60; elsewhere the browser's own keyboard is used |
 | **Storage** | About 450 MB on the console |
 | **Display** | 1080p interface at 60 Hz; video up to 2160p |
 
-Reports from other firmwares are welcome: open an issue with the firmware, what worked and the logs (see [Troubleshooting](#troubleshooting)).
+**Why the loader must stay.** The browser is two programs: the title you open from the home screen, and its interface, which runs as a payload. At every start the title hands the interface (`browser.elf`) to the ELF loader on `127.0.0.1:9021`. With no loader answering there, the title shows its loading screen and closes. It was tested with the loader etaHEN starts; a setup where another loader listens on 9021 has not been tried yet.
+
+Reports from other firmwares, consoles and setups are welcome: open an issue with the console (PS5, Slim or Pro), the firmware, how you load your payloads, what worked and the logs (see [Troubleshooting](#troubleshooting)).
 
 ### The web
 
@@ -310,8 +312,11 @@ Every release is also tried against 24 of the most used sites, one after another
    ```
 
    The result must match the line for `BrowserPS5.elf` in `SHA256SUMS.txt`.
-3. **Load your jailbreak** on the PS5 and make sure ShadowMountPlus is running.
-4. **Send `BrowserPS5.elf` to port 9021** with the payload sender you already use. On Windows, the included `send.ps1` does it:
+3. **Load your jailbreak** on the PS5 and make sure the ELF loader (port 9021) and ShadowMountPlus are running.
+4. **Run `BrowserPS5.elf` once**, the way you run any other payload:
+
+   - **Payload Manager** (or another manager on the console): add `BrowserPS5.elf` to it and run it. It is an installer: run it once, and **do not put it in a list that loads at every start**, or the browser is installed again each time the console starts.
+   - **From a PC**: send it to port 9021 with the payload sender you already use (some setups only let the console itself use the loader: use the manager on the console then). On Windows, the included `send.ps1` does it:
 
    ```powershell
    .\send.ps1 -Ps5 <your PS5's IP> -Elf .\BrowserPS5.elf
@@ -330,6 +335,8 @@ Every release is also tried against 24 of the most used sites, one after another
    ```
 5. **Wait for the two notifications** on the PS5: *"installing, about half a minute"* and then *"is installed"*. Do not open the browser in between.
 6. **Open BrowserPS5** from **Games** on the home screen. ShadowMountPlus adds it about 15 seconds after the install. The icon and background may only show after the PS5 restarts.
+
+After the PS5 restarts, load your jailbreak as usual before opening the browser: it needs the ELF loader on port 9021 and ShadowMountPlus running each time ([why](#console)).
 
 The installer writes about 450 MB and takes half a minute. It writes only inside `/data/homebrew` and `/user/homebrew`, closes no app, and changes no system setting.
 
@@ -424,6 +431,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 | No BrowserPS5 tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | The ELF loader is not answering on port 9021: load etaHEN (or your loader) again and open the browser again. If it still closes, please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
 | *"is open: nothing was installed"* | Close BrowserPS5 (Options → Close application) and send the installer again |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |
 | A video service will not play | It needs DRM, which BrowserPS5 does not have |
