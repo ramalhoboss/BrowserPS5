@@ -431,7 +431,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 | No BrowserPS5 tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
-| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | The ELF loader is not answering on port 9021: load etaHEN (or your loader) again and open the browser again. If it still closes, please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it (1.0.0-rc12) | A folder the engine needs is missing on a console that never had an earlier BrowserPS5. Create **`/user/homebrew/browserps5/data/tmp`** (by FTP or a file manager) and open the browser again. If it still closes, make sure the ELF loader answers on port 9021 (load etaHEN or your loader again); then please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
 | *"is open: nothing was installed"* | Close BrowserPS5 (Options → Close application) and send the installer again |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |
 | A video service will not play | It needs DRM, which BrowserPS5 does not have |
