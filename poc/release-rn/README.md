@@ -227,7 +227,7 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 | No BrowserPS5 tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
-| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | The ELF loader is not answering on port 9021: load etaHEN (or your loader) again and open the browser again. If it still closes, please report it with `browser-title.txt` (below), your console and how you load your payloads |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | Make sure the ELF loader answers on port 9021 (load etaHEN or your loader again) and open the browser again. If it still closes, please report it with `browser-title.txt` (below), your console and how you load your payloads |
 | *"is open: nothing was installed"* | Close BrowserPS5 (Options → Close application) and send the installer again |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |
 | A video service will not play | It needs DRM, which BrowserPS5 does not have |

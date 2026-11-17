@@ -186,6 +186,26 @@ unpack_thread(void* arg) {
 }
 
 
+// 2026-11-17 (1.0.0-rc13): the engine keeps its temporary files in /user/homebrew/browserps5/data/tmp (the path
+// is inside the engine: poc/webkit/storage), a folder the earlier BrowserPS5 made. This one's browser makes only
+// the last part of it at its start, so on a console that never had the earlier one there was no such folder, and
+// 1.0.0-rc12 closed a second after it started (reported the day it came out; making the folder by hand cured
+// it). Made here, parents first; what is there stays as it is. Returns 0 when the folder is there at the end.
+static int
+temp_folder(void) {
+  static const char* const path[] = {"/user/homebrew/browserps5", "/user/homebrew/browserps5/data",
+                                     "/user/homebrew/browserps5/data/tmp"};
+  struct stat st;
+
+  for(size_t i = 0; i < sizeof(path) / sizeof(path[0]); i++) {
+    if(mkdir(path[i], 0777) && errno != EEXIST) {
+      POC_PERROR(path[i]);
+    }
+  }
+  return !stat(path[2], &st) && S_ISDIR(st.st_mode) ? 0 : -1;
+}
+
+
 int
 main(void) {
   static const char stamp[] = RELEASE_VERSION "\n" RELEASE_PACK_SHA256 "\n";
@@ -225,6 +245,9 @@ main(void) {
     POC_NOTIFY("was NOT installed (unpacking: %d). Send the installer again; what was there before may be incomplete.",
                unpack_error);
     return 1;
+  }
+  if(temp_folder()) {
+    POC_NOTIFY("is installed, but the folder /user/homebrew/browserps5/data/tmp could not be made: make it by hand.");
   }
   if((fd=open(RELEASE_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644)) >= 0) {  // which release is there (the browser's About)
     if(write(fd, stamp, sizeof(stamp) - 1) != (ssize_t)(sizeof(stamp) - 1)) {

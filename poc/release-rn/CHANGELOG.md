@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-rc13 — 2026-11-17
+
+A fix for rc12, the same day:
+
+- **The browser closed a second after it started on a console that never had an earlier BrowserPS5.** The engine keeps its temporary files in `/user/homebrew/browserps5/data/tmp`, and nothing made that folder on a clean console: the loading screen showed, the browser started and went away (on some consoles with a *"Game or App Error"*). The console the release was tested on had the folder from earlier versions, so the tests did not see it. The installer now makes the folder. Thank you to everyone who reported it within the hour, and to the user who found the folder.
+- If you installed rc12: run this installer (your data stays), or make that folder by hand.
+- The browser itself, its title and its engine are the files of rc12, byte for byte: only the installer changed.
+- Known: the browser needs the ELF loader on port 9021 and ShadowMountPlus running every time it is opened, not only to install it. Tested on one console, firmware 13.60, only.
+
 ## 1.0.0-rc12 — 2026-11-17
 
 Since rc11:
