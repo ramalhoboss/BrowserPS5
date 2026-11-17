@@ -1,0 +1,466 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/AcceleratedSurfacePlayStation.cpp
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/AcceleratedSurfacePlayStation.cpp
+@@ -47,8 +47,23 @@
+ #include <epoxy/gl.h>
+ #else
+ #include <GLES2/gl2.h>
++#include <GLES2/gl2ext.h>
+ #endif
+ 
++// BrowserPS5: the frames for the UIProcess (copied next to this file by
++// poc/webkit/build-webkit.sh).
++#include "bps5_layer.h"
++#include <errno.h>
++#include <pthread.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <wtf/text/StringView.h>
++
++// BrowserPS5: in a title the shared memory comes from its "flexible" memory
++// (bps5_layer.h); what is left goes into the log.
++extern "C" int sceKernelAvailableFlexibleMemorySize(size_t*);
++
+ #if USE(WPE_RENDERER)
+ #include <WebCore/PlatformDisplayLibWPE.h>
+ #include <wpe/wpe-egl.h>
+@@ -97,6 +112,8 @@
+     if (m_swapChain.type() == SwapChain::Type::WPEBackend)
+         m_swapChain.initialize(webPage);
+ #endif
++    if (m_swapChain.type() == SwapChain::Type::SharedMemory)
++        m_swapChain.setPageID(webPage.identifier().toUInt64());
+ }
+ 
+ AcceleratedSurface::~AcceleratedSurface() = default;
+@@ -181,6 +198,263 @@
+ }
+ #endif
+ 
++// BrowserPS5: the title's flexible memory left, MiB (-1: no answer).
++static long browserps5FlexibleMiB()
++{
++    size_t available = 0;
++    return sceKernelAvailableFlexibleMemorySize(&available) ? -1 : static_cast<long>(available >> 20);
++}
++
++// BrowserPS5. Made on the compositing thread, with the GL context current.
++AcceleratedSurface::RenderTargetSharedMemory::RenderTargetSharedMemory(uint64_t pageID, const IntSize& size)
++    : RenderTarget()
++{
++    bps5_layer_name(m_name, sizeof(m_name), pageID);
++
++    glGenFramebuffers(1, &m_framebuffer);
++    glGenRenderbuffers(1, &m_colorBuffer);
++    glGenRenderbuffers(1, &m_depthStencilBuffer);
++    resize(size);
++    openLayer();
++
++    auto* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
++    m_readsBGRA = extensions && StringView::fromLatin1(extensions).contains("GL_EXT_read_format_bgra"_s);
++    auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
++    WTFLogAlways("BrowserPS5: page %llu composited by %s into %s (%s; libEGL's glGetString at %p)", static_cast<unsigned long long>(pageID),
++        renderer ? renderer : "?", m_name, m_readsBGRA ? "BGRA" : "RGBA", reinterpret_cast<void*>(&glGetString));
++}
++
++AcceleratedSurface::RenderTargetSharedMemory::~RenderTargetSharedMemory()
++{
++    glDeleteFramebuffers(1, &m_framebuffer);
++    glDeleteRenderbuffers(1, &m_colorBuffer);
++    glDeleteRenderbuffers(1, &m_depthStencilBuffer);
++    closeLayer();
++}
++
++// The shared memory (bps5_layer.h), as big as the view and never smaller
++// than it was: made again only for a view that grows past it. True if made.
++bool AcceleratedSurface::RenderTargetSharedMemory::openLayer()
++{
++    uint32_t width, height;
++    bps5_layer_capacity_for(m_size.width(), m_size.height(), &width, &height);
++    width = std::max(width, m_capacityWidth);
++    height = std::max(height, m_capacityHeight);
++    const uint64_t bytes = bps5_layer_bytes_for(width, height);
++
++    // A WebProcess before this one may have left one with this name.
++    shm_unlink(m_name);
++    const char* failed = nullptr;
++    int error = 0;
++    int fd = shm_open(m_name, O_RDWR | O_CREAT | O_EXCL, 0666);
++    if (fd < 0)
++        failed = "shm_open";
++    else if (ftruncate(fd, bytes) < 0)
++        failed = "ftruncate";
++    else {
++        void* memory = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++        if (memory == MAP_FAILED)
++            failed = "mmap";
++        else {
++            m_layer = static_cast<bps5_layer*>(memory);
++            m_layerBytes = bytes;
++            m_capacityWidth = width;
++            m_capacityHeight = height;
++            m_back = 0;
++            bps5_layer_init(m_layer, getpid(), width, height);
++        }
++    }
++    if (failed) {
++        error = errno;
++        // No 0-byte layer left for a UIProcess to fault on (2026-11-06).
++        if (fd >= 0)
++            shm_unlink(m_name);
++    }
++    if (fd >= 0)
++        close(fd);
++
++    if (failed) {
++        // Tried again at a frame 2 s later (didRenderFrame()); logged the
++        // first time and every 30th after that.
++        if (!(m_openFailures++ % 30)) {
++            WTFLogAlways("BrowserPS5: %s %s (%ux%u frames, %.1f MiB): %s; flexible memory %ld MiB left (try %u)", failed, m_name,
++                width, height, bytes / 1048576.0, strerror(error), browserps5FlexibleMiB(), m_openFailures);
++        }
++        m_nextOpen = MonotonicTime::now() + 2_s;
++        return false;
++    }
++    m_openFailures = 0;
++    WTFLogAlways("BrowserPS5: %s: %ux%u frames, %.1f MiB; flexible memory %ld MiB left", m_name, width, height,
++        bytes / 1048576.0, browserps5FlexibleMiB());
++    return true;
++}
++
++// The UIProcess opens the name again when the magic goes.
++void AcceleratedSurface::RenderTargetSharedMemory::closeLayer()
++{
++    if (!m_layer)
++        return;
++    __atomic_store_n(&m_layer->magic, 0, __ATOMIC_RELEASE);
++    munmap(m_layer, m_layerBytes);
++    shm_unlink(m_name);
++    m_layer = nullptr;
++    m_layerBytes = 0;
++}
++
++// A page hidden for 10 s (a tab behind the one in front) gives its shared
++// memory back (AcceleratedSurface::releaseUnusedBuffersTimerFired()); its
++// first frame once it is shown again makes it again.
++void AcceleratedSurface::RenderTargetSharedMemory::releaseLayer()
++{
++    if (!m_layer)
++        return;
++    closeLayer();
++    m_nextOpen = { };
++    WTFLogAlways("BrowserPS5: %s given back, the page is hidden; flexible memory %ld MiB left", m_name, browserps5FlexibleMiB());
++}
++
++void AcceleratedSurface::RenderTargetSharedMemory::resize(const IntSize& size)
++{
++    m_size = size;
++    GLint framebuffer = 0;
++    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
++    glBindRenderbuffer(GL_RENDERBUFFER, m_colorBuffer);
++    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, std::max(1, size.width()), std::max(1, size.height()));
++    glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer);
++    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, std::max(1, size.width()), std::max(1, size.height()));
++    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, m_colorBuffer);
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
++    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
++    if (status != GL_FRAMEBUFFER_COMPLETE)
++        WTFLogAlways("BrowserPS5: framebuffer %dx%d incomplete: 0x%x", size.width(), size.height(), status);
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++
++    if (m_layer) {
++        uint32_t width, height;
++        bps5_layer_capacity_for(size.width(), size.height(), &width, &height);
++        if (width > m_capacityWidth || height > m_capacityHeight) {
++            closeLayer();
++            openLayer();
++        }
++    }
++}
++
++// While a title is in front the payloads share about 2 cores, and every
++// WebProcess thread has priority 700. When the page's script is busy (a
++// moving cursor over YouTube's player: its main thread went from 0.2 to 0.7
++// cores) the compositor waits its turn and the TV loses 15-35% of its frames
++// (2026-11-04 17:51-17:58). It renders a frame in a few ms and sleeps between
++// them, so it goes a little ahead: BROWSERPS5_COMPOSITOR_PRIORITY (690; 0
++// leaves it as it is; a smaller number is a higher priority). Checked at each
++// frame (one system call): each page has its own compositor thread.
++static void browserps5RaiseCompositorPriority()
++{
++    static const int priority = [] {
++        const char* value = getenv("BROWSERPS5_COMPOSITOR_PRIORITY");
++        return value && *value ? atoi(value) : 690;
++    }();
++    static std::atomic<bool> refused;
++    if (priority <= 0 || refused.load(std::memory_order_relaxed))
++        return;
++    int policy = 0;
++    struct sched_param param { };
++    if (pthread_getschedparam(pthread_self(), &policy, &param) || param.sched_priority == priority)
++        return;
++    const int before = param.sched_priority;
++    param.sched_priority = priority;
++    int error = pthread_setschedparam(pthread_self(), policy, &param);
++    pthread_getschedparam(pthread_self(), &policy, &param);
++    if (error || param.sched_priority != priority)
++        refused.store(true, std::memory_order_relaxed);
++    WTFLogAlways("BrowserPS5: compositor thread priority %d -> %d (%s)", before, param.sched_priority,
++        error ? strerror(error) : "done");
++}
++
++void AcceleratedSurface::RenderTargetSharedMemory::willRenderFrame()
++{
++    browserps5RaiseCompositorPriority();
++    // The compositor draws into whatever framebuffer is bound
++    // (TextureMapper::beginPainting).
++    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
++}
++
++// glReadPixels() waits for the GPU to finish the frame: 5-7 ms with a
++// YouTube video, 9-12 ms with the player's controls over it, and with the
++// compositor's own few ms the frame no longer fit in a 60th of a second (44-49
++// frames a second on the TV while the cursor moved, 2026-11-04 18:05). The
++// next frame waits for AcceleratedSurface::frameDone() anyway, paced at 60 a
++// second, and nothing draws into the framebuffer until then. So the frame is
++// only sent to the GPU here, and read back in frameDone(), when the GPU has
++// had the rest of the 60th of a second. BROWSERPS5_LATE_READBACK=0 (env.txt)
++// reads it back here, as before.
++static bool browserps5LateReadback()
++{
++    static const bool late = [] {
++        const char* value = getenv("BROWSERPS5_LATE_READBACK");
++        return !value || !*value || *value != '0';
++    }();
++    return late;
++}
++
++void AcceleratedSurface::RenderTargetSharedMemory::didRenderFrame(Vector<IntRect, 1>&&)
++{
++    // No shared memory (it did not fit, or went back while the page was
++    // hidden): made now, or 2 s after a try that failed.
++    if (!m_layer && (MonotonicTime::now() < m_nextOpen || !openLayer()))
++        return;
++
++    if (browserps5LateReadback()) {
++        glFlush();
++        m_pending = true;
++        return;
++    }
++    publishFrame();
++}
++
++void AcceleratedSurface::RenderTargetSharedMemory::publishPendingFrame()
++{
++    if (!m_pending)
++        return;
++    m_pending = false;
++    publishFrame();
++}
++
++void AcceleratedSurface::RenderTargetSharedMemory::publishFrame()
++{
++    if (!m_layer)
++        return;
++    auto start = MonotonicTime::now();
++    unsigned width = std::min<unsigned>(std::max(m_size.width(), 0), m_capacityWidth);
++    unsigned height = std::min<unsigned>(std::max(m_size.height(), 0), m_capacityHeight);
++    uint32_t* pixels = bps5_layer_pixels(m_layer, m_back);
++    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
++    glPixelStorei(GL_PACK_ALIGNMENT, 4);
++    glReadPixels(0, 0, width, height, m_readsBGRA ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, pixels);
++    if (!m_readsBGRA) {
++        // RGBA bytes to Cairo's ARGB32 (BGRA bytes): swap red and blue.
++        for (size_t i = 0, count = static_cast<size_t>(width) * height; i < count; ++i) {
++            uint32_t p = pixels[i];
++            pixels[i] = (p & 0xff00ff00) | ((p & 0xff) << 16) | ((p >> 16) & 0xff);
++        }
++    }
++
++    auto& frame = m_layer->frames[m_back];
++    frame.width = width;
++    frame.height = height;
++    frame.flags = 0;
++    frame.number = ++m_frames;
++    m_back = bps5_layer_publish(m_layer, m_back);
++
++    m_readTime += MonotonicTime::now() - start;
++    if (!(m_frames % 300)) {
++        WTFLogAlways("BrowserPS5: %s: %llu frames, %.2f ms per readback of %ux%u", m_name,
++            static_cast<unsigned long long>(m_frames), m_readTime.milliseconds() / 300, width, height);
++        m_readTime = { };
++    }
++}
++
+ AcceleratedSurface::SwapChain::SwapChain()
+ {
+     auto& display = PlatformDisplay::sharedDisplay();
+@@ -192,6 +466,7 @@
+ #endif
+ #if PLATFORM(PLAYSTATION)
+     case PlatformDisplay::Type::Surfaceless:
++        m_type = Type::SharedMemory; // BrowserPS5
+         break;
+ #endif // PLATFORM(PLAYSTATION)
+     }
+@@ -209,6 +484,12 @@
+         return true;
+     }
+ #endif
++    // BrowserPS5: one target, which keeps its shared memory.
++    if (m_type == Type::SharedMemory) {
++        if (!m_lockedTargets.isEmpty())
++            static_cast<RenderTargetSharedMemory*>(m_lockedTargets[0].get())->resize(m_size);
++        return true;
++    }
+     reset();
+     return true;
+ }
+@@ -221,6 +502,8 @@
+         ASSERT_NOT_REACHED();
+         break;
+ #endif
++    case Type::SharedMemory:
++        return makeUnique<RenderTargetSharedMemory>(m_pageID, m_size);
+     case Type::Invalid:
+         break;
+     }
+@@ -233,6 +516,13 @@
+     if (m_type == Type::WPEBackend)
+         return m_lockedTargets[0].get();
+ #endif
++    // BrowserPS5: the frame is copied out before the next one starts, so a
++    // single target is enough (the shared memory has three buffers).
++    if (m_type == Type::SharedMemory) {
++        if (m_lockedTargets.isEmpty())
++            m_lockedTargets.append(createTarget());
++        return m_lockedTargets[0].get();
++    }
+ 
+     if (m_freeTargets.isEmpty()) {
+         ASSERT(m_lockedTargets.size() < s_maximumBuffers);
+@@ -284,6 +574,13 @@
+     m_freeTargets.clear();
+ }
+ 
++// BrowserPS5: the shared memory of a page hidden for a while.
++void AcceleratedSurface::SwapChain::releaseSharedMemory()
++{
++    if (m_type == Type::SharedMemory && !m_lockedTargets.isEmpty())
++        static_cast<RenderTargetSharedMemory*>(m_lockedTargets[0].get())->releaseLayer();
++}
++
+ #if USE(WPE_RENDERER)
+ void AcceleratedSurface::SwapChain::initialize(WebPage& webPage)
+ {
+@@ -309,15 +606,29 @@
+         return;
+ 
+     m_isVisible = isVisible;
+-    if (!m_releaseUnusedBuffersTimer)
++
++    // BrowserPS5 (2026-11-09): m_releaseUnusedBuffersTimer belongs to the
++    // compositing run loop, and visibilityDidChange() runs on the main thread
++    // (ThreadedCompositor::suspend()/resume()). Stopping it here while it was
++    // active was a RELEASE_ASSERT (RunLoop::TimerBase::stop()): the PS button
++    // hides the page, which starts the 10 s timer, and coming back before it
++    // fired crashed the WebProcess. As AcceleratedSurface.cpp does, the
++    // timer is started and stopped on its own run loop.
++    RefPtr compositingRunLoop = m_compositingRunLoop;
++    if (!compositingRunLoop || !m_releaseUnusedBuffersTimer)
+         return;
+ 
+-    if (m_isVisible)
+-        m_releaseUnusedBuffersTimer->stop();
+-    else {
++    compositingRunLoop->dispatch([protectedThis = Ref { *this }, isVisible] {
++        auto& timer = protectedThis->m_releaseUnusedBuffersTimer;
++        if (!timer || protectedThis->m_compositingTimersStopped)
++            return;
++        if (isVisible) {
++            timer->stop();
++            return;
++        }
+         static const Seconds releaseUnusedBuffersDelay = 10_s;
+-        m_releaseUnusedBuffersTimer->startOneShot(releaseUnusedBuffersDelay);
+-    }
++        timer->startOneShot(releaseUnusedBuffersDelay);
++    });
+ }
+ 
+ void AcceleratedSurface::backgroundColorDidChange()
+@@ -336,6 +647,10 @@
+ void AcceleratedSurface::releaseUnusedBuffersTimerFired()
+ {
+     m_swapChain.releaseUnusedBuffers();
++    // BrowserPS5: and the shared memory, if no frame is on its way
++    // (visibilityDidChange() starts this timer when the page is hidden).
++    if (!m_target)
++        m_swapChain.releaseSharedMemory();
+ }
+ 
+ void AcceleratedSurface::didCreateCompositingRunLoop(RunLoop& runLoop)
+@@ -349,6 +664,9 @@
+ #if USE(GLIB_EVENT_LOOP)
+     m_releaseUnusedBuffersTimer->setPriority(RunLoopSourcePriority::ReleaseUnusedResourcesTimer);
+ #endif
++    if (m_swapChain.type() == SwapChain::Type::SharedMemory)
++        m_frameDoneTimer = makeUnique<RunLoop::Timer>(runLoop, "AcceleratedSurface::FrameDoneTimer"_s, this, &AcceleratedSurface::frameDone);
++    m_compositingRunLoop = &runLoop;
+ }
+ 
+ void AcceleratedSurface::willDestroyCompositingRunLoop()
+@@ -361,10 +679,27 @@
+ #endif
+ 
+     m_releaseUnusedBuffersTimer = nullptr;
++    m_frameDoneTimer = nullptr;
++    m_compositingRunLoop = nullptr;
+ }
+ 
+ void AcceleratedSurface::willDestroyGLContext()
+ {
++    // BrowserPS5: the timers of the compositing thread stop here, on that
++    // thread (the ThreadedCompositor calls this from there when the page
++    // goes). willDestroyCompositingRunLoop() destroys them later on the main
++    // thread, and destroying a timer of another thread while it is active is
++    // a RELEASE_ASSERT: the frame-done timer is active after nearly every
++    // frame of a page with an animation running, and closing such a page
++    // crashed the WebProcess (2026-11-05, docs/06-teclado-e-favoritos.md).
++    if (m_frameDoneTimer)
++        m_frameDoneTimer->stop();
++    if (m_releaseUnusedBuffersTimer)
++        m_releaseUnusedBuffersTimer->stop();
++    // and a visibilityDidChange() still on its way may not start it again.
++    m_compositingTimersStopped = true;
++    // BrowserPS5: frameDone() reads the target back; it goes now.
++    m_target = nullptr;
+     m_swapChain.reset();
+ }
+ 
+@@ -417,10 +752,23 @@
+ 
+     Vector<IntRect, 1> damageRects;
+     m_target->didRenderFrame(WTF::move(damageRects));
++
++    // BrowserPS5: the next frame may start a 60th of a second after the
++    // last one did, or now if that is already past.
++    if (m_frameDoneTimer) {
++        static constexpr Seconds frameInterval { 1.0 / 60 };
++        auto now = MonotonicTime::now();
++        m_nextFrameDone = std::max(m_nextFrameDone + frameInterval, now);
++        m_frameDoneTimer->startOneShot(m_nextFrameDone - now);
++    }
+ }
+ 
+ void AcceleratedSurface::frameDone()
+ {
++    // BrowserPS5: the frame's pixels, before the next frame may start
++    // (RenderTargetSharedMemory::didRenderFrame).
++    if (m_target && m_swapChain.type() == SwapChain::Type::SharedMemory)
++        static_cast<RenderTargetSharedMemory*>(m_target)->publishPendingFrame();
+     if (m_frameCompleteHandler)
+         m_frameCompleteHandler();
+     m_target = nullptr;

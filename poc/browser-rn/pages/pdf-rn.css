@@ -1,0 +1,65 @@
+/* BrowserPS5 RN (2026-11-11): the PDF reader (PDF.js) on a TV, seen from the
+ * sofa and driven by a cursor. pack-pdfjs-rn.sh copies this next to the
+ * reader's viewer.css and names it at the end of viewer.html's head.
+ *
+ * The reader's bar is made for a desk: 32 px high, 16 px pictures. It is
+ * shown larger as a whole (zoom: its menus and its search bar grow with it),
+ * and what lies under it starts lower by the same amount. */
+:root {
+  --rn-zoom: 1.75;
+  --rn-bar: calc(var(--toolbar-height) * var(--rn-zoom));
+}
+
+#toolbarContainer {
+  zoom: var(--rn-zoom);
+}
+
+#viewerContainer,
+#sidebarContainer {
+  inset-block-start: var(--rn-bar) !important;
+}
+
+#viewsManager {
+  inset-block-start: calc(var(--rn-bar) + 8px) !important;
+}
+
+/* What this browser has no use for: printing, saving a copy of what is
+ * already in the downloads, opening another file from a file window, the
+ * drawing and signing tools, the address of the current view. */
+#printButton,
+#downloadButton,
+#secondaryPrint,
+#secondaryDownload,
+#secondaryOpenFile,
+#editorModeButtons,
+#editorModeSeparator,
+#viewBookmark,
+#viewBookmarkSeparator {
+  display: none !important;
+}
+
+/* The page under the cursor's ring is easier to follow with a wider bar to scroll by. */
+#viewerContainer::-webkit-scrollbar {
+  width: 18px;
+  height: 18px;
+}
+
+#viewerContainer::-webkit-scrollbar-thumb {
+  background: rgb(120 120 128 / 0.7);
+  border-radius: 9px;
+  border: 4px solid transparent;
+  background-clip: content-box;
+}
+
+/* The reader asks for the system's "message-box" font, which this engine does
+ * not have: its words came out in a serif face. The plain sans one. */
+/* Only the reader's own bars and windows: the page's text layer keeps the
+ * fonts the reader gives it (they size what is selected). */
+#toolbarContainer,
+#toolbarContainer *,
+#sidebarContainer *,
+#viewsManager *,
+dialog,
+dialog * {
+  font-family: sans-serif !important;
+}

@@ -1,0 +1,126 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/AcceleratedSurfacePlayStation.h
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/AcceleratedSurfacePlayStation.h
+@@ -32,7 +32,9 @@
+ #include <WebCore/CoordinatedCompositionReason.h>
+ #include <WebCore/Damage.h>
+ #include <WebCore/IntSize.h>
++#include <wtf/MonotonicTime.h>
+ #include <wtf/RunLoop.h>
++#include <wtf/Seconds.h>
+ #include <wtf/TZoneMalloc.h>
+ #include <wtf/ThreadSafeRefCounted.h>
+ #include <wtf/WeakRef.h>
+@@ -41,6 +43,7 @@
+ #if USE(WPE_RENDERER)
+ struct wpe_renderer_backend_egl_target;
+ #endif
++struct bps5_layer; // BrowserPS5: bps5_layer.h
+ 
+ namespace WTF {
+ class RunLoop;
+@@ -70,7 +73,8 @@
+ 
+     uint64_t window() const;
+     uint64_t surfaceID() const;
+-    bool shouldPaintMirrored() const { return true; }
++    // BrowserPS5: the shared-memory frames are read back top row first.
++    bool shouldPaintMirrored() const { return m_swapChain.type() != SwapChain::Type::SharedMemory; }
+ 
+     void willDestroyGLContext();
+     void willRenderFrame(const WebCore::IntSize&);
+@@ -126,6 +130,46 @@
+     };
+ #endif
+ 
++    // BrowserPS5 (docs/03-video-e-gpu.md, G2): with no WPE backend, the frame
++    // is drawn into a framebuffer object and read back into the named shared
++    // memory the UIProcess shows (poc/webkit/gpu/bps5_layer.h).
++    class RenderTargetSharedMemory final : public RenderTarget {
++    public:
++        RenderTargetSharedMemory(uint64_t pageID, const WebCore::IntSize&);
++        ~RenderTargetSharedMemory();
++
++        void resize(const WebCore::IntSize&);
++        // The frame didRenderFrame() left to the GPU, read back now
++        // (AcceleratedSurface::frameDone()).
++        void publishPendingFrame();
++        // The shared memory goes back while the page is hidden.
++        void releaseLayer();
++
++    private:
++        void willRenderFrame() override;
++        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
++        void publishFrame();
++        bool openLayer();
++        void closeLayer();
++
++        WebCore::IntSize m_size;
++        bool m_pending { false };
++        unsigned m_framebuffer { 0 };
++        unsigned m_colorBuffer { 0 };
++        unsigned m_depthStencilBuffer { 0 };
++        bool m_readsBGRA { false };
++        ::bps5_layer* m_layer { nullptr };
++        uint64_t m_layerBytes { 0 };
++        uint32_t m_capacityWidth { 0 };
++        uint32_t m_capacityHeight { 0 };
++        MonotonicTime m_nextOpen;
++        unsigned m_openFailures { 0 };
++        unsigned m_back { 0 };
++        uint64_t m_frames { 0 };
++        Seconds m_readTime;
++        char m_name[48] { };
++    };
++
+     class SwapChain {
+         WTF_MAKE_NONCOPYABLE(SwapChain);
+     public:
+@@ -134,8 +178,9 @@
+         enum class Type {
+             Invalid,
+ #if USE(WPE_RENDERER)
+-            WPEBackend
++            WPEBackend,
+ #endif
++            SharedMemory // BrowserPS5
+         };
+ 
+         Type type() const { return m_type; }
+@@ -145,11 +190,13 @@
+         void releaseTarget(uint64_t, UnixFileDescriptor&& releaseFence);
+         void reset();
+         void releaseUnusedBuffers();
++        void releaseSharedMemory(); // BrowserPS5
+ 
+ #if USE(WPE_RENDERER)
+         void initialize(WebPage&);
+         uint64_t initializeTarget(const AcceleratedSurface&);
+ #endif
++        void setPageID(uint64_t pageID) { m_pageID = pageID; }
+ 
+     private:
+         // FIXME: Allow configuring the initial buffer count, e.g. for triple buffering.
+@@ -166,6 +213,7 @@
+         UnixFileDescriptor m_hostFD;
+         WebCore::IntSize m_initialSize;
+ #endif
++        uint64_t m_pageID { 0 };
+     };
+ 
+     static constexpr ColorComponents white { 1.f, 1.f, 1.f, WebCore::AlphaTraits<float>::opaque };
+@@ -180,6 +228,15 @@
+     bool m_useExplicitSync { false };
+     std::atomic<ColorComponents> m_backgroundColor { white };
+     std::unique_ptr<RunLoop::Timer> m_releaseUnusedBuffersTimer;
++    // BrowserPS5: with shared memory nothing tells the compositor a frame
++    // was shown, so this does, at most 60 times a second.
++    std::unique_ptr<RunLoop::Timer> m_frameDoneTimer;
++    MonotonicTime m_nextFrameDone;
++    // BrowserPS5: where visibilityDidChange() starts and stops
++    // m_releaseUnusedBuffersTimer; m_compositingTimersStopped is only used on
++    // that run loop (willDestroyGLContext()).
++    RefPtr<RunLoop> m_compositingRunLoop;
++    bool m_compositingTimersStopped { false };
+ };
+ 
+ } // namespace WebKit

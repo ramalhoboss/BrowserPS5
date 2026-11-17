@@ -1,0 +1,25 @@
+--- a/Options.cpp
++++ b/Options.cpp
+@@ -654,6 +654,22 @@
+     Options::usePollingTraps() = true;
+ #endif
+ 
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 (docs/04-jit.md): the VM traps poll instead of using signals,
++    // so JIT code never takes a signal the crash reporter would see first.
++    Options::usePollingTraps() = true;
++#if ENABLE(JIT)
++    // The JIT pool is made read+write+execute as a whole when it is reserved
++    // (OSAllocatorPlayStation.cpp): 128 MiB, as on ARM64, not 1 GiB. If that
++    // fails, the reservation fails and JSC runs without the JIT
++    // (VM::computeCanUseJIT). A one-page check here failed now and then with
++    // errno 0 in any of the processes, the WebProcess included, while the
++    // pool's own mprotect() never failed where it ran (J2, 2026-11-04): the
++    // check is gone.
++    Options::jitMemoryReservationSize() = 128 * 1024 * 1024;
++#endif
++#endif
++
+ #if !ENABLE(WEBASSEMBLY)
+     Options::useWasmFastMemory() = false;
+     Options::useWasmFaultSignalHandler() = false;

@@ -1,0 +1,596 @@
+0	Zurück
+1	Vorwärts
+2	Neu laden
+3	Start
+4	Suchen oder Adresse eingeben
+5	Diese Datei speichern
+6	Speichern
+7	Zoom zurücksetzen
+8	Zu Favoriten hinzufügen
+9	Downloads
+10	Tabs
+11	Erweiterungen
+12	Menü
+13	Favoriten erscheinen hier. Drücke den Stern in der Adresse, um eine Seite zu behalten.
+14	Alle Favoriten
+15	Favoriten
+16	Verlauf
+17	Einstellungen
+18	Handy
+19	Zu Favoriten hinzufügen
+20	Aus Favoriten entfernen
+21	Vollbild
+22	Vollbild verlassen
+23	Neben dem Spiel öffnen
+24	Werbung blockieren
+25	Dunkelmodus auf Websites
+26	Desktop-Version
+27	Browserdaten löschen
+28	BrowserPS5 beenden
+29	Design
+30	Zoom
+31	Größer
+32	Kleiner
+33	Mitternacht
+34	Graphit
+35	Hell
+36	Ozean
+37	Amethyst
+38	Rubin
+39	Wald
+40	Champagner
+41	Neon
+42	Jahreszeit (automatisch)
+43	Winter
+44	Frühling
+45	Sommer
+46	Herbst
+47	Weihnachten
+48	Gehe zu
+49	Seite
+50	Suchen
+51	Vergrößern
+52	Verkleinern
+53	Favorit hinzufügen
+54	Favorit entfernen
+55	Werbung hier
+56	Dunkelmodus
+57	Ein
+58	Aus
+59	Blockiert
+60	Erlaubt
+61	Nicht jetzt
+62	Mit dem Stick oder dem Steuerkreuz zeigen
+63	Loslassen zum Auswählen
+64	○ schließen
+65	Neuer Tab
+66	Geschlossenen Tab wieder öffnen
+67	Tab schließen
+68	Öffnen
+69	Aktuell
+70	Startseite
+71	R1 jederzeit
+72	Noch kein Bild
+73	Adresse
+74	Adresse oder Suche
+75	Suchen
+76	Text
+77	Zahl
+78	Telefon
+79	Passwort
+80	Los
+81	Weiter
+82	Senden
+83	Leertaste
+84	schließen
+85	zeigen
+86	verbergen
+87	↵ Zeile
+88	✥ wählen · ✕ tippen · ○ löschen
+89	△ schließen · R1 bestätigen
+90	Speichern unter
+91	Name
+92	Abbrechen
+93	Wird heruntergeladen…
+94	Ordner wählen
+95	Diesen Ordner wählen
+96	Neuer Ordner
+97	Ordner nach oben
+98	Datei wählen
+99	%s meldet
+100	Die Seite meldet
+101	Payload ausführen
+102	Diesen Payload auf der Konsole ausführen? Zum Bestätigen noch einmal drücken
+103	Dateien wählen
+104	Dieser Ordner ist leer
+105	Zum Senden an die Seite, die danach gefragt hat
+106	Die Seite nimmt: %s
+107	%s Datei gewählt
+108	%s Dateien gewählt
+109	Pakete (PKG)
+110	Medien
+111	Interner Speicher
+112	Paketordner (PKG)
+113	Medienordner
+114	Download-Ordner
+115	Heruntergeladene .pkg-Dateien landen hier.
+116	Heruntergeladene Videos, Musik und Bilder landen hier.
+117	Andere heruntergeladene Dateien landen hier.
+118	Passwort speichern?
+119	Passwort aktualisieren?
+120	Aktualisieren
+121	Nie auf dieser Website
+122	Kein Benutzername
+123	Es bleibt nur auf dieser Konsole, in der Datei des Browsers. Beim nächsten Mal zeigt die Tastatur auf dieser Website „Anmelden als …“, und der Browser trägt Name und Passwort für dich ein.
+124	Diese Website nutzt keine sichere Verbindung (https): Das Passwort wurde unverschlüsselt übertragen.
+125	von %s
+126	auf %s
+127	%s% · %s von %s
+128	Heruntergeladen · %s
+129	Willkommen bei BrowserPS5
+130	Wähle einen Stil für den Anfang. In den Einstellungen kannst du jederzeit alles ändern.
+131	Später wählen
+132	Kino
+133	Cyborg
+134	Dunkel und golden, ohne Oberflächentöne. Für Filme und Serien vom Sofa aus, mit so wenig wie möglich im Weg.
+135	Blaues und magentafarbenes Neon, mit einem Ton bei jedem Sprung und dem Cursor-Magneten. Zum gründlichen Erkunden des Webs.
+136	Guten Morgen
+137	Guten Tag
+138	Guten Abend
+139	Suchmaschine wählen
+140	Kürzlich besucht
+141	Seiten auf dem Laufwerk zwischenspeichern
+142	Bereits besuchte Websites öffnen schneller, bis zu 1 GB auf der Konsole. Gilt ab dem nächsten Start des Browsers
+143	Leistung
+144	Seiten in der Browser-App
+145	Mehr Kerne für die Seiten: Sie öffnen bis zu 40% schneller. Schalte es aus, wenn eine Seite versagt. Gilt ab dem nächsten Start des Browsers
+146	Tabs vom letzten Mal wieder öffnen
+147	Seite vom letzten Mal wieder öffnen
+148	Bearbeiten
+149	Fertig
+150	Alle löschen
+151	Löschen
+152	Noch einmal drücken, um alle zu löschen
+153	Öffne eine Seite und drücke den Stern in der Adresse, um sie hier zu behalten
+154	Adresse eingeben
+155	Schnellmenüs
+156	Tabs (Touchpad)
+157	zwischen Elementen springen
+158	Menü und Einstellungen
+159	öffnen
+160	Allgemein
+161	Aussehen
+162	Controller
+163	Website-Inhalte
+164	Datenschutz und Sicherheit
+165	System
+166	Über
+167	TorBox
+168	Änderungen werden sofort gespeichert.
+169	○ zurück zur vorigen Seite
+170	Sprache · Language
+171	Wo der Browser startet und wo er sucht.
+172	Beim Start
+173	Startseite öffnen
+174	Weitermachen, wo ich war
+175	Die Tabs, die offen waren
+176	Immer dieselbe
+177	Startseite
+178	BrowserPS5-Start
+179	Favoriten, Suche und zuletzt besuchte Websites
+180	Eine Adresse
+181	Unten wählen
+182	Unten eingeben
+183	Suchmaschine
+184	Engine
+185	https://www.example.com/
+186	Das Original. Kann eine Prüfung verlangen
+187	Speichert nicht, wonach du suchst
+188	Von Microsoft
+189	Pflanzt Bäume
+190	Google-Ergebnisse, privat
+191	Eigener Index, privat
+192	Leiste
+193	Favoriten in der Leiste zeigen
+194	Die Favoritenreihe unter der Adresse
+195	Seitenzoom
+196	Das Design ändert die Leiste, das Menü, die Tastatur und die Seiten des Browsers.
+197	Oberflächentöne
+198	Ein dezenter Ton beim Springen zwischen Elementen und beim Öffnen von Menüs
+199	Cursor-Magnet
+200	Wenn der Stick ruht, rastet der Cursor am nächsten Link oder Button ein
+201	Kinomodus
+202	Im Vollbildvideo: Der Cursor verschwindet, solange der Controller ruht, ohne Töne oder Vibration, und das Licht des Controllers wird gedimmt
+203	Wie sich der DualSense durch Seiten bewegt.
+204	Richtungstasten
+205	Zwischen Elementen springen
+206	Links, Buttons und Textfelder, hervorgehoben
+207	Seite scrollen
+208	Wie der rechte Stick
+209	Cursor-Geschwindigkeit
+210	Scroll-Geschwindigkeit
+211	Langsam
+212	Gemütlich
+213	Normal
+214	Schnell
+215	Sehr schnell
+216	Vibration
+217	Der Controller vibriert leicht beim Springen zwischen Elementen, beim Öffnen von Menüs und beim Auswählen
+218	Adaptive Trigger
+219	L2 und R2 klicken auf halbem Weg, wie Tasten, für die Radialmenüs
+220	Lichtleiste in der Designfarbe
+221	Neonlicht des Cursors
+222	PS5-Tastatur
+223	Auf der Seite suchen
+224	Lesemodus
+225	Übersetzen
+226	QR-Code
+227	Privat
+228	Auf dem Handy öffnen
+229	Richte die Handykamera auf diesen Code
+230	Mit der Systemtastatur statt der des Browsers schreiben. Die Seite pausiert, solange sie offen ist
+231	Eine Lichtkugel in der Designfarbe folgt dem Cursor, ein wenig dahinter
+232	Das Licht des Controllers leuchtet in der Akzentfarbe des Designs
+233	Controller in Webspielen
+234	Auf einer Website mit Spielen gibt ein Klick auf das Touchpad den Controller an das Spiel; ein weiterer gibt ihn dem Cursor zurück
+235	Tasten
+236	Cursor bewegen
+237	Zum nächsten Element springen
+238	Klicken
+239	Adresse eingeben
+240	Zurück · Menü schließen
+241	Tabs · im Spiel der Controller
+242	Menü (Vollbild, beenden)
+243	Entwicklerkonsole (wenn eingeschaltet)
+244	Was Seiten tun dürfen. Gilt für die nächste Seite, die geöffnet wird.
+245	JavaScript
+246	Fast jede Website braucht es
+247	Bilder
+248	Aus: Seiten öffnen schneller
+249	Pop-up-Fenster
+250	Websites dürfen von selbst Fenster öffnen
+251	Automatische Wiedergabe
+252	Videos und Ton starten, ohne dass etwas gedrückt wird
+253	Aus: Websites zeigen ihre Mobilversion
+254	Vollbild bei Videos
+255	Die Vollbildtaste der Websites funktioniert, ohne die Leiste (○ verlässt es)
+256	Dunkelt helle Websites ab und lässt Fotos und Videos, wie sie sind
+257	Entwicklerkonsole
+258	R3 (rechten Stick drücken) zeigt die Meldungen und Fehler der Seite und führt JavaScript aus
+259	Was auf der Konsole bleibt und was Websites behalten dürfen.
+260	Schutz
+261	Werbeblocker
+262	Verbirgt Werbung und lädt die Skripte, Frames und Bilder von Werbenetzwerken und Trackern nicht
+263	Verbirgt Werbung und öffnet die Frames von Werbenetzwerken nicht
+264	Cookies von Drittanbietern erlauben
+265	Aus: Nur die geöffnete Website behält Cookies
+266	Websites mit erlaubter Werbung
+267	Keine. Drücke auf einer Website R2 und wähle „Werbung hier“, um sie nur dort zu erlauben.
+268	Wieder blockieren
+269	Passwörter
+270	Speichern von Passwörtern anbieten
+271	Nach der Anmeldung auf einer Website fragt der Browser, ob er das Passwort behalten soll; auf dieser Website zeigt die Tastatur „Anmelden als …“. Sie bleiben nur auf dieser Konsole
+272	Noch keine gespeicherten Passwörter.
+273	Auf dieser Website nie speichern
+274	Daten löschen
+275	Löschen
+276	Cookies und Website-Daten
+277	Meldet dich bei den meisten Websites ab
+278	Zwischengespeicherte Bilder und Dateien
+279	Seiten öffnen beim nächsten Mal etwas langsamer
+280	Daten gelöscht
+281	Verlauf gelöscht
+282	Die Seiten, die mit dem Stern in der Adresse behalten wurden. Das ✕ an jeder löscht sie.
+283	Noch keine Favoriten. Öffne eine Seite und drücke den Stern in der Adresse.
+284	Favoriten gelöscht
+285	Die auf dieser Konsole geöffneten Seiten, die neuesten zuerst.
+286	Verlauf durchsuchen
+287	Nichts gefunden.
+288	Der Verlauf ist leer.
+289	Heute
+290	Gestern
+291	Die Dateien, die Websites dir zum Speichern geben. Jeder Typ hat seinen Ordner, und der Browser fragt immer, wohin gespeichert wird, wie Windows.
+292	Speicherort
+293	Immer fragen, wohin gespeichert wird
+294	Wie unter Windows. Aus: Jede Datei geht direkt in den Ordner ihres Typs
+295	Paketordner (.pkg)
+296	Ordner für Videos, Musik und Bilder
+297	Noch keine Downloads.
+298	%s% von %s
+299	Lädt herunter
+300	Wartet auf den Ordner
+301	Fertig
+302	Fehlgeschlagen
+303	Abgebrochen
+304	steht still
+305	noch %s
+306	Erneut versuchen
+307	Entpacken
+308	Die Downloads der Konsole
+309	Die Dateien der Konsole
+310	Sieh nach, was in den Download-Ordnern und auf USB-Laufwerken liegt, und hol es aufs Handy.
+311	Orte
+312	Gerade ist kein Ordner verfügbar.
+313	Dieser Ordner ist leer.
+314	Auf dem Handy speichern
+315	Ansehen
+316	Schließen
+317	Diesen Ordner löschen
+318	Gelöscht
+319	Der Ordner ist nicht leer
+320	Löschen nicht möglich
+321	Wird auf dem Handy gespeichert
+322	Dieser Ordner ist nicht mehr verfügbar
+323	Die Datei ließ sich nicht öffnen
+324	Ein Name, nach dem das Handy nicht fragen kann
+325	Wird entpackt · %s%
+326	Entpacken nicht möglich
+327	ZIP wird entpackt
+328	Es wird bereits ein ZIP entpackt
+329	Der Ordner für das ZIP ließ sich nicht anlegen
+330	Dieses ZIP ist beschädigt oder besteht aus mehreren Teilen
+331	Kein Platz, um dieses ZIP zu entpacken
+332	Die Dateien des ZIP ließen sich nicht schreiben
+333	Das ZIP ließ sich nicht öffnen
+334	Die Datei ist nicht mehr da
+335	Wird erneut heruntergeladen
+336	Torrents
+337	Torrents öffnen
+338	Magnet-Links und .torrent-Dateien gehen an Transmission, das bei geschlossenem Browser weiterläuft. Sie landen in /data/downloads/torrents
+339	Installiert
+340	BrowserPS5-eigene
+341	Keine Erweiterungen installiert.
+342	Öffne ein Skript und drücke „Dieses Skript installieren“.
+343	Erweiterungen auf Greasy Fork finden
+344	Erweiterung installieren?
+345	Installieren
+346	Wird installiert…
+347	Entfernen
+348	Erweiterung entfernt
+349	Gespeichert
+350	Der Blocker tut hier und bei den Adressen darin nichts
+351	Einschalten
+352	Ausschalten
+353	alle Websites
+354	Nutze das Handy als Tastatur und Controller, öffne darauf einen Link, um ihn am Fernseher zu sehen, oder sende Videos und Dateien an die Konsole. Es muss nur im selben Netzwerk sein.
+355	Handy erlauben
+356	Nur Handys im Heimnetz, und nur mit dem Code vom Fernseher
+357	Das Handy ist ausgeschaltet
+358	Schalte es unten ein, um den Code zu sehen.
+359	Die Konsole hat keine Netzwerkadresse. Verbinde sie mit dem Router und komm hierher zurück.
+360	Richte die Handykamera auf den Code, oder öffne
+361	Gib diesen Code am Handy ein:
+362	Verbindungen
+363	Kein Handy verbunden
+364	1 Handy verbunden
+365	Der Browser vergisst sie beim Schließen
+366	Alle vergessen
+367	Die Handys wurden vergessen
+368	Handy verbunden. Der Code hat zum nächsten gewechselt.
+369	Die Konsole in diesem Moment: Temperatur, Speicher, freier Platz und Netzwerk. Aktualisiert sich alle 2 Sekunden von selbst.
+370	Prozessor
+371	Hauptchip
+372	Temperatur nicht verfügbar
+373	Freier Arbeitsspeicher
+374	Eingeschaltet seit
+375	Netzwerkadresse
+376	Kein Netzwerk
+377	Konsole
+378	Firmware
+379	Unbekannt
+380	Systemspeicher
+381	Nicht verfügbar
+382	Temperaturen
+383	Prozessor %s °C
+384	Hauptchip %s °C
+385	Die Konsole gibt sie diesem Browser nicht
+386	Speicher
+387	Kein Laufwerk, das der Browser erreicht
+388	Dieser Browser
+389	Diese Sitzung
+390	Geöffnet seit
+391	Offene Tabs
+392	1 Tab
+393	Blockierte Werbung
+394	Keine seit dem Öffnen
+395	1 seit dem Öffnen
+396	Laufende Downloads
+397	Keine
+398	1 Download
+399	Darstellung und Video
+400	Compositing auf der GPU der Konsole (Mesa: zink und RADV), JavaScript mit JIT
+401	%s frei von %s
+402	%s frei
+403	PS5-Einstellungen
+404	Netzwerk
+405	WLAN, Kabel und die Internetverbindung
+406	Bildschirm und Video
+407	Auflösung, 4K, HDR und Bildwiederholrate
+408	Konsolenspeicher
+409	Der Platz auf der Konsole und ihren Laufwerken
+410	Controller
+411	Der DualSense: Vibration, Trigger und Licht
+412	Eine Benachrichtigung erscheint: Drücke darin „Öffnen“. Der Browser pausiert dahinter und kommt so zurück, wie er war.
+413	Drücke in der Benachrichtigung „Öffnen“, um zu den PS5-Einstellungen zu gehen
+414	Dein TorBox-Konto: Torrents und Datei-Links werden auf den Servern von TorBox heruntergeladen, und die fertigen Dateien kommen über die Downloads des Browsers auf die Konsole.
+415	Konto
+416	Kein Schlüssel
+417	Der API-Schlüssel steht auf torbox.app, Settings. Er bleibt nur auf dieser Konsole und erscheint nie in den Protokollen
+418	API-Schlüssel (du kannst ihn vom Handy aus einfügen)
+419	Schlüssel löschen
+420	Der Browser vergisst das Konto
+421	Torrents an TorBox senden
+422	Magnet-Links und .torrent-Dateien gehen an TorBox statt an das Transmission der Konsole
+423	Hinzufügen
+424	Ein Magnet-Link oder die Adresse einer Datei
+425	Auf TorBox
+426	torbox.app öffnen
+427	Speichere den Schlüssel deines Kontos, um zu sehen, was du dort hast.
+428	Noch nichts auf TorBox.
+429	TorBox hat nicht geantwortet.
+430	TorBox wird für YouTube nicht verwendet
+431	Zuerst den Kontoschlüssel
+432	Bereit
+433	Wird auf TorBox heruntergeladen
+434	Pausiert
+435	Torrent wird gelesen
+436	Wird geprüft
+437	In der Warteschlange
+438	Keine Quellen
+439	Fehler
+440	Wartet
+441	Kein Name
+442	Datei
+443	Auf die Konsole holen
+444	Ein echter Browser für die PS5, auf WebKit gebaut.
+445	Freie Software · GPL-3.0
+446	Symbole und Schrift
+447	Fluent UI System Icons von Microsoft (MIT-Lizenz); die Schrift ist die der Konsole
+448	BrowserPS5 · Handy
+449	auf deinem Handy
+450	Mit der PS5 verbinden
+451	Gib den 6-stelligen Code ein, der am Fernseher unter Einstellungen → Handy steht.
+452	Code
+453	Handy und Konsole müssen im selben Netzwerk sein.
+454	Verbindung wird hergestellt…
+455	Er hat 6 Ziffern.
+456	Falscher Code. Noch 1 Versuch.
+457	Zu viele Versuche. Öffne am Fernseher erneut Einstellungen → Handy, um einen neuen Code zu bekommen.
+458	Dieser Code gilt nicht mehr. Öffne am Fernseher Einstellungen → Handy, um den aktuellen zu sehen.
+459	Die Konsole kennt dieses Handy nicht mehr. Verbinde es erneut.
+460	Die Konsole ist nicht erreichbar. Ist sie an und im selben Netzwerk?
+461	Verbunden
+462	Getrennt
+463	Keine Verbindung
+464	Mit der PS5 verbunden
+465	Verbindung verloren
+466	Jetzt am Fernseher
+467	Seite des Browsers
+468	Am Fernseher öffnen
+469	Eine Adresse oder das, wonach du suchen willst. Öffnet in einem neuen Tab.
+470	Wird am Fernseher geöffnet
+471	Der Fernseher hat es nicht angenommen
+472	Am Fernseher schreiben
+473	Geht in das am Fernseher gewählte Textfeld. Gut für Passwörter und lange Texte.
+474	Hier schreiben
+475	Am Ende Enter drücken
+476	Am Fernseher geschrieben
+477	Text zu lang
+478	Hat nicht geklappt
+479	Was die Seite am Fernseher als Nächstes tut.
+480	Anfang
+481	Hoch
+482	Runter
+483	Ende
+484	Dateien an die Konsole senden
+485	Videos, Musik, Bilder oder andere Dateien. .pkg-Dateien gehen in den Paketordner; es wird nichts installiert.
+486	Dateien wählen
+487	Nach Typ
+488	Videos und Musik
+489	USB-Laufwerk
+490	Neben dem Spiel
+491	Kein Platz
+492	Kein USB-Laufwerk
+493	Ordner nicht verfügbar
+494	Dieses Handy trennen
+495	Neu
+496	Torrents werden geöffnet...
+497	Der TorBox-Schlüssel wurde gelöscht
+498	Die Konsole ist für Webseiten da
+499	Wird an TorBox übergeben...
+500	Torrent wird an Transmission übergeben...
+501	Datei wird bei TorBox angefragt...
+502	Datei wird von TorBox geholt...
+503	Vom Handy aus geöffnet
+504	Zu TorBox hinzugefügt
+505	Werbung auf dieser Website blockiert
+506	Werbung auf dieser Website erlaubt
+507	Drücke in der Benachrichtigung „Öffnen“: Die Seite öffnet in der Systemkarte, neben dem Spiel
+508	TorBox-Schlüssel gespeichert
+509	Adresse zu lang für die Systemkarte
+510	Das sieht nicht nach einem TorBox-Schlüssel aus: Kopiere ihn von torbox.app, Settings, API
+511	Diese .torrent-Datei ist nicht lesbar
+512	Diese Website nutzt den Controller: Klicke zum Spielen auf das Touchpad
+513	Der TorBox-Schlüssel fehlt: Trage ihn unter Einstellungen, TorBox ein
+514	torrentd.elf fehlt: Installiere das Torrent-Paket
+515	Datei vom Handy empfangen
+516	Zu viele Websites in der Ausnahmeliste
+517	Schalte die Konsole unter Einstellungen → Website-Inhalte ein
+518	Spielmodus: Der Controller gehört dem Spiel. Touchpad zum Verlassen
+519	Die Torrents ließen sich nicht öffnen
+520	Das Passwort ließ sich nicht speichern
+521	Die Liste ließ sich bei TorBox nicht abfragen
+522	TorBox ließ sich nicht fragen
+523	Die Datei ließ sich bei TorBox nicht anfragen
+524	Der Torrent ließ sich nicht anfragen
+525	TorBox hat nicht geantwortet (Netzwerk?)
+526	TorBox wird dafür nicht verwendet (YouTube, oder kein Link)
+527	TorBox bittet zu warten: zu viele Anfragen hintereinander
+528	TorBox hat den Schlüssel abgelehnt: Prüfe ihn unter Einstellungen, TorBox
+529	Transmission hat nicht geantwortet
+530	Transmission hat auf die Anfrage nicht geantwortet
+531	Der Payload-Lader hat Transmission nicht angenommen
+532	Der Payload-Lader hat nicht geantwortet
+533	Der Controller steuert wieder den Cursor
+534	Das System hat die Benachrichtigung nicht gezeigt
+535	Lade die Seite neu, damit die Konsole sie sieht
+536	Seltsame Antwort von Transmission
+537	Kein Speicher mehr
+538	Kein Speicher für die Anfrage an TorBox
+539	Neben dem Spiel öffnen nur Webseiten
+540	Eine Datei vom Handy kam nicht vollständig an
+541	Leichte Seiten neben dem Spiel
+542	„Neben dem Spiel öffnen“ zeigt die Seite im Browser des Systems, langsamer als dieser und in einem schmalen Feld. Ein: Websites senden ihre Handyversion, leichter und für diese Breite gemacht
+543	Pfeiltasten
+544	Für Spiele, Präsentationen, Videoplayer und Seiten, die für Fernseher gemacht sind
+545	Benachrichtigungen von Websites
+546	Noch hat keine Website gefragt. Wenn eine Website Benachrichtigungen zeigen will, fragt der Browser: Erlauben oder Blockieren.
+547	Benachrichtigungen erlaubt
+548	Benachrichtigungen blockiert
+549	Vergessen
+550	Schnelle Downloads
+551	wartet auf das Netzwerk, geht von selbst weiter
+552	Unterbrochen
+553	Pausieren
+554	Dort weitermachen, wo er stehen blieb
+555	Aus der Liste entfernen
+556	Aus der Liste entfernen? Zum Bestätigen noch einmal drücken
+557	Datei löschen? Zum Bestätigen noch einmal drücken
+558	Große Dateien (200 MB oder mehr) kommen über mehrere Verbindungen gleichzeitig, bis zu 8. Wenn der Server das nicht erlaubt oder es nicht schneller ist, kehrt der Browser von selbst zu einer zurück
+P0	Entpackt nach %s; %d ausgelassen
+P1	Entpackt nach %s
+P2	Eine Datei im ZIP ist beschädigt: %s
+P3	„%s“ löschen? Das lässt sich nicht rückgängig machen.
+P4	und %d weitere
+P5	USB-Laufwerk %d
+P6	Anmelden als %s
+P7	Mit %s suchen oder Adresse eingeben
+P8	Startseite: %s
+P9	Werbung wird auf %s wieder blockiert
+P10	Läuft auf: %s
+P11	%d Seite(n) gespeichert
+P12	%d Handys verbunden
+P13	%d Tabs
+P14	%d seit dem Öffnen
+P15	%d Downloads
+P16	Der Code wechselt in %s
+P17	Schlüssel gespeichert (endet auf %s)
+P18	Und %d weitere Dateien: auf torbox.app
+P19	%d von %d (das Maximum)
+P20	%d von %d
+P21	%d offen
+P22	Lädt herunter: %d%
+P23	Falscher Code. Noch %d Versuche.
+P24	Jetzt am Fernseher · %s
+P25	Auf der Konsole · %s
+P26	Externes Laufwerk %d
+P27	Torrent wird heruntergeladen: %s
+P28	Dieser Torrent ist schon in der Liste: %s
+P29	Passwort gespeichert: %s
+P30	Passwort aktualisiert: %s
+P31	Auf %s frage ich nicht mehr
+P32	Vom Handy angekommen: %s
+P33	Auf TorBox: %s
+P34	TorBox hat es nicht angenommen: %s
+P35	TorBox hat mit %d geantwortet
+P36	Transmission hat abgelehnt: %s

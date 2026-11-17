@@ -1,0 +1,30 @@
+/* Copyright (C) 2026 BrowserPS5 contributors
+
+   This file is free software; you can redistribute it and/or modify it
+   under the terms of the GNU General Public License as published by the
+   Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   Symbols libWebKit exports. Without this it exports everything it links
+   (about 217,000 symbols: WebCore, JSC, OpenSSL, ICU...), and the SDK's
+   rtld (crt/rtld_so.c) looks each symbol up with a linear strcmp over the
+   whole table: loading libWebKit took longer than 90 s and the app never
+   reached main(). Hidden symbols are bound when libWebKit is linked, so
+   their relocations need no lookup at all.
+
+   Exported: the C API apps use (WK*, JS*), the entry points of the child
+   processes and the process-launcher API they share with libWebKit. */
+{
+  global:
+    WK*;
+    JS*;
+    kJS*;
+    extern "C++" {
+      "WebKit::WebProcessMain(int, char**)";
+      "WebKit::NetworkProcessMain(int, char**)";
+      PlayStation::*;
+    };
+    __syscall;
+  local:
+    *;
+};

@@ -1,0 +1,49 @@
+
+/* ---- BrowserPS5 RN (2026-11-10): the PS5 home screen's look ----
+   Added after theme.css by ../browser-rn/build-rn.sh. The default theme
+   ("meia-noite", or none set) becomes the PS5 one: the home screen's deep
+   blues with a light from the top right, white type, and the focus the
+   system's own cards have (a white rim with a soft blue glow), white as the
+   accent. The other themes stay as they are. */
+html:not([data-theme]), html[data-theme="meia-noite"] {
+  --bg: #04102a; --bg-2: #061638;
+  --surface: #0a1d47; --surface-2: #0f2659; --surface-3: #16306b; --surface-4: #1e3b7e;
+  --line: rgba(190, 215, 255, .10); --line-2: rgba(190, 215, 255, .20);
+  --text: #ffffff; --text-2: #c9d6f2; --text-3: #8fa3cc;
+  --accent: #ffffff; --accent-2: #4e8cff; --on-accent: #04102a;
+  --accent-soft: rgba(255, 255, 255, .13);
+  --good: #3ddc97; --warn: #ffc35a; --bad: #ff5d6c;
+  --glow: 0 0 0 3px #ffffff, 0 0 30px rgba(120, 175, 255, .6);
+  --shadow: 0 22px 56px rgba(0, 4, 20, .6), 0 3px 10px rgba(0, 4, 20, .4);
+  --bar-bg: linear-gradient(180deg, rgba(10, 30, 74, .97) 0%, rgba(5, 18, 46, .97) 100%);
+  --hero: radial-gradient(1400px 760px at 88% -12%, rgba(46, 118, 255, .42), transparent 62%),
+          radial-gradient(1100px 620px at -5% 112%, rgba(0, 70, 180, .38), transparent 60%),
+          linear-gradient(180deg, #0b2560 0%, #04102a 56%, #010614 100%);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, .09) 0%, rgba(255, 255, 255, .02) 40%, rgba(255, 255, 255, 0) 70%);
+  color-scheme: dark;
+}
+
+/* 2026-11-11: the settings that are RN's only (settings.html, data-rn). */
+/* 01:31: the system keyboard's first test took the console down: its switch stays hidden.
+body .item[data-rn] { display: flex; } */
+/* 2026-11-14: that rule hid every one of RN's own switches with it ("Páginas leves ao lado do jogo",
+   "Transferências rápidas" were never seen). Only the system keyboard's stays hidden. */
+body .item[data-rn] { display: flex; }  /* (2026-11-14: the system keyboard's too: it works now) */
+
+/* 2026-11-11: the menu's second row of tiles (menu.html, data-rn), with the
+   room for it taken from the rows. */
+body .tile[data-rn] { display: flex; }
+body .row[data-rn] { display: flex; }  /* (2026-11-15: the menu's "Comando como teclado") */
+body #quick .tile { height: 78px; gap: 5px; font-size: 16px; }
+body #quick .tile .ic { width: 28px; height: 28px; }
+body #menu .row { height: 50px; }
+/* 2026-11-16: with "Comando como teclado" and "Guardar no jogo" the menu was 1060 high in its 966: rows, tiles, gaps and lines a little closer, 944 high, all of it in view. */
+body #menu { padding-top: 12px; gap: 3px; }
+/* (and if it ever grows past its window again: it scrolls, with the right stick over it (main.cpp wheel()) or as
+   the D-pad's focus goes down, without a bar; its rows keep their height) */
+body #menu { height: 100%; overflow-y: auto; scrollbar-width: none; }
+body #menu::-webkit-scrollbar { display: none; }
+body #menu > * { flex-shrink: 0; }
+body #menu .sep { margin: 3px 10px; }
+body #themes { padding-bottom: 4px; }
+

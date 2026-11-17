@@ -1,0 +1,117 @@
+--- a/Source/WebCore/platform/network/curl/CurlContext.cpp
++++ b/Source/WebCore/platform/network/curl/CurlContext.cpp
+@@ -27,6 +27,11 @@
+ #include "config.h"
+ #include "CurlContext.h"
+ 
++#if defined(__PROSPERO__)
++#include <stdlib.h> // BrowserPS5: getenv, atoi
++#include <sys/socket.h> // BrowserPS5: the sockets' buffers (browserps5SocketMade)
++#endif
++
+ #if USE(CURL)
+ #include "CertificateInfo.h"
+ #include "CurlRequestScheduler.h"
+@@ -291,12 +296,102 @@
+ 
+ // CurlHandle -------------------------------------------------
+ 
++// BrowserPS5 (2026-11-11, poc/webkit/security; the idea is Parallax Browser's
++// patch 0107): connections to this console. A jailbroken PS5 has services
++// that take commands from whoever connects to it: FTP on 2121, the ELF loader
++// on 9021, websrv on 8080. Any page could reach them: a fetch() or a form
++// sent to http://127.0.0.1:2121/ is read by the FTP server as commands, with
++// no login. With BROWSERPS5_NO_LOCAL=1 (RN's engines: engine-env.txt) a
++// connection whose other end is this console (a loopback address, or the
++// console's own: the two ends have the same address) is given up once it is
++// made and before a byte goes out, on the address really connected (a name
++// that resolves to 127.0.0.1 is refused too), unless its request may
++// (CurlRequest.cpp: the user's own navigation, the service's own page, the
++// browser's own pages). WebSockets never may (CurlStream.cpp).
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++static bool browserps5BlocksLocal()
++{
++    static int blocks = -1;
++    if (blocks < 0) {
++        const char* value = getenv("BROWSERPS5_NO_LOCAL");
++        blocks = value && value[0] == '1';
++    }
++    return blocks;
++}
++
++static bool browserps5IsThisConsole(const char* peer, const char* local)
++{
++    if (!peer || !peer[0])
++        return false;
++    if (!strncmp(peer, "127.", 4) || !strcmp(peer, "::1") || !strcmp(peer, "0.0.0.0") || !strcmp(peer, "::") || !strncmp(peer, "::ffff:127.", 11))
++        return true;
++    return local && local[0] && !strcmp(peer, local);
++}
++
++static int browserps5BeforeRequest(void* clientp, char* peer, char* local, int peerPort, int)
++{
++    auto* handle = static_cast<CurlHandle*>(clientp);
++    if (!handle || handle->connectionsToThisConsoleAllowed() || !browserps5IsThisConsole(peer, local))
++        return CURL_PREREQFUNC_OK;
++    fprintf(stderr, "[WebKit] a page's connection to this console was refused (%s port %d; BROWSERPS5_NO_LOCAL)\n", peer, peerPort);
++    return CURL_PREREQFUNC_ABORT;
++}
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
++
++bool CurlHandle::isConnectedToThisConsole()
++{
++    if (!browserps5BlocksLocal())
++        return false;
++    char* peer = nullptr;
++    char* local = nullptr;
++    curl_easy_getinfo(m_handle, CURLINFO_PRIMARY_IP, &peer);
++    curl_easy_getinfo(m_handle, CURLINFO_LOCAL_IP, &local);
++    return browserps5IsThisConsole(peer, local);
++}
++
++#if defined(__PROSPERO__)
++// BrowserPS5 (2026-11-11, poc/net_window): the console gives a TCP socket a
++// receive buffer of 64 KiB, and the buffer is all the window can open to: a
++// download came at 2.4 MB/s from a server 54 ms away, and at 9.2 MB/s from the
++// same server with 512 KiB asked for before the connect (the most the system
++// gives; the window's scale is agreed in the first packet). The engine took
++// ~3 MB/s from a server the PC takes 19 from, with one connection or four
++// (they share one over HTTP/2). So: every connection's socket asks for
++// 512 KiB to receive and 256 KiB to send, as it is made.
++// BROWSERPS5_RCVBUF_KB says another size (0: the system's own, as before).
++static int browserps5SocketMade(void*, curl_socket_t socket, curlsocktype purpose)
++{
++    static int receive = -1;
++    if (purpose != CURLSOCKTYPE_IPCXN)
++        return CURL_SOCKOPT_OK;
++    if (receive < 0) {
++        const char* said = getenv("BROWSERPS5_RCVBUF_KB");
++        receive = said ? atoi(said) * 1024 : 512 * 1024;
++        if (receive < 0)
++            receive = 0;
++    }
++    if (receive) {
++        int send = receive / 2;
++        setsockopt(socket, SOL_SOCKET, SO_RCVBUF, &receive, sizeof(receive));
++        setsockopt(socket, SOL_SOCKET, SO_SNDBUF, &send, sizeof(send));
++    }
++    return CURL_SOCKOPT_OK;
++}
++#endif
++
+ CurlHandle::CurlHandle()
+ {
+     m_handle = curl_easy_init();
++#if defined(__PROSPERO__)
++    curl_easy_setopt(m_handle, CURLOPT_SOCKOPTFUNCTION, browserps5SocketMade); // BrowserPS5: above
++#endif
+     curl_easy_setopt(m_handle, CURLOPT_ERRORBUFFER, m_errorBuffer);
+     curl_easy_setopt(m_handle, CURLOPT_NOSIGNAL, 1L);
+     curl_easy_setopt(m_handle, CURLOPT_COOKIEFILE, nullptr);
++    if (browserps5BlocksLocal()) { // BrowserPS5: above
++        curl_easy_setopt(m_handle, CURLOPT_PREREQFUNCTION, browserps5BeforeRequest);
++        curl_easy_setopt(m_handle, CURLOPT_PREREQDATA, this);
++    }
+ 
+     enableShareHandle();
+     enableAcceptEncoding();

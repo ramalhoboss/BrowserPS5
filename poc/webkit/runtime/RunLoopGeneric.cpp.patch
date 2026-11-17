@@ -1,0 +1,16 @@
+--- a/Source/WTF/wtf/generic/RunLoopGeneric.cpp
++++ b/Source/WTF/wtf/generic/RunLoopGeneric.cpp
+@@ -292,6 +292,13 @@
+ {
+     if (task.isScheduled()) {
+         m_schedules.remove(&task);
++        {
++            // BrowserPS5: RedBlackTree::remove() leaves the links to the
++            // children; insert() into an empty tree clears them.
++            RedBlackTree<TimerBase::ScheduledTask, MonotonicTime> detached;
++            detached.insert(&task);
++            detached.remove(&task);
++        }
+         task.setScheduled(false);
+     }
+ }

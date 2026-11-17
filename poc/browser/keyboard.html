@@ -1,0 +1,460 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's own keyboard, a page of its own drawn by WebKit over the bottom
+KEYS_HEIGHT pixels of the screen (main.cpp). The system keyboard cannot open
+while the title draws with the GPU: it took the console down (2026-11-04
+18:19, docs/03-video-e-gpu.md).
+
+The app opens it with kb.open({kind, enter, text, logins}) and hides it again when
+it sends browserps5:done?<text> or browserps5:cancel (navigations the app
+never lets happen, as the bar's). What is typed stays here until then: the
+app puts it into the field in one go, as it did with the system keyboard's.
+
+The controller (main.cpp, keys_input()): the D-pad moves the highlight
+(kb.move) and cross or square press that key (kb.pressHighlighted); with
+the cursor on the keyboard and no D-pad since the stick moved, cross clicks
+the key under it; circle deletes (kb.backspace); triangle closes
+(kb.cancel); R1 is the Enter key (kb.done).
+
+logins: the user names saved for the page's origin (main.cpp,
+logins_for_keys(); docs/12-contas.md), as "Entrar como ..." keys in the top
+row, the first one highlighted: pressed, browserps5:login?<index>, and the
+app fills the page's fields itself (no password ever comes here). -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+:root { --height: 440px; }
+html, body {
+  height: var(--height); overflow: hidden; background: transparent;
+  font-size: 30px; -webkit-user-select: none; user-select: none;
+}
+#board {
+  height: var(--height); padding: 16px 30px 18px;
+  display: flex; flex-direction: column; gap: 9px;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+  border-top: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+#top { flex: none; height: 74px; display: flex; align-items: center; gap: 18px; }
+#label {
+  flex: none; width: 250px; color: var(--text-3); font-size: 20px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.4px;
+}
+#preview {
+  flex: 1; height: 66px; padding: 0 28px;
+  border-radius: 33px; background: var(--bg); overflow: hidden;
+  display: flex; align-items: center; border: 1px solid var(--accent);
+  box-shadow: var(--glow);
+}
+#line { white-space: pre; position: relative; color: var(--text); }
+#caret {
+  display: inline-block; width: 3px; height: 40px; margin: 0 -1px;
+  vertical-align: middle; background: var(--accent); border-radius: 2px;
+}
+/* The caret blinks from a timer (blink()), not a CSS animation: see there. */
+#caret.off { visibility: hidden; }
+#placeholder { color: var(--text-3); }
+#show { flex: none; }
+#legend { flex: none; color: var(--text-3); font-size: 20px; line-height: 29px; text-align: right; }
+#top .row.logins { flex: 0 1 auto; height: 62px; max-width: 1100px; min-width: 0; }
+.key.login {
+  flex: 0 1 auto; min-width: 0; padding: 0 28px; font-size: 24px; font-weight: 600;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+  overflow: hidden; text-overflow: ellipsis;
+}
+body.logins #legend { display: none; }
+.row { flex: 1; display: flex; gap: 9px; }
+.key {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; color: var(--text);
+  background: linear-gradient(180deg, var(--surface-4) 0%, var(--surface-3) 100%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .05);
+  font: inherit; white-space: nowrap; overflow: hidden;
+}
+.key.fn { background: var(--surface-2); color: var(--text-2); font-size: 25px; }
+.key.on { color: var(--accent); }
+.key.hl { box-shadow: 0 0 0 3px var(--accent), 0 0 22px var(--accent-soft); color: var(--text); }
+.key.down { background: var(--accent); color: var(--on-accent); }
+.key.enter { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); font-weight: 700; }
+.key.enter.hl { box-shadow: 0 0 0 3px var(--text), 0 0 22px var(--accent-soft); }
+</style></head><body>
+<div id="board">
+  <div id="top">
+    <div id="label"></div>
+    <div id="preview" translate="no"><span id="line"></span></div>
+    <div id="legend">✥ escolher · ✕ escrever · ○ apagar<br>△ fechar · R1 confirmar</div>
+  </div>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+
+// Each layer: rows of keys. A string is a key that types itself (shift
+// makes it upper case); an object is a key that does something else, w its
+// width in plain keys.
+const BKSP = {k: 'bksp', t: '⌫', w: 1.6};
+const layers = {
+  abc: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', "'"],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ç', '~'],
+    [{k: 'shift', t: '⇧', w: 1.6}, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '-'],
+  ],
+  acc: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['á', 'à', 'â', 'ã', 'é', 'è', 'ê', 'í', 'ì', 'î', 'ï'],
+    ['ó', 'ò', 'ô', 'õ', 'ö', 'ú', 'ù', 'û', 'ü', 'ç', 'ñ'],
+    [{k: 'shift', t: '⇧', w: 1.6}, 'ä', 'ë', 'ÿ', '«', '»', 'ª', 'º', '€', '£', '°'],
+  ],
+  sym: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['!', '@', '#', '$', '%', '&', '*', '(', ')', '=', '+'],
+    ['-', '_', '/', '\\', ':', ';', '"', "'", '?', '¿', '¡'],
+    ['[', ']', '{', '}', '<', '>', '|', '^', '`', '§', ','],
+  ],
+};
+
+// The bottom row's own keys for each kind of field.
+const extras = {
+  bar: ['/', '.com', '.pt', 'www.'],
+  url: ['/', '.com', '.pt', 'www.'],
+  email: ['@', '.com', '.pt', '_'],
+  search: ['@', '?', '!'],
+  text: ['@', '?', '!'],
+  password: ['@', '_', '!', '#'],
+  tel: ['+', '*', '#'],
+  number: ['.', ',', '-'],
+  textarea: ['@', '?', {k: 'newline', t: '↵ linha'}],
+  edit: ['@', '?', {k: 'newline', t: '↵ linha'}],
+};
+
+const labels = {
+  bar: 'Endereço ou pesquisa', url: 'Endereço', email: 'E-mail',
+  search: 'Pesquisa', text: 'Texto', password: 'Palavra-passe',
+  tel: 'Telefone', number: 'Número', textarea: 'Texto', edit: 'Texto',
+};
+
+const enterLabels = {
+  go: 'Ir', search: 'Pesquisar', send: 'Enviar', next: 'Seguinte',
+  done: 'OK', enter: 'OK', previous: 'OK', '': 'OK',
+};
+
+const s = {
+  open: false, kind: 'text', enter: '', chars: [], caret: 0,
+  layer: 'abc', shift: 0,   // 0 off, 1 the next letter, 2 locked
+  reveal: false,            // a password shown as it is
+  hl: null,                 // the highlighted key (an element)
+  logins: [],               // "Entrar como ...": user names (kb.open)
+};
+
+const board = document.getElementById('board');
+const line = document.getElementById('line');
+const preview = document.getElementById('preview');
+const label = document.getElementById('label');
+
+function send(command, argument) {
+  location.href = 'browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument));
+}
+
+function keyText(key) {
+  if (typeof key !== 'string')
+    return key.t;
+  return s.shift && s.layer !== 'sym' ? key.toUpperCase() : key;
+}
+
+// The rows of the layer in use, and the bottom one.
+function rows() {
+  const r = layers[s.layer].slice();
+  const bottom = [
+    s.layer === 'sym' ? {k: 'abc', t: 'abc', w: 1.4} : {k: 'sym', t: '?123', w: 1.4},
+    s.layer === 'acc' ? {k: 'abc', t: 'abc', w: 1.4} : {k: 'acc', t: 'áé', w: 1.4},
+  ];
+  for (const e of extras[s.kind] || extras.text)
+    bottom.push(typeof e === 'string' ? e : Object.assign({w: 1.6}, e));
+  if (s.kind === 'password')
+    bottom.push({k: 'reveal', t: s.reveal ? 'ocultar' : 'mostrar', w: 1.6});
+  bottom.push({k: 'space', t: 'espaço', w: 3.5},
+              {k: 'left', t: '←'}, {k: 'right', t: '→'},
+              {k: 'close', t: 'fechar', w: 1.6},
+              {k: 'enter', t: enterLabels[s.enter] || 'OK', w: 2.2});
+  r.push(bottom);
+  return r;
+}
+
+// Draws the keys again (a layer, shift or the kind changed), keeping the
+// highlight at the same place.
+function makeKey(key, r, c) {
+  const e = document.createElement('div');
+  e.className = 'key';
+  e.dataset.row = r;
+  e.dataset.col = c;
+  e.textContent = keyText(key);
+  if (typeof key !== 'string' && key.k === 'login') {
+    e.classList.add('login');
+  } else if (typeof key !== 'string') {
+    e.classList.add(key.k === 'enter' ? 'enter' : 'fn');
+    e.style.flexGrow = key.w || 1;
+    if ((key.k === 'shift' && s.shift) ||
+        (key.k === s.layer))
+      e.classList.add('on');
+  } else if (key.length > 1) {
+    e.classList.add('fn');
+    e.style.flexGrow = 1.4;
+  }
+  e.key = key;
+  e.addEventListener('mousedown', down);
+  e.addEventListener('mouseup', up);
+  e.addEventListener('mouseleave', up);
+  e.addEventListener('mouseenter', () => highlight(e));
+  return e;
+}
+
+function build() {
+  // The logins' row (in the top one) is row 0 when there is one.
+  const offset = s.logins.length ? 1 : 0;
+  const at = s.hl ? [+s.hl.dataset.row, +s.hl.dataset.col] : [offset ? 0 : 1, 0];
+  for (const old of board.querySelectorAll('.row'))
+    old.remove();
+  document.body.classList.toggle('logins', !!offset);
+  if (offset) {
+    const row = document.createElement('div');
+    row.className = 'row logins';
+    s.logins.forEach((name, i) => row.appendChild(makeKey({k: 'login', i, t: 'Entrar como ' + name}, 0, i)));
+    document.getElementById('top').appendChild(row);
+  }
+  rows().forEach((keys, r) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    keys.forEach((key, c) => row.appendChild(makeKey(key, r + offset, c)));
+    board.appendChild(row);
+  });
+  const all = board.querySelectorAll('.row');
+  const row = all[Math.min(at[0], all.length - 1)];
+  highlight(row.children[Math.min(at[1], row.children.length - 1)]);
+}
+
+function highlight(e) {
+  if (s.hl)
+    s.hl.classList.remove('hl');
+  s.hl = e;
+  if (e)
+    e.classList.add('hl');
+}
+
+// What is typed, with the caret, scrolled so that the caret shows.
+function render() {
+  document.body.classList.toggle('closed', !s.open);
+  label.textContent = labels[s.kind] || labels.text;
+  line.textContent = '';
+  // One line: a new line shows as ↵.
+  const shown = s.kind === 'password' && !s.reveal
+    ? s.chars.map(() => '•') : s.chars.map(c => c === '\n' ? '↵' : c);
+  if (!s.chars.length) {
+    const p = document.createElement('span');
+    p.id = 'placeholder';
+    p.textContent = s.kind === 'bar' ? T('Pesquisar ou escrever um endereço') : '';
+    line.append(caretElement(), p);
+  } else {
+    line.append(document.createTextNode(shown.slice(0, s.caret).join('')),
+                caretElement(),
+                document.createTextNode(shown.slice(s.caret).join('')));
+  }
+  const caret = document.getElementById('caret');
+  const room = preview.clientWidth - 48;
+  const x = caret.offsetLeft;
+  const shift = Math.max(0, x - room + 40);
+  line.style.left = -shift + 'px';
+  blink();
+}
+
+// The caret blinks from a timer, two changes a second, and only while the
+// keyboard is open. A CSS animation runs on WebKit's compositor: the page
+// made a frame every 16 ms while the keyboard was open (each one read back
+// from the GPU), and closing the page during one crashed the WebProcess
+// (2026-11-05 00:53, docs/06). Each render() shows the caret again.
+let blinkTimer = 0;
+function blink() {
+  clearInterval(blinkTimer);
+  blinkTimer = 0;
+  if (s.open) {
+    blinkTimer = setInterval(() => {
+      const caret = document.getElementById('caret');
+      if (caret) {
+        caret.classList.toggle('off');
+      }
+    }, 530);
+  }
+}
+
+function caretElement() {
+  const c = document.createElement('span');
+  c.id = 'caret';
+  return c;
+}
+
+function insert(text) {
+  const add = Array.from(text);
+  s.chars.splice(s.caret, 0, ...add);
+  s.caret += add.length;
+  if (s.shift === 1) {
+    s.shift = 0;
+    build();
+  }
+  render();
+}
+
+function backspace() {
+  if (s.caret > 0) {
+    s.chars.splice(s.caret - 1, 1);
+    s.caret--;
+    render();
+  }
+}
+
+// A key pressed: with the cursor (down) or square (the highlighted one).
+function press(key) {
+  if (typeof key === 'string') {
+    insert(keyText(key));
+    return;
+  }
+  switch (key.k) {
+  case 'bksp': backspace(); break;
+  case 'space': insert(' '); break;
+  case 'newline': insert('\n'); break;
+  case 'left': s.caret = Math.max(0, s.caret - 1); render(); break;
+  case 'right': s.caret = Math.min(s.chars.length, s.caret + 1); render(); break;
+  case 'shift': s.shift = (s.shift + 1) % 3; build(); break;
+  case 'sym': case 'acc': case 'abc':
+    s.layer = key.k; s.shift = 0; build(); break;
+  case 'reveal': s.reveal = !s.reveal; build(); render(); break;
+  case 'close': kb.cancel(); break;
+  case 'enter': kb.done(); break;
+  case 'login': {
+    const i = key.i;
+    reset();
+    send('login', String(i));
+    break;
+  }
+  default: insert(key.t);
+  }
+}
+
+// Held down, ⌫ and the arrows repeat.
+let repeat = 0;
+function down(event) {
+  event.preventDefault();
+  const e = event.currentTarget;
+  highlight(e);
+  e.classList.add('down');
+  press(e.key);
+  const k = e.key.k;
+  if (k === 'bksp' || k === 'left' || k === 'right') {
+    clearTimeout(repeat);
+    const again = () => { press(e.key); repeat = setTimeout(again, 70); };
+    repeat = setTimeout(again, 450);
+  }
+}
+
+function up(event) {
+  event.currentTarget.classList.remove('down');
+  clearTimeout(repeat);
+}
+
+// The key in the next row (dy) or the next one in this row (dx) from the
+// highlighted one. Up and down go to the key whose middle is nearest.
+function move(dx, dy) {
+  const all = Array.from(board.querySelectorAll('.row'));
+  if (!s.hl) {
+    highlight(all[0].children[0]);
+    return;
+  }
+  let r = +s.hl.dataset.row;
+  let c = +s.hl.dataset.col;
+  if (dx) {
+    const n = all[r].children.length;
+    c = (c + (dx > 0 ? 1 : -1) + n) % n;
+    highlight(all[r].children[c]);
+    return;
+  }
+  if (dy) {
+    const middle = s.hl.offsetLeft + s.hl.offsetWidth / 2;
+    r = (r + (dy > 0 ? 1 : -1) + all.length) % all.length;
+    let best = null;
+    let bestDistance = 1e9;
+    for (const e of all[r].children) {
+      const d = Math.abs(e.offsetLeft + e.offsetWidth / 2 - middle);
+      if (d < bestDistance) {
+        best = e;
+        bestDistance = d;
+      }
+    }
+    highlight(best);
+  }
+}
+
+function flash(e) {
+  if (!e)
+    return;
+  e.classList.add('down');
+  setTimeout(() => e.classList.remove('down'), 120);
+}
+
+function reset() {
+  s.open = false;
+  s.logins = [];
+  s.chars = [];
+  s.caret = 0;
+  s.reveal = false;
+  render();
+}
+
+// What the app calls.
+window.kb = {
+  // kind: bar, text, search, url, email, tel, password, number, textarea or
+  // edit; enter: the field's enterkeyhint (go, search, send, next, done or
+  // ''); text: what the field has.
+  open(o) {
+    s.open = true;
+    s.kind = labels[o.kind] ? o.kind : 'text';
+    s.enter = o.kind === 'bar' ? 'go' : (o.enter || '');
+    s.chars = Array.from(o.text || '');
+    s.caret = s.chars.length;
+    s.layer = s.kind === 'number' || s.kind === 'tel' ? 'sym' : 'abc';
+    s.shift = 0;
+    s.reveal = false;
+    s.hl = null;
+    s.logins = Array.isArray(o.logins) ? o.logins.slice(0, 3).map(String) : [];
+    build();
+    render();
+  },
+  move,
+  pressHighlighted() {
+    if (s.hl) {
+      flash(s.hl);
+      press(s.hl.key);
+    }
+  },
+  backspace,
+  // BrowserPS5 RN (main.cpp keys_input()): triangle and L2, as the PS5's own keyboard.
+  space() { insert(' '); },
+  shift() { press({k: 'shift'}); },
+  done() {
+    const text = s.chars.join('');
+    reset();
+    send('done', text);
+  },
+  cancel() {
+    reset();
+    send('cancel');
+  },
+};
+
+// From the app: the theme (theme.css).
+window.setTheme = (name) => { document.documentElement.dataset.theme = name; };
+
+build();
+render();
+</script></body></html>

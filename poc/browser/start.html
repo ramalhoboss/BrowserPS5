@@ -1,0 +1,549 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The start page (⌂ in the bar, "Todos os favoritos", the menu's Início): a
+search, the favorites and the sites opened most lately. The app writes it to
+DATA_DIR/start.html with its data in place of the mark in the script below
+(a JSON string, escaped for it) each time it opens it (main.cpp,
+start_open()), and opens it as a file, so that back and forward find it
+again. Each tile is a link; its ✕ asks the app to take it out of the
+favorites with a navigation to browserps5:remove?<url>, and the search goes
+as browserps5:go?<text>: the app takes those only from its own pages.
+"Editar" (2026-11-05, asked at the TV: a way to delete the favorites that
+the controller finds) turns each tile into its own delete button and shows
+"Apagar todos" (pressed twice: browserps5:clear?favorites). The removes go
+one at a time, 300 ms apart: a second location.href before the app took
+the first would cancel it. The engine button at the right of the search
+(2026-11-05) lists the engines (settings.c's); the one picked goes as
+browserps5:set?search=<id>, kept as chosen (main.cpp setting_command()). -->
+
+<html data-theme="meia-noite"><head><meta charset="utf-8"><title>Início</title><style>
+<!--#include theme.css-->
+body { overflow-y: auto; background: var(--hero), var(--bg); background-attachment: fixed; min-height: 100vh; }
+main { max-width: 1640px; margin: 0 auto; padding: 70px 80px 110px; }
+#hello { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 34px; }
+#greet { font-size: 58px; font-weight: 700; letter-spacing: -1px; }
+#date { color: var(--text-2); font-size: 26px; margin-top: 4px; }
+#clock { font-size: 92px; font-weight: 300; letter-spacing: -2px; color: var(--text); line-height: 1; }
+#search { position: relative; height: 96px; margin-bottom: 64px; }
+#search input {
+  width: 100%; height: 100%; border-radius: 48px; border: 1px solid var(--line-2);
+  background: var(--surface); color: var(--text); font-size: 32px; padding: 0 330px 0 98px;
+  outline: none; box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s;
+}
+#search input:hover { border-color: var(--accent); }
+#search input:focus { border-color: var(--accent); box-shadow: var(--glow), var(--shadow); }
+#search input::placeholder { color: var(--text-3); }
+#search > .ic { position: absolute; left: 36px; top: 30px; width: 36px; height: 36px; color: var(--accent); pointer-events: none; }
+/* The engine (2026-11-05, asked at the TV: Google by default, any other one
+   picked here or in the settings): its button in the box, the list under it. */
+#engine {
+  position: absolute; right: 14px; top: 14px; height: 68px; max-width: 300px; padding: 0 20px 0 26px;
+  border-radius: 34px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text-2);
+  display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 23px; line-height: 1; font-family: inherit; outline: none;
+}
+#engine span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#engine .ic { width: 24px; height: 24px; transform: rotate(90deg); transition: transform .15s; }
+#engine:hover, #engine:focus { border-color: var(--accent); color: var(--text); }
+#engine[aria-expanded="true"] { border-color: var(--accent); color: var(--text); }
+#engine[aria-expanded="true"] .ic { transform: rotate(-90deg); }
+#engines { display: flex; flex-wrap: wrap; gap: 14px; margin: -40px 0 56px; }
+#engines[hidden] { display: none; }
+.engine {
+  height: 64px; padding: 0 28px; border-radius: 32px; background: var(--surface);
+  border: 1px solid var(--line); color: var(--text-2); font-weight: 600; font-size: 22px; line-height: 1; font-family: inherit; outline: none;
+  display: flex; align-items: center; gap: 10px;
+}
+.engine .ic { width: 24px; height: 24px; color: var(--accent); display: none; }
+.engine.on .ic { display: block; }
+.engine:hover, .engine:focus { border-color: var(--accent); color: var(--text); background: var(--surface-2); }
+.engine.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+h2 { display: flex; align-items: center; gap: 14px; font-size: 22px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 1.6px; margin: 0 0 22px 4px; }
+h2 .ic { width: 26px; height: 26px; }
+#grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px; margin-bottom: 60px; }
+.tile {
+  position: relative; height: 212px; padding: 30px 26px 24px; border-radius: 26px;
+  background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none;
+  display: flex; flex-direction: column; gap: 6px; outline: none; overflow: hidden;
+  transition: transform .16s, border-color .16s, background .16s, box-shadow .16s;
+}
+.tile::before {
+  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .16s;
+  background: linear-gradient(160deg, var(--accent-soft), transparent 60%);
+}
+.tile:hover, .tile:focus { transform: translateY(-4px); border-color: var(--accent); box-shadow: var(--shadow); }
+.tile:hover::before, .tile:focus::before { opacity: 1; }
+.tile .avatar { width: 76px; height: 76px; border-radius: 22px; font-size: 36px; margin-bottom: auto; position: relative; box-shadow: 0 8px 22px rgba(0, 0, 0, .3); }
+.name { font-size: 25px; font-weight: 600; position: relative; }
+.host { color: var(--text-3); font-size: 20px; position: relative; }
+.name, .host { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.remove {
+  position: absolute; top: 14px; right: 14px; width: 50px; height: 50px; border-radius: 25px;
+  display: grid; place-items: center; color: var(--text-3); opacity: .7;
+}
+.remove .ic { width: 24px; height: 24px; }
+.remove:hover { background: rgba(255, 93, 108, .16); color: var(--bad); opacity: 1; }
+h2 .grow { flex: 1; }
+.h2btn {
+  height: 56px; padding: 0 24px; border-radius: 28px; display: inline-flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line-2); color: var(--text-2);
+  font-weight: 600; font-size: 21px; line-height: 1; font-family: inherit; text-transform: none; letter-spacing: 0; outline: none;
+}
+.h2btn[hidden] { display: none; }  /* inline-flex above would show it */
+.h2btn .ic { width: 24px; height: 24px; }
+.h2btn:hover, .h2btn:focus { border-color: var(--accent); color: var(--text); }
+.h2btn.danger:hover, .h2btn.danger:focus, .h2btn.danger.sure { border-color: var(--bad); color: var(--bad); background: rgba(255, 93, 108, .12); }
+#clear-all { display: none; }
+body.editing #clear-all { display: inline-flex; }
+body.editing #edit { border-color: var(--accent); color: var(--text); }
+/* Editing: the whole tile deletes, and says so. */
+body.editing .tile:not(.add) { border: 2px dashed rgba(255, 93, 108, .6); }
+body.editing .tile:not(.add):hover, body.editing .tile:not(.add):focus { border-color: var(--bad); background: rgba(255, 93, 108, .12); }
+body.editing .remove { opacity: 1; width: 64px; height: 64px; border-radius: 32px; background: var(--bad); color: #fff; }
+body.editing .remove .ic { width: 30px; height: 30px; }
+body.editing .add { display: none; }
+.add { border-style: dashed; border-color: var(--line-2); background: transparent; align-items: center; justify-content: center; color: var(--text-3); text-align: center; }
+.add .ic { width: 52px; height: 52px; color: var(--text-3); margin-bottom: 12px; }
+#recent { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 60px; }
+.chip {
+  height: 64px; padding: 0 26px 0 10px; border-radius: 32px; background: var(--surface);
+  border: 1px solid var(--line); display: flex; align-items: center; gap: 14px; color: var(--text-2);
+  text-decoration: none; font-size: 22px; max-width: 420px; transition: border-color .12s, color .12s, background .12s;
+}
+.chip:hover, .chip:focus { border-color: var(--accent); color: var(--text); background: var(--surface-2); outline: none; }
+.chip .avatar { width: 44px; height: 44px; border-radius: 22px; font-size: 20px; }
+.chip span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* The tabs of the last time (docs/20), when "Ao ligar" is not "Continuar
+   onde fiquei": one button, gone once pressed. */
+#restore {
+  height: 68px; margin: 0 0 44px; padding: 0 16px 0 24px; border-radius: 34px; background: var(--surface);
+  border: 1px solid var(--accent); display: inline-flex; align-items: center; gap: 16px; color: var(--text);
+  font: inherit; font-size: 23px; cursor: pointer; transition: background .12s, box-shadow .12s;
+}
+#restore[hidden] { display: none; }
+#restore .ic { color: var(--accent); }
+#restore:hover, #restore:focus { background: var(--surface-2); box-shadow: 0 0 0 4px var(--accent-soft); outline: none; }
+#restore b { min-width: 44px; height: 44px; padding: 0 12px; border-radius: 22px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 21px; }
+#restore b:empty { display: none; }
+#restore:disabled { opacity: .6; }
+#hints { display: flex; gap: 34px; flex-wrap: wrap; color: var(--text-3); font-size: 21px; }
+#hints span { display: flex; align-items: center; gap: 12px; }
+kbd { min-width: 50px; height: 40px; padding: 0 10px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-3); color: var(--text); font-weight: 600; font-size: 19px; line-height: 1; font-family: inherit; }
+/* Depth (docs/07, "Início em 3D"): a floor of light lines going away under
+   the page, the tiles lifting toward the cursor with a shine where it is.
+   Nothing moves by itself: no frames while nobody touches it. */
+body::after {
+  content: ""; position: fixed; left: -60%; right: -60%; bottom: -4%; height: 64%;
+  z-index: -1; pointer-events: none; opacity: .8;
+  background-image: linear-gradient(var(--line-2) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--line-2) 1px, transparent 1px);
+  background-size: 96px 96px;
+  transform: perspective(900px) rotateX(56deg); transform-origin: 50% 100%;
+  -webkit-mask: linear-gradient(transparent 5%, rgba(0, 0, 0, .9) 80%);
+}
+#clock { text-shadow: 0 0 40px var(--accent-soft); }
+.tile {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform .22s cubic-bezier(.2, .8, .2, 1), border-color .16s, background .16s,
+              box-shadow .16s;
+}
+.tile:hover, .tile:focus {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(34px);
+  box-shadow: 0 26px 50px rgba(0, 0, 0, .45), 0 0 0 1px var(--accent), 0 0 44px var(--accent-soft);
+}
+.tile::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: 0; transition: opacity .2s;
+  background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 0%),
+                              rgba(255, 255, 255, .14), transparent 55%);
+}
+.tile:hover::after, .tile:focus::after { opacity: 1; }
+.tile .avatar { transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.tile:hover .avatar, .tile:focus .avatar { transform: translateY(-4px) scale(1.07); }
+.add:hover, .add:focus { box-shadow: none; }
+/* The first start: a style to choose (browserps5:style?cinema|ciborgue|skip,
+   main.cpp style_command()); once chosen, never again. */
+#welcome {
+  position: fixed; inset: 0; z-index: 10; display: none; place-items: center;
+  background: rgba(3, 4, 8, .82);
+}
+#welcome.on { display: grid; }
+#welcome .box { width: 1380px; text-align: center; }
+#welcome h1 { font-size: 56px; margin: 0 0 10px; letter-spacing: -1px; }
+#welcome .lead { color: var(--text-2); font-size: 26px; margin-bottom: 46px; }
+#styles { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-bottom: 34px; }
+.style {
+  height: 420px; border-radius: 30px; padding: 0; overflow: hidden; text-align: left;
+  display: flex; flex-direction: column; border: 2px solid transparent; outline: none;
+  transform: perspective(900px) translateZ(0); transition: transform .22s cubic-bezier(.2, .8, .2, 1), border-color .16s, box-shadow .16s;
+}
+.style:hover, .style:focus { transform: perspective(900px) translateZ(30px); }
+.style .look { flex: 1; position: relative; }
+.style .words { padding: 26px 32px 30px; }
+.style b { display: block; font-size: 34px; margin-bottom: 6px; }
+.style span { font-size: 21px; line-height: 1.4; }
+#cinema { background: #1a1610; color: #fbf4e6; }
+#cinema .look { background: radial-gradient(600px 260px at 30% 0%, rgba(224, 187, 110, .45), transparent 70%), linear-gradient(160deg, #2e271d, #0d0b08); }
+#cinema span { color: #d3c6ac; }
+#cinema:hover, #cinema:focus { border-color: #e0bb6e; box-shadow: 0 0 60px rgba(224, 187, 110, .3); }
+#ciborgue { background: #0d1020; color: #eafcff; }
+#ciborgue .look {
+  background: radial-gradient(500px 260px at 20% 0%, rgba(0, 229, 255, .45), transparent 70%),
+              radial-gradient(500px 260px at 95% 20%, rgba(255, 43, 214, .35), transparent 70%),
+              repeating-linear-gradient(0deg, rgba(0, 229, 255, .07) 0 1px, transparent 1px 6px), #05060d;
+}
+#ciborgue span { color: #a9c3d6; }
+#ciborgue:hover, #ciborgue:focus { border-color: #00e5ff; box-shadow: 0 0 60px rgba(0, 229, 255, .35); }
+#later { color: var(--text-3); font-size: 22px; padding: 14px 28px; border-radius: 30px; }
+/* The language, first of all (docs/13-idioma.md): each in its own words. */
+#langs { display: flex; justify-content: center; gap: 14px; margin-bottom: 34px; flex-wrap: wrap; }
+#langs [data-rn] { display: none; }  /* RN's own: shown for the languages lang-more.js has a table for */
+#langs button {
+  font-size: 22px; padding: 12px 30px; border-radius: 30px; color: var(--text-2);
+  background: var(--surface-2); border: 2px solid transparent; outline: none;
+}
+#langs button.on { color: var(--text); border-color: var(--accent); }
+#langs button:hover, #langs button:focus { background: var(--surface-3); color: var(--text); }
+#later:hover, #later:focus { background: var(--surface-2); color: var(--text); outline: none; }
+
+/* ---- 2026-11-09: "Noir" (docs/27-design-premium.md) ---- */
+body { background: var(--grain), var(--vignette), var(--hero), var(--bg); background-attachment: fixed; }
+main { padding-top: 84px; }
+#hello { margin-bottom: 44px; }
+#greet { font-size: 66px; font-weight: 300; letter-spacing: -.5px; line-height: 1.05; }
+#date { color: var(--text-3); font-size: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .22em; margin-top: 14px; }
+#clock {
+  font-size: 132px; font-weight: 200; letter-spacing: -4px; line-height: .9;
+  background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, .45));
+}
+#search { height: 100px; margin-bottom: 72px; }
+#search input {
+  border-radius: 50px; border: 1px solid var(--line); background: var(--sheen), var(--surface);
+  box-shadow: var(--edge), var(--lift); font-size: 31px; letter-spacing: .005em;
+  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
+}
+#search input:hover { border-color: var(--line-2); }
+#search input:focus { border-color: var(--accent); box-shadow: var(--edge), 0 0 0 1px var(--accent), 0 0 48px -8px var(--accent), var(--lift); }
+#search > .ic { top: 32px; filter: drop-shadow(0 0 10px var(--accent)); }
+#engine { background: var(--sheen), var(--surface-2); border-color: var(--line); box-shadow: var(--edge); top: 15px; }
+.engine { background: var(--sheen), var(--surface); box-shadow: var(--edge); }
+h2 { font-size: 17px; font-weight: 600; letter-spacing: .26em; color: var(--text-3); margin-bottom: 26px; }
+h2 .ic { width: 22px; height: 22px; color: var(--accent); opacity: .9; }
+h2 .grow { height: 1px; background: linear-gradient(90deg, var(--line-2), transparent 80%); margin: 0 10px; }
+.h2btn { background: var(--sheen), var(--surface); border-color: var(--line); box-shadow: var(--edge); letter-spacing: .01em; }
+#grid { gap: 26px; }
+.tile {
+  height: 220px; border-radius: 28px; border-color: var(--line); background: var(--sheen), var(--surface);
+  box-shadow: var(--edge), 0 22px 44px -24px rgba(0, 0, 0, .7);
+  transition: transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.tile::before { background: radial-gradient(120% 90% at 0% 0%, var(--accent-soft), transparent 62%); }
+.tile:hover, .tile:focus {
+  transform: translateY(-6px) scale(1.015); border-color: var(--accent);
+  box-shadow: var(--edge), 0 0 0 1px var(--accent), 0 0 44px -10px var(--accent), var(--lift);
+}
+.tile .avatar { width: 80px; height: 80px; border-radius: 24px; font-size: 36px; box-shadow: 0 14px 28px -10px rgba(0, 0, 0, .7); }
+.name { font-size: 25px; font-weight: 500; letter-spacing: .005em; }
+.host { font-size: 19px; letter-spacing: .02em; }
+.add { background: transparent; box-shadow: none; border-color: var(--line-2); }
+.chip { background: var(--sheen), var(--surface); box-shadow: var(--edge); transition: border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease); }
+.chip:hover, .chip:focus { box-shadow: var(--edge), 0 0 0 1px var(--accent), 0 0 30px -10px var(--accent); }
+#restore { background: var(--sheen), var(--surface); border-color: var(--line-2); box-shadow: var(--edge), 0 16px 34px -18px rgba(0, 0, 0, .7); }
+#restore:hover, #restore:focus { border-color: var(--accent); box-shadow: var(--edge), 0 0 0 1px var(--accent), 0 0 34px -10px var(--accent); }
+#restore b { background: linear-gradient(180deg, rgba(255, 255, 255, .25), rgba(255, 255, 255, 0) 60%), var(--accent); box-shadow: 0 0 18px -4px var(--accent); }
+body::after { opacity: .45; -webkit-mask-image: linear-gradient(180deg, transparent, #000 45%); }
+</style></head><body>
+<!--#include icons.svg-->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none"><symbol id="i-edit" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15.3 3.7a2.4 2.4 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4L9 20H4v-5L15.3 3.7zm-1.3 3.4L5.5 15.6v2.9h2.9L16.9 10 14 7.1zm1.1-1.1L18 8.9l1.2-1.2a.9.9 0 0 0 0-1.3l-1.6-1.6a.9.9 0 0 0-1.3 0L15.1 6z"/></symbol></svg>
+<div id="welcome">
+  <div class="box">
+    <div id="langs" translate="no"><button data-lang="pt">Português</button><button data-lang="en">English</button><button data-lang="es" data-rn>Español</button><button data-lang="fr" data-rn>Français</button><button data-lang="de" data-rn>Deutsch</button><button data-lang="it" data-rn>Italiano</button><button data-lang="nl" data-rn>Nederlands</button></div>
+    <h1>Bem-vindo ao BrowserPS5</h1>
+    <div class="lead">Escolhe um estilo para começar. Mudas tudo quando quiseres nas definições.</div>
+    <div id="styles">
+      <button class="style" id="cinema" data-style="cinema"><div class="look"></div>
+        <div class="words"><b>Cinema</b><span>Escuro e dourado, sem sons da interface. Para ver filmes e séries no sofá, com o mínimo à frente.</span></div></button>
+      <button class="style" id="ciborgue" data-style="ciborgue"><div class="look"></div>
+        <div class="words"><b>Ciborgue</b><span>Néon azul e magenta, com sons a cada salto e o íman do cursor. Para quem explora a web a fundo.</span></div></button>
+    </div>
+    <button id="later" data-style="skip">Escolher depois</button>
+  </div>
+</div>
+<main>
+  <div id="hello">
+    <div><div id="greet"></div><div id="date"></div></div>
+    <div id="clock"></div>
+  </div>
+  <form id="search" autocomplete="off">
+    <svg class="ic"><use href="#i-search"/></svg>
+    <input id="q" type="search" enterkeyhint="search" spellcheck="false">
+    <button id="engine" type="button" aria-expanded="false" aria-controls="engines" title="Escolher o motor de pesquisa"><span>Google</span><svg class="ic"><use href="#i-chevron-right"/></svg></button>
+  </form>
+  <div id="engines" hidden></div>
+  <button id="restore" type="button" hidden><svg class="ic"><use href="#i-arrow-reset"/></svg><span></span><b></b></button>
+  <h2><svg class="ic"><use href="#i-star-f"/></svg>Favoritos<span class="grow"></span>
+    <button class="h2btn danger" id="clear-all" type="button"><svg class="ic"><use href="#i-delete"/></svg><span>Apagar todos</span></button>
+    <button class="h2btn" id="edit" type="button" hidden><svg class="ic"><use href="#i-edit"/></svg><span>Editar</span></button></h2>
+  <div id="grid"></div>
+  <div id="recent-box">
+    <h2><svg class="ic"><use href="#i-history"/></svg>Visitados recentemente</h2>
+    <div id="recent"></div>
+  </div>
+  <div id="hints">
+    <span><kbd>✥</kbd>saltar entre elementos</span>
+    <span><kbd>✕</kbd>abrir</span>
+    <span><kbd>△</kbd>escrever um endereço</span>
+    <span><kbd>L2</kbd><kbd>R2</kbd>menus rápidos</span>
+    <span><kbd>▭</kbd>separadores (touch pad)</span>
+    <span><kbd>⋮</kbd>menu e definições</span>
+  </div>
+</main>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+let data = {};
+try {
+  data = JSON.parse("@START@");
+} catch (e) {
+}
+let favorites = Array.isArray(data.favorites) ? data.favorites : [];
+document.documentElement.dataset.theme = data.theme || 'meia-noite';
+setLang(data.lang);
+
+// The engines, as settings.c's (Google first, the default).
+const ENGINES = [
+  ['google', 'Google'], ['duckduckgo', 'DuckDuckGo'], ['bing', 'Bing'],
+  ['ecosia', 'Ecosia'], ['startpage', 'Startpage'], ['brave', 'Brave Search'],
+];
+let engine = ENGINES.find(([id]) => id === data.search) || ENGINES[0];
+const engineButton = document.getElementById('engine');
+const engineList = document.getElementById('engines');
+function showEngine() {
+  document.getElementById('q').placeholder = 'Pesquisar no ' + engine[1] + ' ou escrever um endereço';
+  engineButton.querySelector('span').textContent = engine[1];
+  for (const b of engineList.children) {
+    const on = b.dataset.id === engine[0];
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  }
+}
+function openEngines(open) {
+  engineList.hidden = !open;
+  engineButton.setAttribute('aria-expanded', open);
+}
+for (const e of ENGINES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'engine';
+  b.dataset.id = e[0];
+  b.append(icon('checkmark'), document.createTextNode(e[1]));
+  b.onclick = () => {
+    if (e !== engine) {
+      engine = e;
+      sendQueued('browserps5:set?' + encodeURIComponent('search=' + e[0]));
+    }
+    showEngine();
+    openEngines(false);
+    engineButton.focus();
+  };
+  engineList.appendChild(b);
+}
+engineButton.onclick = () => {
+  openEngines(engineList.hidden);
+  if (!engineList.hidden) engineList.querySelector('.on').focus();
+};
+showEngine();
+
+function host(url) {
+  try { return new URL(url).host.replace(/^www\./, ''); } catch (e) { return url; }
+}
+function color(text) {
+  let h = 0;
+  for (let i = 0; i < text.length; i++)
+    h = (h * 31 + text.charCodeAt(i)) % 360;
+  return 'linear-gradient(135deg, hsl(' + h + ', 62%, 54%), hsl(' + (h + 40) % 360 + ', 62%, 40%))';
+}
+function avatar(name) {
+  const a = document.createElement('span');
+  a.className = 'avatar';
+  a.style.background = color(name);
+  a.textContent = (name[0] || '?').toUpperCase();
+  return a;
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function icon(name) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('class', 'ic');
+  const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  u.setAttribute('href', '#i-' + name);
+  s.appendChild(u);
+  return s;
+}
+
+function showFavorites() {
+  const grid = document.getElementById('grid');
+  grid.textContent = '';
+  for (const f of favorites) {
+    if (!f || typeof f.url !== 'string' || !/^https?:/.test(f.url))
+      continue;
+    const name = host(f.url);
+    const a = el('a', 'tile');
+    a.href = f.url;
+    const remove = el('button', 'remove');
+    remove.title = 'Tirar dos favoritos';
+    remove.appendChild(icon('dismiss'));
+    const take = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      favorites.splice(favorites.indexOf(f), 1);
+      showFavorites();
+      sendQueued('browserps5:remove?' + encodeURIComponent(f.url));
+    };
+    remove.onclick = take;
+    // Editing: the whole tile is the delete button.
+    a.addEventListener('click', (event) => { if (editing) take(event); });
+    a.append(avatar(name), el('div', 'name', f.title || name), el('div', 'host', name), remove);
+    grid.appendChild(a);
+  }
+  const add = el('div', 'tile add');
+  add.append(icon('star'), el('div', 'host', 'Abre uma página e carrega na estrela do endereço para a guardar aqui'));
+  add.querySelector('.host').style.whiteSpace = 'normal';
+  grid.appendChild(add);
+  const any = grid.querySelector('.tile:not(.add)') !== null;
+  document.getElementById('edit').hidden = !any;
+  if (!any && editing) setEditing(false);
+}
+
+// The app's commands from this page, one at a time (see the top).
+const queue = [];
+function sendQueued(href) {
+  queue.push(href);
+  if (queue.length === 1) pump();
+}
+function pump() {
+  location.href = queue[0];
+  setTimeout(() => { queue.shift(); if (queue.length) pump(); }, 300);
+}
+
+// Editar / Concluído, and Apagar todos (pressed twice within 4 s).
+let editing = false, sureTimer = 0;
+const editButton = document.getElementById('edit');
+const clearAll = document.getElementById('clear-all');
+function setEditing(on) {
+  editing = on;
+  document.body.classList.toggle('editing', on);
+  editButton.querySelector('span').textContent = on ? 'Concluído' : 'Editar';
+  for (const r of document.querySelectorAll('.remove')) r.title = on ? 'Apagar' : 'Tirar dos favoritos';
+  notSure();
+}
+function notSure() {
+  clearTimeout(sureTimer);
+  clearAll.classList.remove('sure');
+  clearAll.querySelector('span').textContent = 'Apagar todos';
+}
+editButton.onclick = () => setEditing(!editing);
+clearAll.onclick = () => {
+  if (!clearAll.classList.contains('sure')) {
+    clearAll.classList.add('sure');
+    clearAll.querySelector('span').textContent = 'Carrega outra vez para apagar todos';
+    sureTimer = setTimeout(notSure, 4000);
+    return;
+  }
+  favorites.length = 0;
+  sendQueued('browserps5:clear?favorites');
+  showFavorites();
+};
+
+function showRecent() {
+  const box = document.getElementById('recent');
+  const recent = (Array.isArray(data.recent) ? data.recent : []).slice(0, 10);
+  document.getElementById('recent-box').hidden = !recent.length;
+  for (const r of recent) {
+    const name = host(r.url);
+    const a = el('a', 'chip');
+    a.href = r.url;
+    a.append(avatar(name), el('span', '', r.title || name));
+    box.appendChild(a);
+  }
+}
+
+// The tabs of the last time: data.restore of them (main.cpp session_offer()).
+function showRestore() {
+  const n = Number(data.restore) || 0;
+  const b = document.getElementById('restore');
+  b.hidden = n < 1;
+  b.querySelector('span').textContent = n === 1 ? 'Reabrir a página da última vez' : 'Reabrir os separadores da última vez';
+  b.querySelector('b').textContent = n > 1 ? String(n) : '';
+  b.onclick = () => {
+    b.disabled = true;
+    location.href = 'browserps5:tabs-restore';
+  };
+}
+
+function tick() {
+  const d = new Date();
+  const h = d.getHours();
+  document.getElementById('greet').textContent = h < 6 ? 'Boa noite' : h < 13 ? 'Bom dia' : h < 20 ? 'Boa tarde' : 'Boa noite';
+  const day = langDay(d);
+  document.getElementById('date').textContent = day[0].toUpperCase() + day.slice(1);
+  document.getElementById('clock').textContent =
+    String(h).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+document.getElementById('search').onsubmit = (event) => {
+  event.preventDefault();
+  const q = document.getElementById('q');
+  if (q.value.trim())
+    location.href = 'browserps5:go?' + encodeURIComponent(q.value.trim());
+};
+
+
+// The tile under the cursor leans toward it (the D-pad puts the cursor in
+// its middle: then it only lifts).
+let leaning = null;
+document.addEventListener('mousemove', (e) => {
+  const t = e.target && e.target.closest ? e.target.closest('.tile:not(.add)') : null;
+  if (leaning && leaning !== t)
+    for (const p of ['--rx', '--ry', '--gx', '--gy']) leaning.style.removeProperty(p);
+  leaning = t;
+  if (!t) return;
+  const r = t.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+  t.style.setProperty('--ry', (x * 16).toFixed(1) + 'deg');
+  t.style.setProperty('--rx', (-y * 14).toFixed(1) + 'deg');
+  t.style.setProperty('--gx', ((x + .5) * 100).toFixed(0) + '%');
+  t.style.setProperty('--gy', ((y + .5) * 100).toFixed(0) + '%');
+});
+
+
+// The first start (data.welcomed 0): the two styles.
+if (data.welcomed === 0) {
+  document.getElementById('welcome').classList.add('on');
+  for (const b of document.querySelectorAll('#welcome [data-style]'))
+    b.onclick = () => { location.href = 'browserps5:style?' + b.dataset.style; };
+  const langs = document.querySelectorAll('#langs [data-lang]');
+  const showLang = () => langs.forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
+  langs.forEach(b => b.onclick = () => {
+    setLang(b.dataset.lang);
+    showLang();
+    sendQueued('browserps5:set?' + encodeURIComponent('lang=' + b.dataset.lang));
+  });
+  showLang();
+  document.addEventListener('langchange', showLang);
+}
+
+showRestore();
+showFavorites();
+showRecent();
+tick();
+setInterval(tick, 10000);
+document.addEventListener('langchange', tick);
+</script></body></html>

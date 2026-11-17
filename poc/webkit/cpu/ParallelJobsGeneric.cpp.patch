@@ -1,0 +1,75 @@
+--- a/ParallelJobsGeneric.cpp
++++ b/ParallelJobsGeneric.cpp
+@@ -32,10 +32,51 @@
+ 
+ #include <wtf/NumberOfCores.h>
+ 
++#if PLATFORM(PLAYSTATION)
++#include <pthread.h>
++#include <stdlib.h>
++#endif
++
+ namespace WTF {
+ 
+ Vector< RefPtr<ParallelEnvironment::ThreadPrivate> >* ParallelEnvironment::s_threadPool = nullptr;
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5: while a title is in front, the payloads together get about 2
++// cores (cpu_probe, 2026-11-04 17:40), and numberOfProcessorCores() says 16.
++// Software filters (CSS blur on YouTube) split their image over that many
++// "Parallel worker" threads, at the priority of the video decoder and the
++// compositor, and kept both cores for 20 s while the video stood still
++// (17:37). So at most BROWSERPS5_PARALLEL_JOBS jobs, the calling thread's one
++// included (2; 0: WebKit's own count), and the workers run at
++// BROWSERPS5_PARALLEL_PRIORITY (740; 0: as created). A larger number is a
++// lower priority: the workers get what the video and the compositor leave.
++static int browserps5ParallelSetting(const char* name, int fallback)
++{
++    const char* value = getenv(name);
++    return value && *value ? atoi(value) : fallback;
++}
++
++static int browserps5ParallelMaxJobs()
++{
++    static const int jobs = browserps5ParallelSetting("BROWSERPS5_PARALLEL_JOBS", 2);
++    return jobs;
++}
++
++static void browserps5ParallelWorkerPriority()
++{
++    static const int priority = browserps5ParallelSetting("BROWSERPS5_PARALLEL_PRIORITY", 740);
++    if (priority <= 0)
++        return;
++    int policy = 0;
++    struct sched_param param { };
++    if (pthread_getschedparam(pthread_self(), &policy, &param))
++        return;
++    param.sched_priority = priority;
++    pthread_setschedparam(pthread_self(), policy, &param);
++}
++#endif
++
+ ParallelEnvironment::ParallelEnvironment(ThreadFunction threadFunction, size_t sizeOfParameter, int requestedJobNumber) :
+     m_threadFunction(threadFunction),
+     m_sizeOfParameter(sizeOfParameter)
+@@ -43,6 +84,10 @@
+     ASSERT_ARG(requestedJobNumber, requestedJobNumber >= 1);
+ 
+     int maxNumberOfCores = numberOfProcessorCores();
++#if PLATFORM(PLAYSTATION)
++    if (browserps5ParallelMaxJobs() > 0 && maxNumberOfCores > browserps5ParallelMaxJobs())
++        maxNumberOfCores = browserps5ParallelMaxJobs();
++#endif
+ 
+     if (!requestedJobNumber || requestedJobNumber > maxNumberOfCores)
+         requestedJobNumber = static_cast<unsigned>(maxNumberOfCores);
+@@ -94,6 +139,9 @@
+ 
+     if (!m_thread) {
+         lazyInitialize(m_thread, Thread::create("Parallel worker"_s, [this] {
++#if PLATFORM(PLAYSTATION)
++            browserps5ParallelWorkerPriority();
++#endif
+             Locker lock { m_lock };
+ 
+             while (true) {

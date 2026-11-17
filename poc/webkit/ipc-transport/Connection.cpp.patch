@@ -1,0 +1,224 @@
+--- a/Source/WebKit/Platform/IPC/Connection.cpp
++++ b/Source/WebKit/Platform/IPC/Connection.cpp
+@@ -39,6 +39,7 @@
+ #include <wtf/HashCountedSet.h>
+ #include <wtf/HashSet.h>
+ #include <wtf/Lock.h>
++#include <wtf/MonotonicTime.h>
+ #include <wtf/NeverDestroyed.h>
+ #include <wtf/ObjectIdentifier.h>
+ #include <wtf/RunLoop.h>
+@@ -62,6 +63,52 @@
+ 
+ namespace IPC {
+ 
++// BrowserPS5 (2026-11-11, poc/webkit/ipc-transport/Connection.cpp.patch): the
++// last sync messages of this process, each with the time (ms, the monotonic
++// clock: the same in every process), for a wait that does not end. A page's
++// thread waited up to minutes for the reply to BlobSize while the
++// NetworkProcess, which had handled it, sat idle (docs/28). A sync message
++// that has no reply after two seconds says so and prints these;
++// crash-report.c prints them at BROWSERPS5_STACK_DUMPS's seconds too.
++//   S  a sync message is to be sent (its sync id)    O  it, or a reply, goes to the socket
++//   B  nothing goes out: an earlier message is still waiting for the socket
++//   I  a sync message came in (the connection's thread)    D  it is being handled
++//   A  its reply is to be sent    R  a reply came in    W  the wait for a reply is over
++//   Q  a sync reply was put in the queue of what goes out: twice the queue's length then, plus one if
++//      the send was asked for (it is only when the queue was empty). From then until it goes out (O),
++//      that connection's send loop: E it starts, X it ends (1 not connected, 2 nothing left, 3 a send
++//      failed: 1000 + errno).
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++struct BrowserPS5IPCNote {
++    double ms;
++    char what;
++    uint16_t name;
++    uint64_t id;
++};
++static BrowserPS5IPCNote browserps5IPCNotes[128];
++static std::atomic<unsigned> browserps5IPCNoteCount { 0 };
++
++static std::atomic<const void*> browserps5Watched { nullptr };
++
++static void browserps5IPCNote(char what, MessageName name, uint64_t id)
++{
++    unsigned n = browserps5IPCNoteCount.fetch_add(1, std::memory_order_relaxed) % 128;
++    browserps5IPCNotes[n] = { MonotonicTime::now().secondsSinceEpoch().milliseconds(), what, static_cast<uint16_t>(name), id };
++}
++
++extern "C" void browserps5_ipc_notes(void);
++extern "C" void browserps5_ipc_notes(void)
++{
++    unsigned count = browserps5IPCNoteCount.load(std::memory_order_relaxed);
++    unsigned first = count > 128 ? count - 128 : 0;
++    fprintf(stderr, "[WebKit] IPC notes of pid %d at %.0f ms, %u so far:\n", static_cast<int>(getpid()), MonotonicTime::now().secondsSinceEpoch().milliseconds(), count);
++    for (unsigned i = first; i < count; i++) {
++        auto& note = browserps5IPCNotes[i % 128];
++        fprintf(stderr, "[WebKit] IPC %c %.0f %s %llu\n", note.what, note.ms, description(static_cast<MessageName>(note.name)).characters(), static_cast<unsigned long long>(note.id));
++    }
++}
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
++
+ #if PLATFORM(COCOA)
+ // The IPC connection gets killed if the incoming message queue reaches 50000 messages before the main thread has a chance to dispatch them.
+ constexpr size_t maxPendingIncomingMessagesKillingThreshold { 50000 };
+@@ -655,6 +702,10 @@
+     {
+         Locker locker { m_outgoingMessagesLock };
+         shouldDispatchMessageSend = m_outgoingMessages.isEmpty();
++        if (encoder->messageName() == MessageName::SyncMessageReply) { // BrowserPS5
++            browserps5Watched.store(this, std::memory_order_relaxed);
++            browserps5IPCNote('Q', MessageName::SyncMessageReply, m_outgoingMessages.size() * 2 + (shouldDispatchMessageSend ? 1 : 0));
++        }
+         m_outgoingMessages.append(WTF::move(encoder));
+         m_hasOutgoingMessages = true;
+         outgoingMessagesCount = m_outgoingMessages.size();
+@@ -753,6 +804,7 @@
+ 
+ Error Connection::sendSyncReply(UniqueRef<Encoder>&& encoder)
+ {
++    browserps5IPCNote('A', encoder->messageName(), encoder->destinationID()); // BrowserPS5
+     return sendMessageImpl(WTF::move(encoder), { });
+ }
+ 
+@@ -930,6 +982,7 @@
+         encoder->setShouldMaintainOrderingWithAsyncMessages();
+ 
+     auto messageName = encoder->messageName();
++    browserps5IPCNote('S', messageName, syncRequestID.toUInt64()); // BrowserPS5
+ 
+ #if ENABLE(CORE_IPC_SIGNPOSTS)
+     uintptr_t signpostIdentifier = 0;
+@@ -959,6 +1012,7 @@
+     // keep an extra reference to the connection here in case it's invalidated.
+     Ref<Connection> protect(*this);
+     auto replyOrError = waitForSyncReply(syncRequestID, messageName, timeout, sendSyncOptions);
++    browserps5IPCNote('W', messageName, syncRequestID.toUInt64()); // BrowserPS5
+ 
+     if (!replyOrError.has_value()) {
+         if (replyOrError.error() == Error::NoError)
+@@ -974,6 +1028,8 @@
+     timeout = timeoutRespectingIgnoreTimeoutsForTesting(timeout);
+ 
+     bool timedOut = false;
++    bool browserps5SaidSlow = false; // BrowserPS5: see browserps5IPCNote()
++    auto browserps5Started = MonotonicTime::now();
+     while (!timedOut) {
+         // First, check if we have any messages that we need to process.
+         protect(m_syncState)->dispatchMessages();
+@@ -988,6 +1044,10 @@
+ 
+             // We found the sync reply.
+             if (m_pendingSyncReplies.last().replyDecoder) {
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++                if (browserps5SaidSlow)
++                    fprintf(stderr, "[WebKit] IPC: the reply to %s (sync %llu) came after %.1f s (pid %d)\n", description(messageName).characters(), static_cast<unsigned long long>(syncRequestID.toUInt64()), (MonotonicTime::now() - browserps5Started).seconds(), static_cast<int>(getpid()));
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+                 auto replyDecoder = std::exchange(m_pendingSyncReplies.last().replyDecoder, nullptr);
+                 if (auto identifierOfLastMessageToDispatchBeforeSyncReply = m_pendingSyncReplies.last().identifierOfLastMessageToDispatchBeforeSyncReply) {
+                     locker.unlockEarly();
+@@ -1017,6 +1077,17 @@
+         // We didn't find a sync reply yet, keep waiting.
+         // This allows the WebProcess to still serve clients while waiting for the message to return.
+         // Notably, it can continue to process accessibility requests, which are on the main thread.
++        if (!browserps5SaidSlow && (timeout.isInfinity() || timeout.secondsUntilDeadline() > 3_s)) {
++            // BrowserPS5: two seconds first; with no reply by then, a line and the notes, and the wait goes on.
++            if (protect(m_syncState)->wait(Timeout(2_s)))
++                continue;
++            browserps5SaidSlow = true;
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++            fprintf(stderr, "[WebKit] IPC: no reply to %s (sync %llu) after 2 s (pid %d)\n", description(messageName).characters(), static_cast<unsigned long long>(syncRequestID.toUInt64()), static_cast<int>(getpid()));
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
++            browserps5_ipc_notes();
++            continue;
++        }
+         timedOut = !protect(m_syncState)->wait(timeout);
+     }
+ 
+@@ -1031,6 +1102,7 @@
+ 
+ void Connection::processIncomingSyncReply(UniqueRef<Decoder> decoder)
+ {
++    browserps5IPCNote('R', decoder->messageName(), decoder->destinationID()); // BrowserPS5
+     {
+         Locker locker { m_syncReplyStateLock };
+ 
+@@ -1071,6 +1143,8 @@
+ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
+ {
+     ASSERT(message->messageReceiverName() != ReceiverName::Invalid);
++    if (message->isSyncMessage())
++        browserps5IPCNote('I', message->messageName(), message->syncRequestID().toUInt64()); // BrowserPS5
+ 
+     // FIXME: These are practically the same mutex, so maybe they could be merged.
+     Locker waitForMessagesLocker { m_waitForMessageLock };
+@@ -1290,29 +1364,60 @@
+ {
+     assertIsCurrent(m_connectionQueue.get());
+ 
+-    if (!m_isConnected)
++    const bool browserps5IsWatched = browserps5Watched.load(std::memory_order_relaxed) == this; // BrowserPS5
++    if (browserps5IsWatched)
++        browserps5IPCNote('E', MessageName::SyncMessageReply, m_isConnected ? 1 : 0);
++    if (!m_isConnected) {
++        if (browserps5IsWatched)
++            browserps5IPCNote('X', MessageName::SyncMessageReply, 1);
+         return;
++    }
+ 
+     while (true) {
+         std::unique_ptr<Encoder> message;
+ 
+         {
+             Locker locker { m_outgoingMessagesLock };
+-            if (hasPendingOutgoingMessage())
++            if (hasPendingOutgoingMessage()) {
++                browserps5IPCNote('B', MessageName::SyncMessageReply, m_outgoingMessages.size()); // BrowserPS5: how many wait behind it
+                 return;
++            }
+             if (m_outgoingMessages.isEmpty()) {
+                 m_hasOutgoingMessages = false;
+                 m_outgoingMessagesEmptyCondition.notifyAll();
++                if (browserps5IsWatched)
++                    browserps5IPCNote('X', MessageName::SyncMessageReply, 2); // BrowserPS5
+                 return;
+             }
+             message = m_outgoingMessages.takeFirst().moveToUniquePtr();
++            if (message->isSyncMessage() || message->messageName() == MessageName::SyncMessageReply)
++                browserps5IPCNote('O', message->messageName(), message->destinationID()); // BrowserPS5
++            if (message->messageName() == MessageName::SyncMessageReply) {
++                const void* watched = this;
++                browserps5Watched.compare_exchange_strong(watched, nullptr, std::memory_order_relaxed);
++            }
+             // Note: Even when this maknes  m_outgoingMessages empty,  m_hasOutgoingMessages == true guards
+             // that the flush waiter know that flush is not done. We can remove m_hasOutgoingMessages when we are
+             // able to unpack m_outgoingMessages to future, MachMessage/UnixMessage/WinMessage m_pendingOutgoingMessage.
+         }
+ 
++        const auto browserps5Name = message->messageName(); // BrowserPS5
+         if (!sendOutgoingMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(message)))) {
++            browserps5IPCNote('X', MessageName::SyncMessageReply, 1000 + errno); // BrowserPS5: always noted
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++            fprintf(stderr, "[WebKit] IPC: %s could not be sent (errno %d, pid %d): it is dropped, the ones behind it go on\n", description(browserps5Name).characters(), errno, static_cast<int>(getpid()));
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+             didFinishSendingOutgoingMessage();
++#if PLATFORM(PLAYSTATION)
++            // BrowserPS5 (2026-11-11): upstream returns here, and nothing sends what is left in
++            // m_outgoingMessages: a new message asks for the send only when the queue is empty
++            // (sendMessageImpl), so the connection never sent again. With the transport's
++            // "an attachment that cannot go by name" (EINVAL, its table full) a sync reply stayed
++            // behind the dropped message and its page waited for good. The connection is still
++            // there: the rest goes out.
++            if (m_isConnected)
++                continue;
++#endif
+             return;
+         }
+     }
+@@ -1339,6 +1444,7 @@
+         --m_inDispatchSyncMessageCount;
+     });
+ 
++    browserps5IPCNote('D', decoder.messageName(), decoder.syncRequestID().toUInt64()); // BrowserPS5
+     UniqueRef replyEncoder = makeUniqueRef<Encoder>(MessageName::SyncMessageReply, decoder.syncRequestID().toUInt64());
+     if (decoder.messageName() == MessageName::WrappedAsyncMessageForTesting) {
+         if (m_fullySynchronousModeIsAllowedForTesting) {

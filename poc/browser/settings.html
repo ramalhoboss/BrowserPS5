@@ -1,0 +1,1470 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's settings, a page of its own in the page's view, as Chrome's
+and Firefox's are. The app writes it to DATA_DIR/settings.html with the
+state in place of the mark in the script below (a JSON string, escaped for
+it: the settings, the history, the favorites, the extensions) each time it
+opens it, at settings.html#<section> (main.cpp, settings_open()). A change
+goes to the app at once, as a navigation to browserps5:<command>?<argument>
+that it takes only from this page and from the start page:
+  set?<key>=<value>        a setting (the app saves and applies it)
+  clear?<what>,...         history, cookies, cache, favorites (all of them)
+  remove?<url>             a favorite out
+  ext?<on|off|remove>:<id> an extension; ext?install, ext?cancel for the one
+                           waiting to be installed
+The page shows each change itself; nothing loads again. -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><title>Definições</title><style>
+<!--#include theme.css-->
+html { background: var(--bg); }
+body { overflow-x: hidden; overflow-y: auto; background: var(--hero), var(--bg); background-attachment: fixed; min-height: 100vh; }
+#side {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 430px; padding: 44px 26px 30px 40px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border-right: 1px solid var(--line);
+}
+#brand { display: flex; align-items: center; gap: 18px; margin: 0 0 30px 6px; }
+#logo {
+  width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+  box-shadow: 0 10px 30px var(--accent-soft);
+}
+#logo .ic { width: 38px; height: 38px; }
+#brand b { display: block; font-size: 30px; }
+#brand span { color: var(--text-3); font-size: 20px; }
+.nav {
+  height: 64px; border-radius: 16px; padding: 0 20px; display: flex; align-items: center;
+  gap: 18px; color: var(--text-2); font-size: 25px; text-align: left; width: 100%;
+  transition: background .12s, color .12s;
+}
+.nav .ic { width: 30px; height: 30px; color: var(--text-3); }
+.nav:hover { background: var(--surface-3); color: var(--text); }
+.nav.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.nav.on .ic { color: var(--accent); }
+#side .foot { margin-top: auto; color: var(--text-3); font-size: 19px; padding: 0 10px; line-height: 1.5; }
+main { margin-left: 430px; padding: 54px 90px 120px 80px; max-width: 1490px; }
+section { display: none; }
+section.on { display: block; animation: rise .22s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+h1 { font-size: 50px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.5px; }
+.lead { color: var(--text-2); margin: 0 0 40px; font-size: 24px; }
+h2 { font-size: 21px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 1.6px; margin: 44px 0 16px 6px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 24px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.item {
+  min-height: 96px; padding: 18px 30px; display: flex; align-items: center; gap: 24px;
+  border-top: 1px solid var(--line); width: 100%; text-align: left;
+}
+.item:first-child { border-top: 0; }
+button.item { transition: background .12s; }
+button.item:hover { background: var(--surface-2); }
+.item > .ic { color: var(--accent); width: 34px; height: 34px; }
+.item .text { flex: 1; min-width: 0; }
+.item .text b { display: block; font-weight: 600; font-size: 25px; }
+.item .text span { display: block; color: var(--text-3); font-size: 20px; margin-top: 3px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.choice {
+  position: relative; min-height: 104px; padding: 20px 24px; border-radius: 20px; text-align: left;
+  background: var(--surface); border: 2px solid var(--line); display: flex; flex-direction: column;
+  justify-content: center; gap: 4px; transition: border-color .12s, background .12s, transform .12s;
+}
+.choice:hover { background: var(--surface-2); border-color: var(--line-2); }
+.choice b { font-size: 25px; font-weight: 600; }
+.choice span { color: var(--text-3); font-size: 19px; }
+.choice.on { border-color: var(--accent); background: linear-gradient(135deg, var(--accent-soft), transparent 70%), var(--surface); }
+.choice.on::after {
+  content: ""; position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='white' d='M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L21 7.5l-1.4-1.4z'/></svg>") center/20px no-repeat;
+}
+.choice.small { min-height: 76px; align-items: center; text-align: center; }
+/* The themes, each drawn in its own colours (data-theme on the card). */
+#themes { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.theme { padding: 0; overflow: hidden; min-height: 0; background: var(--bg); }
+.theme .shot { height: 150px; padding: 14px; background: var(--hero), var(--bg); display: flex; flex-direction: column; gap: 10px; }
+.theme .tb { height: 34px; border-radius: 10px; background: var(--bar-bg); border: 1px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.theme .tb i { width: 12px; height: 12px; border-radius: 50%; background: var(--text-3); }
+.theme .tb em { flex: 1; height: 16px; border-radius: 8px; background: var(--surface-3); }
+.theme .tiles { display: flex; gap: 10px; flex: 1; }
+.theme .tiles i { flex: 1; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.theme .tiles i:first-child { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.theme .name { padding: 14px 20px 16px; background: var(--surface); color: var(--text); font-weight: 600; font-size: 23px; }
+input.field {
+  width: 100%; height: 64px; border-radius: 18px; border: 2px solid var(--line-2); padding: 0 22px;
+  background: var(--surface-2); color: var(--text); font-size: 24px; outline: none;
+}
+input.field:focus { border-color: var(--accent); box-shadow: var(--glow); }
+.row-gap { display: flex; gap: 14px; align-items: center; margin-top: 16px; }
+.pad { padding: 26px 30px; }
+.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
+.keys div { display: flex; align-items: center; gap: 18px; padding: 14px 0; border-top: 1px solid var(--line); font-size: 22px; color: var(--text-2); }
+.keys kbd {
+  min-width: 70px; height: 46px; padding: 0 12px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--surface-3); color: var(--text); font-weight: 600; font-size: 20px; line-height: 1; font-family: inherit; border-bottom: 3px solid var(--surface-4);
+}
+.badge { padding: 4px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: 18px; font-weight: 700; white-space: nowrap; }
+.empty { padding: 50px 30px; text-align: center; color: var(--text-3); }
+.empty .ic { width: 64px; height: 64px; margin: 0 auto 16px; color: var(--surface-4); }
+.day { padding: 22px 30px 10px; color: var(--text-3); font-size: 20px; font-weight: 700; border-top: 1px solid var(--line); }
+.day:first-child { border-top: 0; }
+a.item { color: inherit; text-decoration: none; min-height: 78px; transition: background .12s; }
+a.item:hover { background: var(--surface-2); }
+.time { color: var(--text-3); font-size: 20px; width: 70px; flex: none; }
+.ext-ic { width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; flex: none; background: var(--surface-3); color: var(--accent); }
+.ext-ic .ic { width: 32px; height: 32px; }
+.pending { border-color: var(--accent); box-shadow: var(--glow), var(--shadow); margin-bottom: 24px; }
+.pending .pad b { font-size: 28px; }
+code { font: 19px/1.4 "DejaVu Sans Mono", monospace; color: var(--text-2); background: var(--surface-2); padding: 2px 8px; border-radius: 8px; }
+.ib.x { width: 54px; height: 54px; }
+.ib.x:hover { background: rgba(255, 93, 108, .15); color: var(--bad); }
+#toast {
+  position: fixed; left: 50%; bottom: 40px; transform: translate(-50%, 30px); opacity: 0;
+  padding: 18px 30px; border-radius: 22px; background: var(--surface-4); color: var(--text);
+  box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; transition: .25s; font-size: 23px;
+}
+#toast.on { transform: translate(-50%, 0); opacity: 1; }
+#toast .ic { color: var(--good); }
+/* Telemóvel: the QR code (always black on white) and the PIN. */
+.phone-card { display: flex; gap: 48px; padding: 38px 44px; align-items: center; }
+.phone-card .qr {
+  width: 300px; height: 300px; flex: none; border-radius: 22px; overflow: hidden; background: #fff;
+  box-shadow: 0 0 0 1px var(--line-2), 0 18px 40px rgba(0, 0, 0, .35);
+}
+.phone-card .qr svg { width: 100%; height: 100%; display: block; }
+.phone-how { flex: 1; min-width: 0; }
+.step { display: flex; gap: 18px; align-items: flex-start; font-size: 24px; color: var(--text-2); margin-bottom: 20px; }
+.step b { color: var(--text); font-size: 30px; }
+.step .n {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 21px;
+}
+.pin {
+  margin: -6px 0 4px 58px; font-size: 92px; font-weight: 700; letter-spacing: 14px; line-height: 1.1;
+  background: linear-gradient(135deg, var(--text) 30%, var(--accent)); -webkit-background-clip: text;
+  color: transparent; font-variant-numeric: tabular-nums;
+}
+#phone-time { margin-left: 58px; font-size: 20px; color: var(--text-3); min-height: 28px; }
+.phone-off { display: none; }
+.phone-card.off > .qr, .phone-card.off > .phone-how { display: none; }
+.phone-card.off .phone-off {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; padding: 26px 0;
+  color: var(--text-3); font-size: 21px;
+}
+.phone-off .ic { width: 64px; height: 64px; color: var(--surface-4); }
+.phone-off b { font-size: 26px; color: var(--text-2); }
+/* Sistema: four tiles, then the drives, the memory and the browser. */
+.sys-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 24px 26px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; overflow: hidden;
+}
+.tile .ic { width: 34px; height: 34px; color: var(--accent); margin-bottom: 6px; }
+.tile b {
+  font-size: 40px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile span { color: var(--text-3); font-size: 19px; }
+.tile.hot b { color: var(--bad); }
+.meter { height: 12px; border-radius: 6px; background: var(--surface-3); overflow: hidden; margin-top: 12px; }
+.meter i {
+  display: block; height: 100%; border-radius: 6px; width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .6s;
+}
+.meter.full i { background: var(--bad); }
+.item .meter { margin-top: 10px; }
+.sys-nums { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 21px; white-space: nowrap; }
+
+/* ---- 2026-11-09: "Noir" (docs/27-design-premium.md) ---- */
+body { background: var(--grain), var(--vignette), var(--hero), var(--bg); background-attachment: fixed; }
+#side {
+  background: var(--sheen), linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border-right: 0; box-shadow: inset -1px 0 0 var(--line), 24px 0 60px -30px rgba(0, 0, 0, .6);
+}
+#logo {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 55%), linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 0 0 1px rgba(255, 255, 255, .12), 0 14px 34px -10px var(--accent);
+}
+#brand b { font-weight: 600; letter-spacing: .01em; background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#brand span { font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: .24em; }
+.nav { position: relative; transition: background .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease); }
+.nav:hover { background: var(--sheen), var(--surface-3); box-shadow: var(--edge); }
+.nav.on { background: var(--sheen), var(--accent-soft); box-shadow: var(--edge); }
+.nav.on::before {
+  content: ""; position: absolute; left: -14px; top: 16px; bottom: 16px; width: 4px; border-radius: 2px;
+  background: var(--accent); box-shadow: 0 0 14px var(--accent);
+}
+h1 { font-size: 54px; font-weight: 300; letter-spacing: -.5px; }
+h2 { font-size: 17px; font-weight: 600; letter-spacing: .26em; margin-top: 48px; }
+.card { background: var(--sheen), var(--surface); border-color: var(--line); box-shadow: var(--edge), 0 30px 70px -34px rgba(0, 0, 0, .75); }
+.item { border-top-color: transparent; background-image: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent); background-size: 100% 1px; background-repeat: no-repeat; }
+.item:first-child { background-image: none; }
+.item > .ic { filter: drop-shadow(0 0 8px var(--accent-soft)); }
+.item .text b { font-weight: 500; letter-spacing: .005em; }
+button.item { transition: background-color .25s var(--ease); }
+button.item:hover { background-color: var(--surface-2); }
+.theme { box-shadow: var(--edge), 0 24px 50px -28px rgba(0, 0, 0, .75); }
+.item.theme { background-image: none; }
+#brand b i { font-style: normal; color: var(--accent); -webkit-text-fill-color: var(--accent); }
+/* BrowserPS5 RN only (its theme-rn.css shows them): v1's title has no pause for the system keyboard. */
+.item[data-rn] { display: none; }
+.choice[data-rn] { display: none; }  /* RN's own choices: only the languages lang-more.js has a table for are shown */
+</style></head><body>
+<!--#include icons.svg-->
+<nav id="side">
+  <div id="brand">
+    <div id="logo"><svg class="ic"><use href="#i-globe"/></svg></div>
+    <div><b>BrowserPS5 <i>NK</i></b><span>Definições</span></div>
+  </div>
+  <button class="nav" data-s="geral"><svg class="ic"><use href="#i-settings"/></svg>Geral</button>
+  <button class="nav" data-s="aspeto"><svg class="ic"><use href="#i-paint-brush"/></svg>Aspeto</button>
+  <button class="nav" data-s="comando"><svg class="ic"><use href="#i-cursor"/></svg>Comando</button>
+  <button class="nav" data-s="privacidade"><svg class="ic"><use href="#i-shield"/></svg>Privacidade e segurança</button>
+  <button class="nav" data-s="conteudo"><svg class="ic"><use href="#i-code"/></svg>Conteúdo dos sites</button>
+  <button class="nav" data-s="extensoes"><svg class="ic"><use href="#i-puzzle-piece"/></svg>Extensões</button>
+  <button class="nav" data-s="transferencias"><svg class="ic"><use href="#i-arrow-download"/></svg>Transferências</button>
+  <button class="nav" data-s="torbox"><svg class="ic"><use href="#i-storage"/></svg>TorBox</button>
+  <button class="nav" data-s="telemovel"><svg class="ic"><use href="#i-phone"/></svg>Telemóvel</button>
+  <button class="nav" data-s="favoritos"><svg class="ic"><use href="#i-star"/></svg>Favoritos</button>
+  <button class="nav" data-s="historico"><svg class="ic"><use href="#i-history"/></svg>Histórico</button>
+  <button class="nav" data-s="sistema"><svg class="ic"><use href="#i-developer-board"/></svg>Sistema</button>
+  <button class="nav" data-s="acerca"><svg class="ic"><use href="#i-info"/></svg>Acerca</button>
+  <div class="foot">As alterações ficam guardadas logo.<br>○ voltar à página anterior</div>
+</nav>
+<main>
+  <section id="geral">
+    <h1>Geral</h1>
+    <p class="lead">Por onde o browser começa e onde pesquisa.</p>
+    <h2>Ao iniciar</h2>
+    <div class="choices" data-key="startup">
+      <button class="choice" data-v="home"><b>Abrir a página inicial</b><span>Sempre a mesma, todas as vezes</span></button>
+      <button class="choice" data-v="last"><b>Continuar onde fiquei</b><span>Os separadores que estavam abertos</span></button>
+    </div>
+    <h2>Página inicial</h2>
+    <div class="choices" data-key="home_kind">
+      <button class="choice" data-v="start"><b>Início do BrowserPS5</b><span>Favoritos, pesquisa e sites recentes</span></button>
+      <button class="choice" data-v="url"><b>Um endereço</b><span id="home-url-hint">Escolhe abaixo</span></button>
+    </div>
+    <form class="row-gap" id="home-form" autocomplete="off">
+      <input class="field" id="home-url" type="url" enterkeyhint="done" spellcheck="false" placeholder="https://www.exemplo.pt/">
+      <button class="btn primary" type="submit">Guardar</button>
+    </form>
+    <div id="home-favs" class="row-gap" style="flex-wrap: wrap"></div>
+    <h2>Motor de pesquisa</h2>
+    <div class="choices" data-key="search" id="engines"></div>
+    <div class="card">
+      <button class="item" data-switch="side_mobile" data-rn><svg class="ic"><use href="#i-games"/></svg><div class="text"><b>Páginas leves ao lado do jogo</b><span>«Abrir ao lado do jogo» mostra a página no browser do próprio sistema, mais lento do que este e num painel estreito. Ligado: os sites mandam a versão de telemóvel, mais leve e feita para essa largura</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Idioma · Language</h2>
+    <div class="choices" data-key="lang">
+      <button class="choice" data-v="pt" translate="no"><b>Português</b><span>As páginas, os menus e as mensagens do browser</span></button>
+      <button class="choice" data-v="en" translate="no"><b>English</b><span>The browser's pages, menus and messages</span></button>
+      <button class="choice" data-v="es" translate="no" data-rn><b>Español</b><span>Las páginas, los menús y los mensajes del navegador</span></button>
+      <button class="choice" data-v="fr" translate="no" data-rn><b>Français</b><span>Les pages, les menus et les messages du navigateur</span></button>
+      <button class="choice" data-v="de" translate="no" data-rn><b>Deutsch</b><span>Seiten, Menüs und Meldungen des Browsers</span></button>
+      <button class="choice" data-v="it" translate="no" data-rn><b>Italiano</b><span>Le pagine, i menu e i messaggi del browser</span></button>
+      <button class="choice" data-v="nl" translate="no" data-rn><b>Nederlands</b><span>De pagina's, menu's en berichten van de browser</span></button>
+    </div>
+  </section>
+
+  <section id="aspeto">
+    <h1>Aspeto</h1>
+    <p class="lead">O tema muda a barra, o menu, o teclado e as páginas do browser.</p>
+    <h2>Tema</h2>
+    <div class="choices" data-key="theme" id="themes"></div>
+    <h2>Zoom das páginas</h2>
+    <div class="choices" data-key="zoom" id="zooms"></div>
+    <h2>Barra</h2>
+    <div class="card">
+      <button class="item" data-switch="favbar"><svg class="ic"><use href="#i-star"/></svg><div class="text"><b>Mostrar os favoritos na barra</b><span>A fila de favoritos debaixo do endereço</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="cinema"><svg class="ic"><use href="#i-filmstrip"/></svg><div class="text"><b>Modo cinema</b><span>Num vídeo em ecrã inteiro: o cursor desaparece quando o comando descansa, sem sons nem vibração, a luz do comando baixa</span></div><span class="switch"></span></button>
+    </div>
+  </section>
+
+  <section id="comando">
+    <h1>Comando</h1>
+    <p class="lead">Como o DualSense anda pelas páginas.</p>
+    <h2>Botões de direção</h2>
+    <div class="choices" data-key="dpad">
+      <button class="choice" data-v="elements"><b>Saltar entre elementos</b><span>Links, botões e caixas de texto, com destaque</span></button>
+      <button class="choice" data-v="scroll"><b>Deslocar a página</b><span>Como o manípulo direito</span></button>
+      <button class="choice" data-v="keys"><b>Teclas de setas</b><span>Para jogos, apresentações, leitores de vídeo e páginas feitas para TV</span></button>
+    </div>
+    <div class="card">
+      <button class="item" data-switch="magnet"><svg class="ic"><use href="#i-target"/></svg><div class="text"><b>Íman do cursor</b><span>Quando o manípulo pára, o cursor encaixa no link ou botão mais perto</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="sounds"><svg class="ic"><use href="#i-speaker-2"/></svg><div class="text"><b>Sons da interface</b><span>Um toque discreto ao saltar entre elementos e ao abrir menus</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="haptics"><svg class="ic"><use href="#i-games"/></svg><div class="text"><b>Vibração</b><span>O comando vibra de leve ao saltar entre elementos, abrir menus e escolher</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="triggers"><svg class="ic"><use href="#i-top-speed"/></svg><div class="text"><b>Gatilhos adaptativos</b><span>L2 e R2 dão um clique a meio, como botões, para os menus radiais</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="lightbar"><svg class="ic"><use href="#i-color"/></svg><div class="text"><b>Barra de luz do tema</b><span>A luz do comando acende na cor de destaque do tema</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="ps5_keyboard" data-rn><svg class="ic"><use href="#i-games"/></svg><div class="text"><b>Teclado da PS5</b><span>Escreve com o teclado do sistema em vez do teclado do browser. A página pausa enquanto ele está aberto</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="cursor_glow"><svg class="ic"><use href="#i-cursor"/></svg><div class="text"><b>Luz néon do cursor</b><span>Uma bola de luz na cor do tema segue o cursor, com um pequeno atraso</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="gamepad"><svg class="ic"><use href="#i-games"/></svg><div class="text"><b>Comando nos jogos da web</b><span>Num site com jogos, um clique no touch pad dá o comando ao jogo; outro devolve-o ao cursor</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Velocidade do cursor</h2>
+    <div class="choices" data-key="cursor_speed" id="cursor-speeds"></div>
+    <h2>Velocidade do deslocamento</h2>
+    <div class="choices" data-key="scroll_speed" id="scroll-speeds"></div>
+    <h2>Botões</h2>
+    <div class="card pad keys">
+      <div><kbd>L</kbd>Mover o cursor</div>
+      <div><kbd>R</kbd>Deslocar a página</div>
+      <div><kbd>✕</kbd>Clicar</div>
+      <div><kbd>✥</kbd>Saltar para o elemento seguinte</div>
+      <div><kbd>○</kbd>Voltar · fechar o menu</div>
+      <div><kbd>L1</kbd>Voltar</div>
+      <div><kbd>R1</kbd>Avançar</div>
+      <div><kbd>△</kbd>Escrever um endereço</div>
+      <div><kbd>□</kbd>Enter</div>
+      <div><kbd>R3</kbd>Consola de programador (se ligada)</div>
+      <div><kbd>touch pad</kbd>Separadores · num jogo, o comando</div>
+      <div><kbd>options</kbd>Menu (ecrã inteiro, sair)</div>
+    </div>
+  </section>
+
+  <section id="privacidade">
+    <h1>Privacidade e segurança</h1>
+    <p class="lead">O que fica guardado na consola, e o que os sites podem guardar.</p>
+    <h2>Limpar dados de navegação</h2>
+    <div class="card" id="clear">
+      <button class="item on" data-check="history"><svg class="ic"><use href="#i-history"/></svg><div class="text"><b>Histórico</b><span id="history-count"></span></div><span class="switch"></span></button>
+      <button class="item on" data-check="cookies"><svg class="ic"><use href="#i-cookies"/></svg><div class="text"><b>Cookies e dados dos sites</b><span>Sai das contas na maioria dos sites</span></div><span class="switch"></span></button>
+      <button class="item on" data-check="cache"><svg class="ic"><use href="#i-image"/></svg><div class="text"><b>Imagens e ficheiros em cache</b><span>As páginas abrem um pouco mais devagar da próxima vez</span></div><span class="switch"></span></button>
+      <div class="item"><div class="text"></div><button class="btn danger" id="clear-go"><svg class="ic s"><use href="#i-delete"/></svg>Limpar dados</button></div>
+    </div>
+    <h2>Cache</h2>
+    <div class="card">
+      <button class="item" data-switch="disk_cache"><svg class="ic"><use href="#i-storage"/></svg><div class="text"><b>Guardar páginas em cache no disco</b><span>Os sites já visitados abrem mais depressa, até 1 GB na consola. Conta a partir da próxima vez que o browser abrir</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Proteção</h2>
+    <div class="card">
+      <button class="item" data-switch="adblock"><svg class="ic"><use href="#i-shield-checkmark"/></svg><div class="text"><b>Bloquear anúncios</b><span>Esconde anúncios, não carrega os scripts, quadros e imagens das redes de publicidade e dos rastreadores</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="third_party_cookies"><svg class="ic"><use href="#i-cookies"/></svg><div class="text"><b>Permitir cookies de terceiros</b><span>Desligado: só o site que está aberto guarda cookies</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Sites com anúncios permitidos</h2>
+    <div class="card" id="ad-allow"></div>
+    <h2>Palavras-passe</h2>
+    <div class="card">
+      <button class="item" data-switch="logins"><svg class="ic"><use href="#i-lock-closed"/></svg><div class="text"><b>Oferecer para guardar palavras-passe</b><span>Depois de entrares num site, o browser pergunta se a guarda; nesse site, o teclado mostra «Entrar como …». Ficam só nesta consola</span></div><span class="switch"></span></button>
+    </div>
+    <div class="card" id="logins"></div>
+    <h2 id="notify-head" hidden>Notificações dos sites</h2>
+    <div class="card" id="notify-sites" hidden></div>
+  </section>
+
+  <section id="conteudo">
+    <h1>Conteúdo dos sites</h1>
+    <p class="lead">O que as páginas podem fazer. Vale para a próxima página que abrir.</p>
+    <div class="card">
+      <button class="item" data-switch="javascript"><svg class="ic"><use href="#i-code"/></svg><div class="text"><b>JavaScript</b><span>Quase todos os sites precisam dele</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="images"><svg class="ic"><use href="#i-image"/></svg><div class="text"><b>Imagens</b><span>Desligado, as páginas abrem mais depressa</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="popups"><svg class="ic"><use href="#i-window-new"/></svg><div class="text"><b>Janelas pop-up</b><span>Os sites podem abrir janelas por si</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="autoplay"><svg class="ic"><use href="#i-play"/></svg><div class="text"><b>Reprodução automática</b><span>Vídeos e som começam sem carregar em nada</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="desktop"><svg class="ic"><use href="#i-desktop"/></svg><div class="text"><b>Versão para computador</b><span>Desligado, os sites mostram a versão para telemóvel</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="devtools"><svg class="ic"><use href="#i-code"/></svg><div class="text"><b>Consola de programador</b><span>R3 (carregar no manípulo direito) mostra as mensagens e os erros da página e corre JavaScript</span></div><span class="switch"></span></button>
+    </div>
+  </section>
+
+  <section id="extensoes">
+    <h1>Extensões</h1>
+    <p class="lead" data-en="Scripts that change sites, like Chrome's extensions: BrowserPS5's own and the ones you install (&lt;code&gt;.user.js&lt;/code&gt; files, from Greasy Fork for example).">Scripts que mudam os sites, como as extensões do Chrome: os do BrowserPS5 e os que instalares (ficheiros <code>.user.js</code>, por exemplo do Greasy Fork).</p>
+    <div id="pending"></div>
+    <h2>Do BrowserPS5</h2>
+    <div class="card">
+      <button class="item" data-switch="dark_sites"><div class="ext-ic"><svg class="ic"><use href="#i-weather-moon"/></svg></div><div class="text"><b>Modo escuro nos sites</b><span>Escurece os sites claros, mantendo as fotografias e os vídeos</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="adblock"><div class="ext-ic"><svg class="ic"><use href="#i-shield-checkmark"/></svg></div><div class="text"><b>Bloqueador de anúncios</b><span>Esconde anúncios e não abre os quadros das redes de publicidade</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="fullscreen"><div class="ext-ic"><svg class="ic"><use href="#i-play"/></svg></div><div class="text"><b>Ecrã inteiro nos vídeos</b><span>O botão de ecrã inteiro dos sites passa a funcionar, sem a barra (○ sai)</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Instaladas</h2>
+    <div class="card" id="installed"></div>
+    <div class="row-gap">
+      <a class="btn primary" href="https://greasyfork.org/pt-PT"><svg class="ic s"><use href="#i-add"/></svg>Procurar extensões no Greasy Fork</a>
+      <span class="faint">Abre um script e carrega em «Instalar este script».</span>
+    </div>
+  </section>
+
+  <section id="transferencias">
+    <h1>Transferências</h1>
+    <p class="lead">Os ficheiros que os sites dão a guardar. Cada tipo tem a sua pasta, e o browser pergunta sempre onde guardar, como o Windows.</p>
+    <h2>Esta sessão</h2>
+    <div class="card" id="downloads"></div>
+    <h2 id="torrents-h">Torrents</h2>
+    <div class="card" id="torrents-card">
+      <button class="item" data-cmd="torrents"><svg class="ic"><use href="#i-arrow-download"/></svg><div class="text"><b>Abrir os torrents</b><span>Os links magnet e os ficheiros .torrent vão para o Transmission, que continua com o browser fechado. Ficam em /data/downloads/torrents</span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+    </div>
+    <h2>Onde guardar</h2>
+    <div class="card">
+      <button class="item" data-switch="ask_downloads"><svg class="ic"><use href="#i-folder-open"/></svg><div class="text"><b>Perguntar sempre onde guardar</b><span>Como no Windows. Desligado, cada ficheiro vai logo para a pasta do seu tipo</span></div><span class="switch"></span></button>
+      <button class="item" data-switch="multipart" data-rn><svg class="ic"><use href="#i-top-speed"/></svg><div class="text"><b>Transferências rápidas</b><span>Os ficheiros grandes (200 MB ou mais) vêm por várias ligações ao mesmo tempo, até 8. Se o servidor não deixar, ou se não ficar mais rápido, o browser volta sozinho a uma só</span></div><span class="switch"></span></button>
+      <button class="item" data-folder="downloads_dir"><svg class="ic"><use href="#i-folder"/></svg><div class="text"><b>Pasta das transferências</b><span data-show="downloads_dir"></span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <button class="item" data-folder="pkg_dir"><svg class="ic"><use href="#i-box"/></svg><div class="text"><b>Pasta dos pacotes (.pkg)</b><span data-show="pkg_dir"></span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <button class="item" data-folder="media_dir"><svg class="ic"><use href="#i-video-clip"/></svg><div class="text"><b>Pasta dos vídeos, músicas e imagens</b><span data-show="media_dir"></span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+    </div>
+  </section>
+
+  <section id="torbox">
+    <h1>TorBox</h1>
+    <p class="lead">A tua conta TorBox: os torrents e os links de ficheiros são transferidos nos servidores do TorBox, e os ficheiros prontos vêm para a consola pelas Transferências do browser.</p>
+    <h2>Conta</h2>
+    <div class="card">
+      <div class="item"><svg class="ic"><use href="#i-lock-closed"/></svg><div class="text"><b id="torbox-key-state">Sem chave</b><span>A chave da API está em torbox.app, Settings. Fica só nesta consola e nunca aparece nos registos</span></div></div>
+      <button class="item" id="torbox-forget" hidden><svg class="ic"><use href="#i-delete"/></svg><div class="text"><b>Apagar a chave</b><span>O browser esquece a conta</span></div></button>
+    </div>
+    <form class="row-gap" id="torbox-key-form" autocomplete="off">
+      <input class="field" id="torbox-key" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" style="-webkit-text-security: disc" placeholder="Chave da API (podes colá-la a partir do telemóvel)">
+      <button class="btn primary" type="submit">Guardar</button>
+    </form>
+    <div class="card">
+      <button class="item" data-switch="torbox_magnets"><svg class="ic"><use href="#i-arrow-download"/></svg><div class="text"><b>Mandar os torrents para o TorBox</b><span>Os links magnet e os ficheiros .torrent vão para o TorBox em vez do Transmission da consola</span></div><span class="switch"></span></button>
+    </div>
+    <h2>Adicionar</h2>
+    <form class="row-gap" id="torbox-add-form" autocomplete="off">
+      <input class="field" id="torbox-link" type="url" spellcheck="false" placeholder="Um link magnet, ou o endereço de um ficheiro">
+      <button class="btn primary" type="submit">Adicionar</button>
+    </form>
+    <h2>No TorBox</h2>
+    <div class="card" id="torbox-list"></div>
+    <div class="row-gap">
+      <button class="btn" id="torbox-refresh"><svg class="ic s"><use href="#i-arrow-clockwise"/></svg>Atualizar</button>
+      <a class="btn" href="https://torbox.app/dashboard"><svg class="ic s"><use href="#i-open"/></svg>Abrir torbox.app</a>
+    </div>
+  </section>
+
+  <section id="telemovel">
+    <h1>Telemóvel</h1>
+    <p class="lead">Usa o telemóvel como teclado e comando, abre nele um link para ver na TV ou envia vídeos e ficheiros para a consola. Basta estar na mesma rede.</p>
+    <div class="card phone-card" id="phone-card">
+      <div class="qr" id="phone-qr"></div>
+      <div class="phone-how">
+        <div class="step"><span class="n">1</span><div>Aponta a câmara do telemóvel ao código, ou abre<br><b id="phone-url">…</b></div></div>
+        <div class="step"><span class="n">2</span><div>Escreve este código no telemóvel:</div></div>
+        <div class="pin" id="phone-pin">––– –––</div>
+        <div class="faint" id="phone-time"></div>
+      </div>
+      <div class="phone-off" id="phone-off"><svg class="ic"><use href="#i-phone"/></svg><b>O telemóvel está desligado</b><span>Liga-o abaixo para ver o código.</span></div>
+    </div>
+    <h2>Ligações</h2>
+    <div class="card">
+      <button class="item" data-switch="phone"><svg class="ic"><use href="#i-phone-laptop"/></svg><div class="text"><b>Permitir o telemóvel</b><span>Só telemóveis da rede de casa, e só com o código da TV</span></div><span class="switch"></span></button>
+      <div class="item"><svg class="ic"><use href="#i-phone-arrow-right"/></svg><div class="text"><b id="phone-count">Nenhum telemóvel ligado</b><span>O browser esquece-os quando fecha</span></div><button class="btn" id="phone-forget">Esquecer todos</button></div>
+    </div>
+  </section>
+
+  <section id="favoritos">
+    <h1>Favoritos</h1>
+    <p class="lead">As páginas guardadas com a estrela do endereço. O ✕ de cada uma apaga-a.</p>
+    <div class="row-gap" style="margin: 0 0 24px">
+      <button class="btn danger" id="favorites-clear"><svg class="ic s"><use href="#i-delete"/></svg><span>Apagar todos</span></button>
+    </div>
+    <div class="card" id="favorites"></div>
+  </section>
+
+  <section id="historico">
+    <h1>Histórico</h1>
+    <p class="lead">As páginas abertas nesta consola, das mais recentes para as mais antigas.</p>
+    <div class="row-gap" style="margin: 0 0 24px">
+      <input class="field" id="history-filter" type="search" enterkeyhint="search" spellcheck="false" placeholder="Procurar no histórico">
+      <button class="btn danger" id="history-clear"><svg class="ic s"><use href="#i-delete"/></svg>Limpar</button>
+    </div>
+    <div class="card" id="history"></div>
+  </section>
+
+  <section id="sistema">
+    <h1>Sistema</h1>
+    <p class="lead">A consola agora: temperatura, memória, espaço livre e rede. Atualiza sozinho a cada 2 segundos.</p>
+    <div class="sys-tiles">
+      <div class="tile" id="sys-temp"><svg class="ic"><use href="#i-temperature"/></svg><b>–</b><span>Processador</span></div>
+      <div class="tile" id="sys-mem"><svg class="ic"><use href="#i-developer-board"/></svg><b>–</b><span>Memória livre</span></div>
+      <div class="tile" id="sys-up"><svg class="ic"><use href="#i-history"/></svg><b>–</b><span>Ligada há</span></div>
+      <div class="tile" id="sys-ip"><svg class="ic"><use href="#i-globe"/></svg><b>–</b><span>Endereço na rede</span></div>
+    </div>
+    <h2>Armazenamento</h2>
+    <div class="card" id="sys-disks"></div>
+    <h2>Consola</h2>
+    <div class="card">
+      <div class="item"><svg class="ic"><use href="#i-info"/></svg><div class="text"><b>Firmware</b><span id="sys-fw">–</span></div></div>
+      <div class="item"><svg class="ic"><use href="#i-developer-board"/></svg><div class="text"><b>Memória do sistema</b><span id="sys-mem-text">–</span><div class="meter" id="sys-mem-meter"><i></i></div></div></div>
+      <div class="item"><svg class="ic"><use href="#i-temperature"/></svg><div class="text"><b>Temperaturas</b><span id="sys-temps">–</span></div></div>
+    </div>
+    <h2>Este browser</h2>
+    <div class="card">
+      <div class="item"><svg class="ic"><use href="#i-globe"/></svg><div class="text"><b>Aberto há</b><span id="sys-b-up">–</span></div><span class="sys-nums" id="sys-b-version"></span></div>
+      <div class="item"><svg class="ic"><use href="#i-window-new"/></svg><div class="text"><b>Separadores abertos</b><span id="sys-b-tabs">–</span></div></div>
+      <div class="item"><svg class="ic"><use href="#i-shield-checkmark"/></svg><div class="text"><b>Anúncios bloqueados</b><span id="sys-b-ads">–</span></div></div>
+      <div class="item"><svg class="ic"><use href="#i-arrow-download"/></svg><div class="text"><b>Transferências a decorrer</b><span id="sys-b-dl">–</span></div></div>
+    </div>
+    <h2 id="web-title-h">Desempenho</h2>
+    <div class="card" id="web-title-card">
+      <button class="item" data-switch="web_in_title"><svg class="ic"><use href="#i-top-speed"/></svg><div class="text"><b>Páginas dentro da app do browser</b><span>Mais núcleos para as páginas: abrem até 40% mais depressa. Desliga se alguma página falhar. Conta a partir da próxima vez que o browser abrir</span></div><span class="switch"></span></button>
+    </div>
+    <h2 id="ps5-h">Definições da PS5</h2>
+    <div class="card" id="ps5-card">
+      <button class="item" data-ps5="network"><svg class="ic"><use href="#i-globe"/></svg><div class="text"><b>Rede</b><span>Wi-Fi, cabo e a ligação à internet</span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <button class="item" data-ps5="video"><svg class="ic"><use href="#i-desktop"/></svg><div class="text"><b>Ecrã e vídeo</b><span>Resolução, 4K, HDR e frequência</span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <button class="item" data-ps5="storage"><svg class="ic"><use href="#i-storage"/></svg><div class="text"><b>Armazenamento da consola</b><span>O espaço da consola e dos discos</span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <button class="item" data-ps5="controller"><svg class="ic"><use href="#i-games"/></svg><div class="text"><b>Comandos</b><span>O DualSense: vibração, gatilhos e luz</span></div><svg class="ic s faint"><use href="#i-chevron-right"/></svg></button>
+      <div class="item"><svg class="ic"><use href="#i-info"/></svg><div class="text"><span>Aparece uma notificação: carrega em «Abrir» nela. O browser fica em pausa por trás e volta como estava.</span></div></div>
+    </div>
+  </section>
+
+  <section id="acerca">
+    <h1>Acerca</h1>
+    <p class="lead">Um browser a sério para a PS5, feito sobre o WebKit.</p>
+    <div class="card">
+      <div class="item"><div class="ext-ic"><svg class="ic"><use href="#i-globe"/></svg></div><div class="text"><b>BrowserPS5</b><span id="about-version"></span></div><span class="badge">Software livre · GPL-3.0</span></div>
+      <div class="item"><div class="ext-ic"><svg class="ic"><use href="#i-code"/></svg></div><div class="text"><b>Motor</b><span id="about-engine"></span></div></div>
+      <div class="item"><div class="ext-ic"><svg class="ic"><use href="#i-top-speed"/></svg></div><div class="text"><b>Desenho e vídeo</b><span>Composição no GPU da consola (Mesa: zink e RADV), JavaScript com JIT</span></div></div>
+      <div class="item"><div class="ext-ic"><svg class="ic"><use href="#i-sparkle"/></svg></div><div class="text"><b>Ícones e letra</b><span>Fluent UI System Icons da Microsoft (licença MIT); a letra é a da própria consola</span></div></div>
+    </div>
+  </section>
+</main>
+<div id="toast"><svg class="ic"><use href="#i-checkmark"/></svg><span></span></div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+<!--#include qr.js-->
+</script>
+<script>
+'use strict';
+let data = {};
+try {
+  data = JSON.parse("@SETTINGS@");
+} catch (e) {
+}
+const S = data.settings || {};
+setLang(S.lang);
+const ENGINES = [
+  ['google', 'Google', 'O de origem. Pode pedir uma verificação'],
+  ['duckduckgo', 'DuckDuckGo', 'Não guarda o que pesquisas'],
+  ['bing', 'Bing', 'Da Microsoft'],
+  ['ecosia', 'Ecosia', 'Planta árvores'],
+  ['startpage', 'Startpage', 'Resultados do Google, em privado'],
+  ['brave', 'Brave Search', 'Índice próprio, privado'],
+];
+const THEMES = [
+  ['meia-noite', 'Meia-noite'], ['grafite', 'Grafite'], ['oled', 'OLED'],
+  ['claro', 'Claro'], ['oceano', 'Oceano'], ['ametista', 'Ametista'],
+  ['rubi', 'Rubi'], ['floresta', 'Floresta'], ['champanhe', 'Champanhe'], ['neon', 'Néon'],
+  // The seasons (docs/19): "estacao" shows the one of the day (data.season).
+  ['estacao', 'Estação (automático)'], ['inverno', 'Inverno'], ['primavera', 'Primavera'],
+  ['verao', 'Verão'], ['outono', 'Outono'], ['natal', 'Natal'], ['halloween', 'Halloween'],
+];
+// The theme to show: "estacao" is the season's.
+function shownTheme(v) {
+  return v === 'estacao' ? data.season || 'meia-noite' : v || 'meia-noite';
+}
+const ZOOMS = [67, 80, 90, 100, 110, 125, 150, 175, 200];
+const SPEEDS = [[50, 'Lenta'], [75, 'Calma'], [100, 'Normal'], [150, 'Rápida'], [200, 'Muito rápida']];
+
+// The app's commands one at a time, 300 ms apart: a second location.href at
+// once would cancel the first (Sony's WebKit).
+const sendQueue = [];
+function send(command, argument) {
+  sendQueue.push('browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument)));
+  if (sendQueue.length === 1) sendPump();
+}
+function sendPump() {
+  location.href = sendQueue[0];
+  setTimeout(() => { sendQueue.shift(); if (sendQueue.length) sendPump(); }, 300);
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function icon(name, cls) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('class', 'ic' + (cls ? ' ' + cls : ''));
+  const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  u.setAttribute('href', '#i-' + name);
+  s.appendChild(u);
+  return s;
+}
+function host(url) {
+  try { return new URL(url).host.replace(/^www\./, ''); } catch (e) { return url; }
+}
+let toastTimer = 0;
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.querySelector('span').textContent = text;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+}
+function set(key, value, note) {
+  S[key] = value;
+  if (key === 'lang') setLang(value);
+  send('set', key + '=' + value);
+  if (note) toast(note);
+}
+
+// Sections.
+function showSection(id) {
+  if (!document.getElementById(id)) id = 'geral';
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === id));
+  document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.s === id));
+  window.scrollTo(0, 0);
+  phoneSection(id === "telemovel");
+  systemSection(id === "sistema");
+  torboxSection(id === "torbox");
+}
+document.querySelectorAll('.nav').forEach(n => n.onclick = () => {
+  history.replaceState(null, '', '#' + n.dataset.s);
+  showSection(n.dataset.s);
+});
+window.addEventListener('hashchange', () => showSection(location.hash.slice(1)));
+
+// Cards to choose from (data-key on the grid, data-v on each).
+function fill(id, list, make) {
+  const box = document.getElementById(id);
+  for (const item of list) box.appendChild(make(item));
+}
+fill('engines', ENGINES, ([id, name, note]) => {
+  const b = el('button', 'choice');
+  b.dataset.v = id;
+  b.append(el('b', '', name), el('span', '', note));
+  return b;
+});
+fill('themes', THEMES, ([id, name]) => {
+  const b = el('button', 'choice theme');
+  b.dataset.v = id;
+  b.dataset.theme = shownTheme(id);
+  b.innerHTML = '<div class="shot"><div class="tb"><i></i><i></i><em></em></div>' +
+                '<div class="tiles"><i></i><i></i><i></i></div></div>';
+  b.appendChild(el('div', 'name', name));
+  return b;
+});
+fill('zooms', ZOOMS, z => {
+  const b = el('button', 'choice small');
+  b.dataset.v = z;
+  b.appendChild(el('b', '', z + '%'));
+  return b;
+});
+for (const id of ['cursor-speeds', 'scroll-speeds'])
+  fill(id, SPEEDS, ([v, name]) => {
+    const b = el('button', 'choice small');
+    b.dataset.v = v;
+    b.append(el('b', '', name), el('span', '', v + '%'));
+    return b;
+  });
+function renderChoices() {
+  document.querySelectorAll('.choices[data-key]').forEach(grid => {
+    const v = String(S[grid.dataset.key]);
+    grid.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c.dataset.v === v));
+  });
+}
+document.querySelectorAll('.choices[data-key]').forEach(grid => {
+  grid.addEventListener('click', e => {
+    const c = e.target.closest('.choice');
+    if (!c) return;
+    const key = grid.dataset.key;
+    if (key === 'home_kind' && c.dataset.v === 'url' && !S.home_url) {
+      document.getElementById('home-url').focus();
+      return;
+    }
+    set(key, /^(zoom|cursor_speed|scroll_speed)$/.test(key) ? Number(c.dataset.v) : c.dataset.v, 'Guardado');
+    if (key === 'theme') document.documentElement.dataset.theme = shownTheme(c.dataset.v);
+    renderChoices();
+  });
+});
+
+// Switches (data-switch: the setting's key).
+function renderSwitches() {
+  document.querySelectorAll('[data-switch]').forEach(b =>
+    b.classList.toggle('on', !!Number(S[b.dataset.switch])));
+}
+document.querySelectorAll('[data-switch]').forEach(b => b.onclick = () => {
+  const key = b.dataset.switch;
+  set(key, Number(S[key]) ? 0 : 1);
+  renderSwitches();
+});
+
+// The home page's address.
+const homeUrl = document.getElementById('home-url');
+homeUrl.value = S.home_url || '';
+function renderHome() {
+  document.getElementById('home-url-hint').textContent = S.home_url ? host(S.home_url) : 'Escreve-o abaixo';
+}
+document.getElementById('home-form').onsubmit = e => {
+  e.preventDefault();
+  let v = homeUrl.value.trim();
+  if (v && !/^[a-z]+:/i.test(v)) v = 'https://' + v;
+  homeUrl.value = v;
+  homeUrl.blur();
+  set('home_url', v);
+  if (v) set('home_kind', 'url', 'Página inicial: ' + host(v));
+  renderHome();
+  renderChoices();
+};
+
+// Clearing data.
+document.querySelectorAll('[data-check]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+document.getElementById('clear-go').onclick = () => {
+  const what = Array.from(document.querySelectorAll('[data-check].on')).map(b => b.dataset.check);
+  if (!what.length) return;
+  send('clear', what.join(','));
+  if (what.includes('history')) {
+    data.history = [];
+    renderHistory();
+  }
+  toast('Dados limpos');
+};
+
+// Favorites.
+// The ad blocker's exceptions (S.ad_allow: sites separated by spaces),
+// added with R2's "Anúncios aqui".
+function renderAdAllow() {
+  const box = document.getElementById('ad-allow');
+  box.textContent = '';
+  const sites = (S.ad_allow || '').split(' ').filter(Boolean);
+  if (!sites.length) {
+    const e = el('div', 'empty');
+    e.append(icon('shield-checkmark'), el('div', '', 'Nenhum. Num site, carrega em R2 e escolhe "Anúncios aqui" para os permitir só nesse site.'));
+    box.appendChild(e);
+    return;
+  }
+  for (const site of sites) {
+    const row = el('div', 'item');
+    const text = el('div', 'text');
+    text.append(el('b', '', site), el('span', '', 'O bloqueador não faz nada aqui nem nos endereços dentro dele'));
+    const x = el('button', 'ib x');
+    x.title = 'Voltar a bloquear';
+    x.appendChild(icon('dismiss'));
+    x.onclick = () => {
+      S.ad_allow = sites.filter(s => s !== site).join(' ');
+      send('adallow', 'remove:' + site);
+      renderAdAllow();
+      toast('Os anúncios voltam a ser bloqueados em ' + site);
+    };
+    row.append(icon('globe'), text, x);
+    box.appendChild(row);
+  }
+}
+
+function renderFavorites() {
+  const box = document.getElementById('favorites');
+  box.textContent = '';
+  const list = (data.favorites || []).filter(f => f && /^https?:/.test(f.url));
+  document.getElementById('favorites-clear').hidden = !list.length;
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.append(icon('star'), el('div', '', 'Ainda não há favoritos. Abre uma página e carrega na estrela do endereço.'));
+    box.appendChild(e);
+    return;
+  }
+  for (const f of list) {
+    const row = el('div', 'item');
+    const a = el('a', 'text');
+    a.href = f.url;
+    a.style.cssText = 'color: inherit; text-decoration: none';
+    a.append(el('b', '', f.title || host(f.url)), el('span', '', f.url));
+    const x = el('button', 'ib x');
+    x.title = 'Tirar dos favoritos';
+    x.appendChild(icon('dismiss'));
+    x.onclick = () => {
+      data.favorites.splice(data.favorites.indexOf(f), 1);
+      send('remove', f.url);
+      renderFavorites();
+    };
+    row.append(icon('star-f'), a, x);
+    box.appendChild(row);
+  }
+}
+
+// History: [time (s), url, title], the newest first.
+function dayName(d) {
+  const today = new Date();
+  const y = new Date(today);
+  y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return T('Hoje');
+  if (d.toDateString() === y.toDateString()) return T('Ontem');
+  return langDay(d);
+}
+// Downloads: [{id, name, path, received, total, state}], state one of
+// running, waiting (done, its folder not chosen yet), done, failed, cancelled.
+const STATES = {running: 'A transferir', waiting: 'À espera da pasta', done: 'Concluída',
+                failed: 'Falhou', cancelled: 'Cancelada'};
+function size(n) {
+  if (!(n > 0)) return '';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i ? n.toFixed(n < 10 ? 1 : 0) : String(n)).replace('.', LANG === 'en' ? '.' : ',') + ' ' + u[i];
+}
+// Seconds as "40 s", "12 min", "2 h 5 min" (the same in both languages).
+function timeLeft(s) {
+  if (s < 60) return Math.max(1, Math.round(s)) + ' s';
+  if (s < 3600) return Math.round(s / 60) + ' min';
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return m ? h + ' h ' + m + ' min' : h + ' h';
+}
+function renderDownloads() {
+  const box = document.getElementById('downloads');
+  box.textContent = '';
+  const list = data.downloads || [];
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.append(icon('arrow-download'), el('div', '', 'Ainda não houve transferências.'));
+    box.appendChild(e);
+  }
+  for (const d of list.slice().reverse()) {
+    const row = el('div', 'item');
+    const ic = el('div', 'ext-ic');
+    ic.appendChild(icon(/\.pkg$/i.test(d.name) ? 'box' : d.state === 'done' ? 'checkmark' : 'arrow-download'));
+    const text = el('div', 'text');
+    const pct = d.total > 0 ? Math.floor(d.received * 100 / d.total) : 0;
+    const line = [T(d.resume ? 'Interrompida' : STATES[d.state] || d.state)];
+    if (d.resume && d.total > 0) line.push(T('%s% de %s', pct, size(d.total)));
+    if (d.state === 'running') {
+      line.push(d.total > 0 ? T('%s% de %s', pct, size(d.total)) : size(d.received));
+      if (d.speed > 0) line.push(size(d.speed) + '/s');
+      if (d.waiting) line.push(T('à espera da rede, continua sozinha'));
+      else if (d.stalled) line.push(T('parada'));
+      if (d.speed > 0 && d.left >= 0) line.push(T('faltam %s', timeLeft(d.left)));
+    }
+    if (d.path) line.push(T(d.path));
+    if (d.unzip === 'running') line.push(T('A extrair · %s%', Math.max(0, d.unzip_percent)));
+    else if (d.unzip === 'done') line.push(T('Extraído para %s', d.unzip_dir));
+    else if (d.unzip === 'failed') line.push(T('Não foi possível extrair'));
+    text.append(el('b', '', d.name), el('span', '', line.join(' · ')));
+    if (d.state === 'running' && d.total > 0) {
+      const bar = el('div', '');
+      bar.style.cssText = 'height: 6px; border-radius: 3px; margin-top: 10px; background: var(--surface-3); overflow: hidden';
+      const fill = el('div', '');
+      fill.style.cssText = 'height: 100%; width: ' + pct + '%; background: linear-gradient(90deg, var(--accent), var(--accent-2))';
+      bar.appendChild(fill);
+      text.appendChild(bar);
+    }
+    row.append(ic, text);
+    if (d.pause) {  // RN: one that can go on later from where it is ("Continuar")
+      const p = el('button', 'ib');
+      p.title = 'Pausar';
+      p.appendChild(icon('pause'));
+      p.onclick = () => send('download-pause', String(d.id));
+      row.appendChild(p);
+    }
+    if (d.state === 'running' || d.state === 'waiting') {
+      const x = el('button', 'ib x');
+      x.title = 'Cancelar';
+      x.appendChild(icon('dismiss'));
+      x.onclick = () => send('download-cancel', String(d.id));
+      row.appendChild(x);
+    }
+    if (d.state === 'done' && (d.kind === 'media' || d.view)) {  // in the tab shown (d.view: RN's PDF reader)
+      const o = el('button', 'ib');
+      o.title = 'Abrir';
+      o.appendChild(icon('play'));
+      o.onclick = () => send('download-open', String(d.id));
+      row.appendChild(o);
+    }
+    if (data.unzip && d.state === 'done' && /\.zip$/i.test(d.name) && d.unzip !== 'running') {
+      const u = el('button', 'ib');
+      u.title = 'Extrair';
+      u.appendChild(icon('folder-open'));
+      u.onclick = () => send('download-unzip', String(d.id));
+      row.appendChild(u);
+    }
+    if (d.retry) {  // failed or cancelled: from the start, by the tab shown
+      const r = el('button', 'ib');
+      r.title = d.resume ? 'Continuar de onde ficou' : 'Voltar a tentar';
+      r.appendChild(icon(d.resume ? 'play' : 'arrow-clockwise'));
+      r.onclick = () => send('download-retry', String(d.id));
+      row.appendChild(r);
+    }
+    // BrowserPS5 RN (2026-11-11): "Executar" on a finished .elf: the file
+    // goes to the console's payload loader. A first press asks, a second
+    // within 4 s sends it.
+    if (data.run_payloads && d.state === 'done' && /\.elf$/i.test(d.name || '')) {
+      const run = el('button', 'ib');
+      run.title = 'Executar o payload';
+      run.appendChild(icon('developer-board'));
+      let armed = 0;
+      run.onclick = () => {
+        if (Date.now() - armed < 4000) {
+          armed = 0;
+          send('download-run', String(d.id));
+          renderDownloads();
+          return;
+        }
+        armed = Date.now();
+        const said = text.querySelector('span');
+        if (said) said.textContent = T('Executar este payload na consola? Carrega outra vez para confirmar');
+        setTimeout(() => { if (armed && Date.now() - armed >= 4000) renderDownloads(); }, 4100);
+      };
+      row.appendChild(run);
+    }
+    // BrowserPS5 RN (2026-11-10): "Apagar". A finished one's file goes from
+    // the disk: a first press asks, a second within 4 s deletes.
+    if (data.delete_files && d.state !== 'running' && d.state !== 'waiting' && d.unzip !== 'running') {
+      const del = el('button', 'ib x');
+      const done = d.state === 'done';
+      del.title = done ? 'Apagar' : 'Tirar da lista';
+      del.appendChild(icon('delete'));
+      let armed = 0;
+      del.onclick = () => {
+        if (Date.now() - armed < 4000) {
+          send('download-delete', String(d.id));
+          return;
+        }
+        armed = Date.now();
+        const said = text.querySelector('span');
+        if (said) said.textContent = T(done ? 'Apagar o ficheiro? Carrega outra vez para confirmar'
+                                            : 'Tirar da lista? Carrega outra vez para confirmar');
+        setTimeout(() => { if (Date.now() - armed >= 4000) renderDownloads(); }, 4100);
+      };
+      row.appendChild(del);
+    }
+    box.appendChild(row);
+  }
+}
+// From the app, while this page is open.
+function setDownloads(list) {
+  data.downloads = list;
+  renderDownloads();
+}
+document.querySelectorAll('[data-folder]').forEach((b) => b.onclick = () => send('choose-folder', b.dataset.folder));
+document.querySelectorAll('[data-cmd]').forEach((b) => b.onclick = () => send(b.dataset.cmd));
+function renderFolders() {
+  document.querySelectorAll('[data-show]').forEach((s) => s.textContent = S[s.dataset.show] || '');
+}
+// From the app, after a folder was chosen in its dialog.
+function setSetting(key, value) {
+  S[key] = value;
+  renderFolders();
+  renderSwitches();
+  renderChoices();
+  toast('Guardado');
+}
+// The favorites as the home page, a touch away.
+function renderHomeFavorites() {
+  const box = document.getElementById('home-favs');
+  box.textContent = '';
+  for (const f of (data.favorites || []).filter((f) => f && /^https?:/.test(f.url)).slice(0, 8)) {
+    const b = el('button', 'btn');
+    b.append(icon('star'), f.title || host(f.url));
+    b.onclick = () => {
+      homeUrl.value = f.url;
+      set('home_url', f.url);
+      set('home_kind', 'url', 'Página inicial: ' + (f.title || host(f.url)));
+      renderHome();
+      renderChoices();
+    };
+    box.appendChild(b);
+  }
+}
+
+function renderHistory() {
+  const box = document.getElementById('history');
+  const filter = document.getElementById('history-filter').value.trim().toLowerCase();
+  box.textContent = '';
+  const list = (data.history || []).filter(h =>
+    !filter || (h[1] + ' ' + h[2]).toLowerCase().includes(filter));
+  document.getElementById('history-count').textContent =
+    (data.history || []).length + ' página(s) guardada(s)';
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.append(icon('history'), el('div', '', filter ? 'Nada encontrado.' : 'O histórico está vazio.'));
+    box.appendChild(e);
+    return;
+  }
+  let last = '';
+  for (const [t, url, title] of list.slice(0, 400)) {
+    const d = new Date(t * 1000);
+    const day = dayName(d);
+    if (day !== last) {
+      box.appendChild(el('div', 'day', day));
+      last = day;
+    }
+    const a = el('a', 'item');
+    a.href = url;
+    const text = el('div', 'text');
+    text.append(el('b', '', title || host(url)), el('span', '', host(url)));
+    a.append(el('span', 'time', String(d.getHours()).padStart(2, '0') + ':' +
+                String(d.getMinutes()).padStart(2, '0')), text);
+    box.appendChild(a);
+  }
+}
+// Apagar todos os favoritos: pressed twice within 4 s.
+{
+  const b = document.getElementById('favorites-clear');
+  let timer = 0;
+  const reset = () => { clearTimeout(timer); b.querySelector('span').textContent = 'Apagar todos'; b.dataset.sure = ''; };
+  b.onclick = () => {
+    if (!b.dataset.sure) {
+      b.dataset.sure = '1';
+      b.querySelector('span').textContent = 'Carrega outra vez para apagar todos';
+      timer = setTimeout(reset, 4000);
+      return;
+    }
+    reset();
+    send('clear', 'favorites');
+    data.favorites = [];
+    renderFavorites();
+    renderHomeFavorites();
+    toast('Favoritos apagados');
+  };
+}
+document.getElementById('history-filter').addEventListener('input', renderHistory);
+document.getElementById('history-clear').onclick = () => {
+  send('clear', 'history');
+  data.history = [];
+  renderHistory();
+  toast('Histórico limpo');
+};
+
+// Extensions: {id, name, version, description, matches, on}; pending:
+// {name, version, description, matches, url} or null.
+function renderExtensions() {
+  const box = document.getElementById('installed');
+  box.textContent = '';
+  const list = data.extensions || [];
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.append(icon('puzzle-piece'), el('div', '', 'Nenhuma extensão instalada.'));
+    box.appendChild(e);
+  }
+  for (const x of list) {
+    const row = el('div', 'item');
+    const sw = el('button', 'switch' + (x.on ? ' on' : ''));
+    sw.title = x.on ? 'Desligar' : 'Ligar';
+    sw.onclick = () => {
+      x.on = !x.on;
+      send('ext', (x.on ? 'on:' : 'off:') + x.id);
+      renderExtensions();
+    };
+    const del = el('button', 'ib x');
+    del.title = 'Remover';
+    del.appendChild(icon('delete'));
+    del.onclick = () => {
+      list.splice(list.indexOf(x), 1);
+      send('ext', 'remove:' + x.id);
+      renderExtensions();
+      toast('Extensão removida');
+    };
+    const ic = el('div', 'ext-ic');
+    ic.appendChild(icon('puzzle-piece'));
+    const text = el('div', 'text');
+    text.append(el('b', '', x.name + (x.version ? ' ' + x.version : '')),
+                el('span', '', x.description || (x.matches || []).join('  ')));
+    row.append(ic, text, sw, del);
+    box.appendChild(row);
+  }
+  const pending = document.getElementById('pending');
+  pending.textContent = '';
+  const p = data.pending;
+  if (p) {
+    const card = el('div', 'card pending');
+    const body = el('div', 'pad');
+    body.append(el('div', 'badge', 'Instalar extensão?'), el('b', '', p.name + (p.version ? ' ' + p.version : '')));
+    body.querySelector('b').style.cssText = 'display: block; margin: 16px 0 6px';
+    body.appendChild(el('div', 'dim', p.description || ''));
+    const where = el('div', 'faint', 'Funciona em: ' + ((p.matches || []).join('  ') || 'todos os sites'));
+    where.style.cssText = 'margin-top: 10px; font-size: 20px';
+    const buttons = el('div', 'row-gap');
+    const yes = el('button', 'btn primary');
+    yes.append(icon('add', 's'), 'Instalar');
+    yes.onclick = () => { send('ext', 'install'); data.pending = null; toast('A instalar…'); renderExtensions(); };
+    const no = el('button', 'btn', 'Cancelar');
+    no.onclick = () => { send('ext', 'cancel'); data.pending = null; renderExtensions(); };
+    buttons.append(yes, no);
+    body.append(where, buttons);
+    card.appendChild(body);
+    pending.appendChild(card);
+  }
+}
+
+// The phone (phone.c). This section asks the app for a PIN when it shows
+// and lets it go when it hides; the app answers with setPhone() then, when
+// a phone connects and when the switch changes. A PIN that runs out while
+// the section shows is asked for again.
+let phoneShown = false, phoneOn = false, phoneLeft = 0, phoneTimer = 0;
+function phoneSection(on) {
+  if (document.readyState != 'complete') {  // after the load: a send() is a frame of its own
+    window.addEventListener('load', () => phoneSection(on), {once: true});
+    return;
+  }
+  if (on == phoneShown) return;
+  phoneShown = on;
+  send('phone', on ? 'open' : 'close');
+}
+function setPhone(p) {
+  const card = document.getElementById('phone-card');
+  phoneOn = !!p.on && !!p.url;
+  card.classList.toggle('off', !phoneOn);
+  const off = card.querySelector('.phone-off');
+  off.querySelector('b').textContent = !p.on ? 'O telemóvel está desligado' : 'Sem rede';
+  off.querySelector('span').textContent = !p.on ? 'Liga-o abaixo para ver o código.'
+    : 'A consola não tem endereço na rede. Liga-a ao router e volta aqui.';
+  if (phoneOn && card.dataset.url != p.url) {
+    document.getElementById('phone-qr').innerHTML = QR.svg(p.url);
+    document.getElementById('phone-url').textContent = p.url.replace(/^http:\/\//, '').replace(/\/$/, '');
+    card.dataset.url = p.url;
+  }
+  document.getElementById('phone-pin').textContent =
+    p.pin ? p.pin.slice(0, 3) + ' ' + p.pin.slice(3) : '––– –––';
+  phoneLeft = p.pin ? p.seconds || 0 : 0;
+  clearInterval(phoneTimer);
+  phoneTick();
+  if (phoneLeft > 0) phoneTimer = setInterval(phoneTick, 1000);
+  const n = p.count || 0;
+  document.getElementById('phone-count').textContent =
+    n == 0 ? 'Nenhum telemóvel ligado' : n == 1 ? '1 telemóvel ligado' : n + ' telemóveis ligados';
+  document.getElementById('phone-forget').disabled = !n;
+  if (p.paired) toast('Telemóvel ligado. O código mudou para o próximo.');
+}
+function phoneTick() {
+  const t = document.getElementById('phone-time');
+  if (phoneLeft <= 0) {
+    clearInterval(phoneTimer);
+    t.textContent = '';
+    if (phoneShown && phoneOn) {  // ran out: another
+      phoneOn = false;
+      send('phone', 'open');
+    }
+    return;
+  }
+  t.textContent = 'O código muda daqui a ' + Math.floor(phoneLeft / 60) + ':' +
+                  String(phoneLeft % 60).padStart(2, '0');
+  phoneLeft--;
+}
+document.getElementById('phone-forget').onclick = () => {
+  send('phone', 'forget');
+  toast('Os telemóveis foram esquecidos');
+};
+
+// Sistema (main.cpp system_tell(), system.c): asked for every 2 s while the
+// section shows; the app answers with setSystem(). -1 (or ''): not known.
+let systemTimer = 0;
+function systemSection(on) {
+  if (document.readyState != 'complete') {
+    window.addEventListener('load', () => systemSection(on), {once: true});
+    return;
+  }
+  clearInterval(systemTimer);
+  systemTimer = 0;
+  if (!on) return;
+  send('system');
+  systemTimer = setInterval(() => send('system'), 2000);
+}
+function bytes(n) {
+  if (n < 0) return '–';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (n >= 100 || i == 0 ? Math.round(n) : n.toFixed(1)).toString().replace('.', LANG === 'en' ? '.' : ',') +
+    ' ' + units[i];
+}
+function duration(s) {
+  if (s < 0) return '–';
+  s = Math.floor(s);
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  if (d) return d + ' d ' + h + ' h';
+  if (h) return h + ' h ' + String(m).padStart(2, '0') + ' min';
+  return m + ' min ' + String(s % 60).padStart(2, '0') + ' s';
+}
+function meter(e, used, total) {
+  const f = total > 0 ? Math.max(0, Math.min(1, used / total)) : 0;
+  e.querySelector('i').style.width = (f * 100).toFixed(1) + '%';
+  e.classList.toggle('full', f > 0.92);
+}
+function tile(id, value, hot) {
+  const t = document.getElementById(id);
+  t.querySelector('b').textContent = value;
+  t.classList.toggle('hot', !!hot);
+}
+function setSystem(x) {
+  const temp = x.cpu > 0 ? x.cpu : x.soc;
+  tile('sys-temp', temp > 0 ? temp + ' °C' : '–', temp >= 85);
+  document.querySelector('#sys-temp span').textContent =
+    temp > 0 ? (x.cpu > 0 ? 'Processador' : 'Chip principal') : 'Temperatura indisponível';
+  tile('sys-mem', bytes(x.mem_free));
+  tile('sys-up', duration(x.up));
+  tile('sys-ip', x.ip || 'Sem rede');
+  document.getElementById('sys-fw').textContent = x.firmware || 'Desconhecido';
+  document.getElementById('sys-mem-text').textContent = x.mem_total > 0 && x.mem_free >= 0
+    ? T('%s livres de %s', bytes(x.mem_free), bytes(x.mem_total)) : 'Indisponível';
+  meter(document.getElementById('sys-mem-meter'), x.mem_total - x.mem_free, x.mem_total);
+  const temps = [];
+  if (x.cpu > 0) temps.push(T('processador %s °C', x.cpu));
+  if (x.soc > 0) temps.push(T('chip principal %s °C', x.soc));
+  document.getElementById('sys-temps').textContent = temps.length ? temps.join(' · ')
+    : 'A consola não as dá a este browser';
+
+  const disks = document.getElementById('sys-disks');
+  disks.textContent = '';
+  for (const d of x.disks || []) {
+    const item = el('div', 'item');
+    item.appendChild(icon(d.icon));
+    const text = el('div', 'text');
+    text.appendChild(el('b', '', d.label));
+    text.appendChild(el('span', '', T('%s livres de %s', bytes(d.free), bytes(d.total)) + ' · ' + d.path));
+    const m = el('div', 'meter');
+    m.appendChild(el('i'));
+    meter(m, d.total - d.free, d.total);
+    text.appendChild(m);
+    item.appendChild(text);
+    item.appendChild(el('span', 'sys-nums', Math.round(100 * (d.total - d.free) / d.total) + ' %'));
+    disks.appendChild(item);
+  }
+  if (!disks.firstChild) {
+    const item = el('div', 'item');
+    item.appendChild(el('div', 'text', 'Nenhum disco a que o browser chegue'));
+    disks.appendChild(item);
+  }
+
+  const b = x.browser || {};
+  document.getElementById('sys-b-up').textContent = duration(b.up);
+  document.getElementById('sys-b-version').textContent = b.version ? 'v' + b.version : '';
+  document.getElementById('sys-b-tabs').textContent = b.tabs == 1 ? '1 separador' : (b.tabs || 0) + ' separadores';
+  document.getElementById('sys-b-ads').textContent = !b.ads ? 'Nenhum desde que abriu'
+    : b.ads == 1 ? '1 desde que abriu' : b.ads + ' desde que abriu';
+  document.getElementById('sys-b-dl').textContent = !b.downloads ? 'Nenhuma'
+    : b.downloads == 1 ? '1 transferência' : b.downloads + ' transferências';
+}
+
+// The saved logins (docs/12-contas.md): origins and user names only.
+function renderLogins() {
+  const box = document.getElementById('logins');
+  box.textContent = '';
+  const list = (data.logins || []).slice().sort((a, b) => b.time - a.time);
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.append(icon('lock-closed'), el('div', '', 'Ainda não há palavras-passe guardadas.'));
+    box.appendChild(e);
+    return;
+  }
+  for (const l of list) {
+    const row = el('div', 'item');
+    const ic = el('div', 'ext-ic');
+    ic.appendChild(icon(l.never ? 'dismiss' : 'lock-closed'));
+    const text = el('div', 'text');
+    text.append(el('b', '', host(l.origin)),
+                el('span', '', l.never ? 'Nunca guardar neste site' : (l.user || 'Sem nome de utilizador')));
+    const x = el('button', 'ib x');
+    x.title = 'Apagar';
+    x.appendChild(icon('delete'));
+    x.onclick = () => send('login-remove', l.origin + (l.never ? '' : '\n' + l.user));
+    row.append(ic, text, x);
+    box.appendChild(row);
+  }
+}
+// BrowserPS5 RN: the sites that asked to show notifications and what the user answered (data.notify, only with
+// an engine that has the sites' own Notification). "Esquecer": the site is asked again the next time.
+function renderNotify() {
+  const box = document.getElementById('notify-sites');
+  const head = document.getElementById('notify-head');
+  if (!data.notify)
+    return;
+  box.hidden = head.hidden = false;
+  box.textContent = '';
+  if (!data.notify.length) {
+    const e = el('div', 'empty');
+    e.append(icon('info'), el('div', '', 'Nenhum site pediu ainda. Quando um site quiser mostrar notificações, o browser pergunta: Permitir ou Bloquear.'));
+    box.appendChild(e);
+    return;
+  }
+  for (const n of data.notify) {
+    const row = el('div', 'item');
+    const ic = el('div', 'ext-ic');
+    ic.appendChild(icon(n.allowed ? 'checkmark' : 'dismiss'));
+    const text = el('div', 'text');
+    text.append(el('b', '', host(n.origin)), el('span', '', n.allowed ? 'Notificações permitidas' : 'Notificações bloqueadas'));
+    const x = el('button', 'ib x');
+    x.title = 'Esquecer';
+    x.appendChild(icon('delete'));
+    x.onclick = () => {
+      data.notify = data.notify.filter(o => o.origin !== n.origin);
+      send('notify-forget', n.origin);
+      renderNotify();
+      toast('Resposta esquecida: ' + host(n.origin) + ' volta a perguntar');
+    };
+    row.append(ic, text, x);
+    box.appendChild(row);
+  }
+}
+// From the app, after a change.
+function setLogins(list) {
+  data.logins = list;
+  renderLogins();
+}
+
+// TorBox (docs/11-torrents.md): only in the console's build (data.torbox).
+// What TorBox answers is shown as text, never as HTML.
+const TB = data.torbox;
+const TB_STATES = {
+  downloading: 'A transferir no TorBox', uploading: 'Pronto', completed: 'Pronto', cached: 'Pronto',
+  paused: 'Em pausa', metaDL: 'A ler o torrent', checkingResumeData: 'A verificar', queued: 'Em fila',
+  stalledDL: 'Sem fontes', 'stalled (no seeds)': 'Sem fontes', error: 'Erro', failed: 'Falhou',
+};
+let tbTimer = 0, tbShown = false;
+if (!TB) {
+  document.querySelector('.nav[data-s="torbox"]').remove();
+  document.getElementById('torbox').remove();
+}
+if (!data.torrents) {
+  document.getElementById('torrents-h').remove();
+  document.getElementById('torrents-card').remove();
+}
+// The WebProcess in the browser's title (docs/05, 2c-2): only with a WebKit
+// that can do it.
+if (!data.web_title) {
+  document.getElementById('web-title-h').remove();
+  document.getElementById('web-title-card').remove();
+}
+// The PS5's own settings (docs/14-definicoes-da-ps5.md): the page only names
+// one; the app has the links.
+if (!data.ps5settings) {
+  document.getElementById('ps5-h').remove();
+  document.getElementById('ps5-card').remove();
+} else {
+  document.querySelectorAll('[data-ps5]').forEach((b) => b.onclick = () => send('ps5settings', b.dataset.ps5));
+}
+function torboxSection(on) {
+  tbShown = on && !!TB;
+  clearTimeout(tbTimer);
+  if (tbShown && TB.key) send('torbox-list');
+  else if (tbShown) torboxEmpty('Guarda a chave da tua conta para ver o que lá tens.');
+}
+function renderTorboxKey() {
+  if (!TB) return;
+  document.getElementById('torbox-key-state').textContent =
+    TB.key ? 'Chave guardada (acaba em ' + TB.hint + ')' : 'Sem chave';
+  document.getElementById('torbox-forget').hidden = !TB.key;
+}
+// From the app: the key saved or forgotten.
+function setTorboxKey(k) {
+  TB.key = !!k.key;
+  TB.hint = k.hint || '';
+  renderTorboxKey();
+  if (!TB.key) torboxEmpty('Guarda a chave da tua conta para ver o que lá tens.');
+}
+function torboxEmpty(text) {
+  const box = document.getElementById('torbox-list');
+  box.textContent = '';
+  const e = el('div', 'empty');
+  e.append(icon("storage"), el('div', '', text));
+  box.appendChild(e);
+}
+function torboxItems(text) {
+  try {
+    const j = JSON.parse(text);
+    return j && Array.isArray(j.data) ? j.data : [];
+  } catch (e) {
+    return [];
+  }
+}
+// From the app: TorBox's two lists, as TorBox gave them.
+function setTorbox(x) {
+  clearTimeout(tbTimer);
+  if (!x.ok) {
+    torboxEmpty(x.message || 'O TorBox não respondeu.');
+    return;
+  }
+  const items = torboxItems(x.torrents).map(t => [t, 't'])
+    .concat(torboxItems(x.web).map(t => [t, 'w']));
+  const box = document.getElementById('torbox-list');
+  box.textContent = '';
+  if (!items.length) {
+    torboxEmpty('Ainda não há nada no TorBox.');
+    return;
+  }
+  let busy = false;
+  for (const [t, kind] of items) {
+    if (!t || !Number.isInteger(t.id)) continue;
+    const ready = !!t.download_present;
+    const p = Number(t.progress) || 0;
+    const pct = Math.max(0, Math.min(100, Math.floor(p > 1 ? p : p * 100)));
+    busy = busy || !ready;
+    const row = el('div', 'item');
+    const ic = el('div', 'ext-ic');
+    ic.appendChild(icon(ready ? 'checkmark' : 'arrow-download'));
+    const text = el('div', 'text');
+    const state = T(ready ? 'Pronto' : TB_STATES[t.download_state] || String(t.download_state || 'À espera'));
+    text.append(el('b', '', String(t.name || 'Sem nome')),
+                el('span', '', state + (ready ? '' : ' · ' + pct + '%') + (t.size ? ' · ' + size(t.size) : '') +
+                               (kind === 'w' ? ' · link' : ' · torrent')));
+    if (!ready) {
+      const bar = el('div', '');
+      bar.style.cssText = 'height: 6px; border-radius: 3px; margin-top: 10px; background: var(--surface-3); overflow: hidden';
+      const fill = el('div', '');
+      fill.style.cssText = 'height: 100%; width: ' + pct + '%; background: linear-gradient(90deg, var(--accent), var(--accent-2))';
+      bar.appendChild(fill);
+      text.appendChild(bar);
+    }
+    row.append(ic, text);
+    box.appendChild(row);
+    const files = ready && Array.isArray(t.files) ? t.files.filter(f => f && Number.isInteger(f.id)) : [];
+    for (const f of files.slice(0, 30)) {
+      const b = el('button', 'item');
+      b.style.paddingLeft = '72px';
+      const ft = el('div', 'text');
+      ft.append(el('b', '', String(f.short_name || f.name || 'ficheiro')), el('span', '', (f.size ? size(f.size) + ' · ' : '') + T('Trazer para a consola')));
+      b.append(icon('arrow-download'), ft);
+      b.onclick = () => send('torbox-get', kind + ':' + t.id + ':' + f.id);
+      box.appendChild(b);
+    }
+    if (files.length > 30) {
+      const more = el('div', 'item');
+      more.appendChild(el('div', 'text faint', 'E mais ' + (files.length - 30) + ' ficheiros: em torbox.app'));
+      box.appendChild(more);
+    }
+  }
+  // While something is still coming, again in 15 s (TorBox counts requests).
+  if (busy && tbShown) tbTimer = setTimeout(() => send('torbox-list'), 15000);
+}
+if (TB) {
+  renderTorboxKey();
+  const keyInput = document.getElementById('torbox-key');
+  document.getElementById('torbox-key-form').onsubmit = e => {
+    e.preventDefault();
+    const v = keyInput.value.trim();
+    keyInput.value = '';
+    keyInput.blur();
+    if (v) send('torbox-key', v);
+  };
+  document.getElementById('torbox-forget').onclick = () => send('torbox-key', '');
+  const linkInput = document.getElementById('torbox-link');
+  document.getElementById('torbox-add-form').onsubmit = e => {
+    e.preventDefault();
+    const v = linkInput.value.trim();
+    if (!v) return;
+    if (/(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|googlevideo\.com)$/i.test(host(v).split(':')[0])) {
+      toast('O TorBox não é usado para o YouTube');
+      return;
+    }
+    linkInput.value = '';
+    linkInput.blur();
+    send('torbox-add', v);
+  };
+  document.getElementById('torbox-refresh').onclick = () => {
+    if (TB.key) send('torbox-list');
+    else toast('Primeiro a chave da conta');
+  };
+}
+
+const about = data.about || {};
+document.getElementById('about-version').textContent = about.version || '';
+document.getElementById('about-engine').textContent = about.engine || 'WebKit';
+document.documentElement.dataset.theme = shownTheme(S.theme);
+// Their texts put together again in the new language (lang.js).
+document.addEventListener('langchange', () => {
+  renderDownloads();
+  renderHistory();
+});
+renderChoices();
+renderSwitches();
+renderHome();
+renderFavorites();
+renderAdAllow();
+renderHistory();
+renderExtensions();
+renderDownloads();
+renderLogins();
+renderNotify();
+renderFolders();
+renderHomeFavorites();
+showSection(location.hash.slice(1) || data.section || 'geral');
+</script></body></html>

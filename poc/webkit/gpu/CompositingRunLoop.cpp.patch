@@ -1,0 +1,15 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/CompositingRunLoop.cpp
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/CompositingRunLoop.cpp
+@@ -90,7 +90,11 @@
+ {
+     Locker stateLocker { m_state.lock };
+     m_state.isSuspended = true;
+-    m_updateTimer.stop();
++    // BrowserPS5 (2026-11-09): not m_updateTimer.stop(): this runs on the main
++    // thread, and stopping the compositing thread's timer from there while it
++    // is active is a RELEASE_ASSERT (RunLoop::TimerBase::stop()). If it fires
++    // now, updateTimerFired() sees isSuspended and leaves the update
++    // Scheduled; resume() starts it again.
+ }
+ 
+ void CompositingRunLoop::resume()

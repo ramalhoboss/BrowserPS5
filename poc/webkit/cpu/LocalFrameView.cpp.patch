@@ -1,0 +1,114 @@
+--- a/LocalFrameView.cpp
++++ b/LocalFrameView.cpp
+@@ -1957,8 +1957,52 @@ void LocalFrameView::setBaseLayoutViewportOrigin(LayoutPoint origin, TriggerLayo
+         return;
+ 
+     m_layoutViewportOrigin = origin;
+-    if (layoutTriggering == TriggerLayoutOrNot::Yes)
++    if (layoutTriggering == TriggerLayoutOrNot::Yes) {
++#if PLATFORM(PLAYSTATION)
++        // BrowserPS5 RN (2026-11-11): at every step of a scroll the layout
++        // viewport's origin moves, and every fixed and sticky renderer was
++        // told to lay itself out again. A fixed one is out of flow: only the
++        // view's positioned objects are laid out. A sticky one is in flow,
++        // so the request went up its containers: on Wikipedia's article the
++        // two sticky columns sit in the page's grid, the grid laid all its
++        // items out again and the whole article was painted again, 4 megapixels
++        // at each step (29 frames a second against 54 in the skin with no
++        // sticky element; results/rn-feel-20261111-01*). A sticky renderer's
++        // place in the flow does not depend on the viewport: its offset is
++        // worked out when the layers' positions are updated after the scroll
++        // (updateLayerPositionsAfterScrolling()). So it gets no layout here,
++        // only the geometry update of its layer.
++        // BROWSERPS5_STICKY_LAYOUT_ON_SCROLL=1 (env.txt, web-env.txt): as before.
++        static const bool stickyLayoutOnScroll = [] {
++            const char* value = getenv("BROWSERPS5_STICKY_LAYOUT_ON_SCROLL");
++            return value && *value == '1';
++        }();
++        if (!stickyLayoutOnScroll && hasViewportConstrainedObjects()) {
++            // A fixed one only moves with the viewport: the layout that
++            // only places an out-of-flow box again, with no layout of what
++            // is in it and no painting of a layer of its own (publico.pt's
++            // fixed bars, with their shadows, were laid out and painted again
++            // whole at every step: 25 frames a second, the page thread in
++            // Cairo in 7 stacks of 8). It falls back to a full layout by
++            // itself if its width changes. BROWSERPS5_FIXED_LAYOUT_ON_SCROLL=1: as before.
++            static const bool fixedLayoutOnScroll = [] {
++                const char* value = getenv("BROWSERPS5_FIXED_LAYOUT_ON_SCROLL");
++                return value && *value == '1';
++            }();
++            for (CheckedRef renderer : *m_viewportConstrainedObjects) {
++                if (renderer->isStickilyPositioned()) {
++                    // No layout: see above.
++                } else if (!fixedLayoutOnScroll && renderer->isFixedPositioned())
++                    renderer->setNeedsOutOfFlowMovementLayout(&renderer->style());
++                else
++                    renderer->setNeedsLayout();
++                if (renderer->hasLayer())
++                    downcast<RenderBoxModelObject>(renderer).layer()->setNeedsCompositingGeometryUpdate();
++            }
++        } else
++#endif
+         setViewportConstrainedObjectsNeedLayout();
++    }
+     
+     if (CheckedPtr tiledBacking = this->tiledBacking()) {
+         FloatRect layoutViewport = layoutViewportRect();
+@@ -3019,6 +3063,19 @@ OptionSet<StyleColorOptions> LocalFrameView::styleColorOptions(StyleColorOptions
+     return { };
+ }
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5 RN (2026-11-11): BROWSERPS5_PAINT_STATS=1, what a scroll step
++// asked to be painted again (see CoordinatedBackingStoreProxy.cpp).
++static bool browserPS5ScrollStats()
++{
++    static const bool enabled = [] {
++        const char* value = getenv("BROWSERPS5_PAINT_STATS");
++        return value && *value == '1';
++    }();
++    return enabled;
++}
++#endif
++
+ bool LocalFrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect& rectToScroll, const IntRect& clipRect)
+ {
+     if (!m_viewportConstrainedObjects || m_viewportConstrainedObjects->isEmptyIgnoringNullReferences()) {
+@@ -3027,6 +3084,12 @@ bool LocalFrameView::scrollContentsFastPath(const IntSize& scrollDelta, const In
+     }
+ 
+     bool isCompositedContentLayer = usesCompositedScrolling();
++#if PLATFORM(PLAYSTATION)
++    static unsigned statsCalls;
++    const bool statsNow = browserPS5ScrollStats() && !(statsCalls++ % 30);
++    if (statsNow)
++        WTFLogAlways("BrowserPS5 scroll: fast path, composited contents %d, delta %d,%d", isCompositedContentLayer, scrollDelta.width(), scrollDelta.height());
++#endif
+ 
+     // Get the rects of the fixed objects visible in the rectToScroll
+     Region regionToUpdate;
+@@ -3039,6 +3102,12 @@ bool LocalFrameView::scrollContentsFastPath(const IntSize& scrollDelta, const In
+         // Fixed items should always have layers.
+         ASSERT(renderer->hasLayer());
+         CheckedPtr layer = downcast<RenderBoxModelObject>(renderer).layer();
++#if PLATFORM(PLAYSTATION)
++        if (statsNow) {
++            IntRect r = enclosingIntRect(layer->repaintRectIncludingNonCompositingDescendants());
++            WTFLogAlways("BrowserPS5 scroll:   not composited: %s, reason %d, repaint rect %dx%d at %d,%d", layer->name().utf8().data(), static_cast<int>(layer->viewportConstrainedNotCompositedReason()), r.width(), r.height(), r.x(), r.y());
++        }
++#endif
+ 
+         if (layer->viewportConstrainedNotCompositedReason() == RenderLayer::NotCompositedForBoundsOutOfView
+             || layer->viewportConstrainedNotCompositedReason() == RenderLayer::NotCompositedForNoVisibleContent) {
+@@ -3084,6 +3153,11 @@ bool LocalFrameView::scrollContentsFastPath(const IntSize& scrollDelta, const In
+ 
+ void LocalFrameView::scrollContentsSlowPath(const IntRect& updateRect)
+ {
++#if PLATFORM(PLAYSTATION)
++    static unsigned slowCalls;
++    if (browserPS5ScrollStats() && !(slowCalls++ % 30))
++        WTFLogAlways("BrowserPS5 scroll: SLOW path (%u), update rect %dx%d, slow repaint objects %u, composited scrolling %d", slowCalls, updateRect.width(), updateRect.height(), m_slowRepaintObjects ? m_slowRepaintObjects->computeSize() : 0, usesCompositedScrolling());
++#endif
+     repaintSlowRepaintObjects();
+ 
+     if (!usesCompositedScrolling() && isEnclosedInCompositingLayer()) {

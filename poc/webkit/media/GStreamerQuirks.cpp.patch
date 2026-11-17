@@ -1,0 +1,49 @@
+--- a/GStreamerQuirks.cpp
++++ b/GStreamerQuirks.cpp
+@@ -44,6 +44,11 @@
+ #include <wtf/text/StringCommon.h>
+ #include <wtf/text/StringView.h>
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5: poc/media/ps5audiosink/ps5videosink.c (registered as westerossink).
++extern "C" gboolean browserps5_video_sink_register(void);
++#endif
++
+ namespace WebCore {
+ 
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(GStreamerQuirkBase);
+@@ -76,7 +81,7 @@
+ 
+     // For the time being keep this disabled on non-WPE platforms. GTK on desktop shouldn't require
+     // quirks, for instance.
+-#if !PLATFORM(WPE)
++#if !PLATFORM(WPE) && !PLATFORM(PLAYSTATION)
+     return;
+ #endif
+ 
+@@ -84,6 +89,25 @@
+     if (!loadQuirksFromEnvironment)
+         return;
+ 
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5: only the quirks crash-report.c asks for, when the title
++    // decodes the video (WEBKIT_GST_QUIRKS=westeros and the hole punch, see
++    // poc/webkit/crash-report/crash-report.c and docs/08-4k.md). No automatic
++    // detection: our westerossink is always registered, and without the
++    // title its compressed stop caps would leave the page with no decoder.
++    if (!g_getenv("WEBKIT_GST_QUIRKS")) {
++        GST_DEBUG("WEBKIT_GST_QUIRKS was not set: no quirks.");
++        return;
++    }
++    // Our westerossink before isPlatformSupported() below looks for it. The
++    // MSE registry scanner can make this manager before WebKit registers its
++    // elements (registerWebKitGStreamerElements()): the Westeros quirk was
++    // then skipped, the hole punch still made our sink, avdec_vp9 decoded in
++    // the WebProcess and the video failed with "not-negotiated" (a page with
++    // MediaSource, 2026-11-05 12:58).
++    browserps5_video_sink_register();
++#endif
++
+     auto quirksString = UTF8CStringView::unsafeFromUTF8(g_getenv("WEBKIT_GST_QUIRKS"));
+     GST_DEBUG("Attempting to parse requested quirks: %s", GST_STR_NULL(quirksString.utf8()));
+     if (quirksString) {

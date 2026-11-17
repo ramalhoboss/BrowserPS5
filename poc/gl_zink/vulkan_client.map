@@ -1,0 +1,10 @@
+/* libvulkan.so.1 exports what zink calls and nothing else: RADV, Mesa's
+ * utilities, libc++ and PS5_Vulkan's platform stay inside, so they never
+ * meet libgallium's own copies of the same names. */
+{
+    global:
+        vkGetInstanceProcAddr;
+        vkGetDeviceProcAddr;
+    local:
+        *;
+};

@@ -1,0 +1,18 @@
+diff --git a/Source/WebCore/workers/WorkerRunLoop.cpp b/Source/WebCore/workers/WorkerRunLoop.cpp
+index a29215534..8e6248f57 100644
+--- a/Source/WebCore/workers/WorkerRunLoop.cpp
++++ b/Source/WebCore/workers/WorkerRunLoop.cpp
+@@ -291,7 +291,12 @@ WorkerDedicatedRunLoop::RunInModeResult WorkerDedicatedRunLoop::runInMode(Worker
+ 
+     CheckedPtr script = context->script();
+ 
+-#if OS(WINDOWS)
++#if OS(WINDOWS) || PLATFORM(PLAYSTATION)
++    // BrowserPS5 (2026-11-10 21:05): PlayStation's RunLoop is the generic
++    // one, which nothing else turns on a worker thread (no GLib, no CF): the
++    // VM's run loop timers (DeferredWorkTimer) never fired there, so
++    // WebAssembly.instantiate() in a worker never finished (Telegram Web's
++    // MTProto and Opus workers timed out; WhatsApp Web stayed on its splash).
+     RunLoop::cycle();
+ 
+     if (script) {

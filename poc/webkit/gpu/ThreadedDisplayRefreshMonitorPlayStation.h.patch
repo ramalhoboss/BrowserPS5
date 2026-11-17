@@ -1,0 +1,11 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedDisplayRefreshMonitorPlayStation.h
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedDisplayRefreshMonitorPlayStation.h
+@@ -54,6 +54,8 @@
+     bool requiresDisplayRefreshCallback(const WebCore::DisplayUpdate&);
+     void dispatchDisplayRefreshCallback();
+     void invalidate();
++    // BrowserPS5 (2026-11-09): once, when a hidden page is shown again.
++    void refreshAfterResume();
+ 
+ private:
+     ThreadedDisplayRefreshMonitor(WebCore::PlatformDisplayID, Client&, WebCore::DisplayUpdate);

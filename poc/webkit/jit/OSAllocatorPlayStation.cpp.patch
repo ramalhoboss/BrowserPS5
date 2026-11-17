@@ -1,0 +1,141 @@
+--- a/OSAllocatorPlayStation.cpp
++++ b/OSAllocatorPlayStation.cpp
+@@ -33,16 +33,54 @@
+ #include <wtf/DataLog.h>
+ #include <wtf/MathExtras.h>
+ #include <wtf/PageBlock.h>
++#include <wtf/RawPointer.h>
++#include <atomic>
+ #include <wtf/SafeStrerror.h>
+ #include <wtf/text/CString.h>
++#include <sys/mman.h>
+ 
+ namespace WTF {
+ 
++// BrowserPS5 (docs/04-jit.md): JavaScriptCore's JIT pool. On the PS5 a
++// mapping made executable in one go cannot run code (poc/mem_budget,
++// 2026-11-02): pages are mapped, then made executable with mprotect().
++// Doing that page by page as the JIT needs them failed in jsc with EPERM
++// after the first pages (J1, 2026-11-04 18:57), while one mprotect() of a
++// whole 16 MiB region works (poc/jit_probe). So the pool is mapped and made
++// executable as a whole when it is reserved, and its pages then stay
++// mapped: commit() and decommit() leave them alone. The pool is
++// read+write+execute (EXECUTABLE_POOL_WRITABLE): switching pages to
++// read+write+execute only while JSC wrote code (MPROTECT_RX_TO_RWX) crashed
++// the WebProcess's JIT threads on YouTube (J2, 2026-11-04 19:27-19:39),
++// and a region that stays read+write+execute runs code that is rewritten
++// in place (poc/jit_probe, 19:45).
++static std::atomic<uintptr_t> s_jitPoolStart;
++static std::atomic<uintptr_t> s_jitPoolEnd;
++
++// A one-page mprotect() to read+execute failed now and then with errno 0
++// (J2): up to three tries, each failure in the log.
++static bool makeExecutable(void* address, size_t bytes, bool writable)
++{
++    for (int i = 0; i < 3; i++) {
++        errno = 0;
++        int result = mprotect(address, bytes, PROT_READ | PROT_EXEC | (writable ? PROT_WRITE : 0));
++        if (!result)
++            return true;
++        dataLogLn("BrowserPS5: making ", bytes >> 10, " KiB at ", RawPointer(address), " executable failed (try ", i + 1, "): ", result, ", errno ", errno);
++    }
++    return false;
++}
++
++static bool isInJITPool(void* address, size_t bytes)
++{
++    uintptr_t start = reinterpret_cast<uintptr_t>(address);
++    return start >= s_jitPoolStart.load() && start + bytes <= s_jitPoolEnd.load();
++}
++
+ void* OSAllocator::tryReserveAndCommit(size_t bytes, Usage usage, void* address, bool writable, bool executable, bool jitCageEnabled, unsigned numGuardPagesToAddOnEachEnd)
+ {
+     UNUSED_PARAM(numGuardPagesToAddOnEachEnd); // Guard pages not supported, and will be ignored.
+     ASSERT_UNUSED(jitCageEnabled, !jitCageEnabled);
+-    ASSERT_UNUSED(executable, !executable);
+     ASSERT_UNUSED(address, !address);
+ 
+     void* result = memory_extra::vss::reserve(bytes);
+@@ -50,6 +88,8 @@
+         return nullptr;
+ 
+     bool success = memory_extra::vss::commit(result, bytes, writable, usage);
++    if (success && executable)
++        success = makeExecutable(result, bytes, writable);
+     if (!success) {
+         memory_extra::vss::release(result, bytes);
+         return nullptr;
+@@ -60,17 +100,26 @@
+ 
+ void* OSAllocator::tryReserveUncommitted(size_t bytes, Usage usage, void* address, bool writable, bool executable, bool jitCageEnabled, unsigned numGuardPagesToAddOnEachEnd)
+ {
+-    UNUSED_PARAM(usage);
+-    UNUSED_PARAM(writable);
+     UNUSED_PARAM(numGuardPagesToAddOnEachEnd); // Guard pages not supported, and will be ignored.
+     ASSERT_UNUSED(jitCageEnabled, !jitCageEnabled);
+-    ASSERT_UNUSED(executable, !executable);
+     ASSERT_UNUSED(address, !address);
+ 
+     void* result = memory_extra::vss::reserve(bytes);
+     if (!result)
+         return nullptr;
+ 
++    // BrowserPS5: the JIT pool, mapped and made executable as a whole.
++    if (executable) {
++        if (s_jitPoolEnd.load() || !memory_extra::vss::commit(result, bytes, writable, usage) || !makeExecutable(result, bytes, writable)) {
++            dataLogLn("BrowserPS5: JIT off: making the ", bytes >> 20, " MiB JIT pool executable failed, errno ", errno);
++            memory_extra::vss::release(result, bytes);
++            return nullptr;
++        }
++        s_jitPoolStart = reinterpret_cast<uintptr_t>(result);
++        s_jitPoolEnd = reinterpret_cast<uintptr_t>(result) + bytes;
++        dataLogLn("BrowserPS5: JIT pool of ", bytes >> 20, " MiB at ", RawPointer(result), writable ? ", read+write+execute" : ", read+execute");
++    }
++
+     return result;
+ }
+ 
+@@ -85,10 +134,10 @@
+ {
+     ASSERT_UNUSED(numGuardPagesToAddOnEachEnd, !numGuardPagesToAddOnEachEnd);
+     ASSERT_UNUSED(jitCageEnabled, !jitCageEnabled);
+-    ASSERT_UNUSED(executable, !executable);
+     ASSERT_UNUSED(address, !address);
+     UNUSED_PARAM(usage);
+     UNUSED_PARAM(writable);
++    UNUSED_PARAM(executable); // BrowserPS5: made executable on commit.
+     ASSERT(hasOneBitSet(alignment) && alignment >= pageSize());
+ 
+     void* result = memory_extra::vss::reserve(bytes, alignment);
+@@ -107,13 +156,19 @@
+ 
+ void OSAllocator::commit(void* address, size_t bytes, bool writable, bool executable)
+ {
+-    ASSERT_UNUSED(executable, !executable);
++    // BrowserPS5: the JIT pool's pages are already mapped and executable.
++    if (executable && isInJITPool(address, bytes))
++        return;
++    RELEASE_ASSERT(!executable);
+     bool success = memory_extra::vss::commit(address, bytes, writable, -1);
+     RELEASE_ASSERT(success);
+ }
+ 
+ void OSAllocator::decommit(void* address, size_t bytes)
+ {
++    // BrowserPS5: the JIT pool's pages stay mapped (see above).
++    if (isInJITPool(address, bytes))
++        return;
+     bool success = memory_extra::vss::decommit(address, bytes);
+     RELEASE_ASSERT(success);
+ }
+@@ -127,6 +182,10 @@
+ void OSAllocator::releaseDecommitted(void* address, size_t bytes, unsigned numGuardPagesToAddOnEachEnd)
+ {
+     UNUSED_PARAM(numGuardPagesToAddOnEachEnd); // Guard pages not supported, and will be ignored.
++    if (reinterpret_cast<uintptr_t>(address) == s_jitPoolStart.load() && isInJITPool(address, bytes)) {
++        s_jitPoolStart = 0;
++        s_jitPoolEnd = 0;
++    }
+     bool success = memory_extra::vss::release(address, bytes);
+     RELEASE_ASSERT(success);
+ }

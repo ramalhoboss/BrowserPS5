@@ -1,0 +1,596 @@
+0	Terug
+1	Vooruit
+2	Opnieuw laden
+3	Start
+4	Zoek of typ een adres
+5	Dit bestand opslaan
+6	Opslaan
+7	Zoom herstellen
+8	Aan favorieten toevoegen
+9	Downloads
+10	Tabbladen
+11	Extensies
+12	Menu
+13	Favorieten verschijnen hier. Druk op de ster in het adres om een pagina te bewaren.
+14	Alle favorieten
+15	Favorieten
+16	Geschiedenis
+17	Instellingen
+18	Telefoon
+19	Aan favorieten toevoegen
+20	Uit favorieten verwijderen
+21	Volledig scherm
+22	Volledig scherm verlaten
+23	Naast de game openen
+24	Advertenties blokkeren
+25	Donkere modus op sites
+26	Desktopversie
+27	Browsegegevens wissen
+28	BrowserPS5 afsluiten
+29	Thema
+30	Zoom
+31	Groter
+32	Kleiner
+33	Middernacht
+34	Grafiet
+35	Licht
+36	Oceaan
+37	Amethist
+38	Robijn
+39	Bos
+40	Champagne
+41	Neon
+42	Seizoen (automatisch)
+43	Winter
+44	Lente
+45	Zomer
+46	Herfst
+47	Kerst
+48	Ga naar
+49	Pagina
+50	Zoeken
+51	Inzoomen
+52	Uitzoomen
+53	Favoriet toevoegen
+54	Favoriet verwijderen
+55	Advertenties hier
+56	Donkere modus
+57	Aan
+58	Uit
+59	Geblokkeerd
+60	Toegestaan
+61	Niet nu
+62	Wijs met de stick of de richtingstoetsen
+63	Laat los om te kiezen
+64	○ sluiten
+65	Nieuw tabblad
+66	Gesloten tabblad heropenen
+67	Tabblad sluiten
+68	Openen
+69	Huidig
+70	Startpagina
+71	R1 op elk moment
+72	Nog geen afbeelding
+73	Adres
+74	Adres of zoekopdracht
+75	Zoeken
+76	Tekst
+77	Getal
+78	Telefoon
+79	Wachtwoord
+80	Ga
+81	Volgende
+82	Verzenden
+83	spatie
+84	sluiten
+85	tonen
+86	verbergen
+87	↵ regel
+88	✥ kiezen · ✕ typen · ○ wissen
+89	△ sluiten · R1 bevestigen
+90	Opslaan als
+91	Naam
+92	Annuleren
+93	Bezig met downloaden…
+94	Kies een map
+95	Deze map kiezen
+96	Nieuwe map
+97	Map omhoog
+98	Kies een bestand
+99	%s zegt
+100	De pagina zegt
+101	De payload uitvoeren
+102	Deze payload op de console uitvoeren? Druk nogmaals om te bevestigen
+103	Bestanden kiezen
+104	Deze map is leeg
+105	Om te sturen naar de pagina die erom vroeg
+106	De pagina accepteert: %s
+107	%s bestand gekozen
+108	%s bestanden gekozen
+109	Pakketten (PKG)
+110	Media
+111	Interne opslag
+112	Pakkettenmap (PKG)
+113	Mediamap
+114	Downloadmap
+115	Gedownloade .pkg-bestanden komen hier.
+116	Gedownloade video's, muziek en afbeeldingen komen hier.
+117	Andere gedownloade bestanden komen hier.
+118	Wachtwoord opslaan?
+119	Wachtwoord bijwerken?
+120	Bijwerken
+121	Nooit op deze site
+122	Geen gebruikersnaam
+123	Het blijft alleen op deze console, in het bestand van de browser. De volgende keer toont het toetsenbord op deze site “Inloggen als …” en vult de browser de naam en het wachtwoord voor je in.
+124	Deze site gebruikt geen beveiligde verbinding (https): het wachtwoord is onversleuteld verstuurd.
+125	van %s
+126	op %s
+127	%s% · %s van %s
+128	Gedownload · %s
+129	Welkom bij BrowserPS5
+130	Kies een stijl om mee te beginnen. Je kunt alles in de instellingen veranderen wanneer je wilt.
+131	Later kiezen
+132	Bioscoop
+133	Cyborg
+134	Donker en goud, zonder interfacegeluiden. Voor films en series vanaf de bank, met zo min mogelijk in de weg.
+135	Blauw en magenta neon, met een geluid bij elke sprong en de cursormagneet. Om het web grondig te verkennen.
+136	Goedemorgen
+137	Goedemiddag
+138	Goedenavond
+139	Kies de zoekmachine
+140	Onlangs bezocht
+141	Pagina's in de cache op de schijf bewaren
+142	Sites die je eerder bezocht openen sneller, tot 1 GB op de console. Gaat in bij de volgende keer dat de browser opent
+143	Prestaties
+144	Pagina's in de browser-app
+145	Meer kernen voor de pagina's: ze openen tot 40% sneller. Zet het uit als een pagina het niet doet. Gaat in bij de volgende keer dat de browser opent
+146	De tabbladen van de vorige keer heropenen
+147	De pagina van de vorige keer heropenen
+148	Bewerken
+149	Klaar
+150	Alles verwijderen
+151	Verwijderen
+152	Druk nogmaals om alles te verwijderen
+153	Open een pagina en druk op de ster in het adres om haar hier te bewaren
+154	een adres typen
+155	snelmenu's
+156	tabbladen (touchpad)
+157	tussen elementen springen
+158	menu en instellingen
+159	openen
+160	Algemeen
+161	Uiterlijk
+162	Controller
+163	Site-inhoud
+164	Privacy en beveiliging
+165	Systeem
+166	Over
+167	TorBox
+168	Wijzigingen worden meteen opgeslagen.
+169	○ terug naar de vorige pagina
+170	Taal · Language
+171	Waar de browser begint en waar hij zoekt.
+172	Bij het starten
+173	De startpagina openen
+174	Verdergaan waar ik was
+175	De tabbladen die open waren
+176	Elke keer dezelfde
+177	Startpagina
+178	BrowserPS5-start
+179	Favorieten, zoeken en recente sites
+180	Een adres
+181	Kies hieronder
+182	Typ het hieronder
+183	Zoekmachine
+184	Engine
+185	https://www.example.com/
+186	Het origineel. Kan om een controle vragen
+187	Bewaart niet wat je zoekt
+188	Van Microsoft
+189	Plant bomen
+190	Resultaten van Google, privé
+191	Eigen index, privé
+192	Balk
+193	Favorieten in de balk tonen
+194	De rij favorieten onder het adres
+195	Paginazoom
+196	Het thema verandert de balk, het menu, het toetsenbord en de pagina's van de browser.
+197	Interfacegeluiden
+198	Een bescheiden geluid bij het springen tussen elementen en het openen van menu's
+199	Cursormagneet
+200	Als de stick stilstaat, klikt de cursor vast op de dichtstbijzijnde link of knop
+201	Bioscoopmodus
+202	In een video op volledig scherm: de cursor verdwijnt zolang de controller rust, zonder geluiden of trillingen, en het licht van de controller dimt
+203	Hoe de DualSense door pagina's beweegt.
+204	Richtingstoetsen
+205	Tussen elementen springen
+206	Links, knoppen en tekstvakken, gemarkeerd
+207	De pagina scrollen
+208	Zoals de rechterstick
+209	Cursorsnelheid
+210	Scrollsnelheid
+211	Langzaam
+212	Rustig
+213	Normaal
+214	Snel
+215	Heel snel
+216	Trillen
+217	De controller trilt licht bij het springen tussen elementen, het openen van menu's en het kiezen
+218	Adaptieve triggers
+219	L2 en R2 klikken halverwege, als knoppen, voor de radiale menu's
+220	Lichtbalk in de themakleur
+221	Neonlicht van de cursor
+222	PS5-toetsenbord
+223	Zoeken op de pagina
+224	Leesmodus
+225	Vertalen
+226	QR-code
+227	Privé
+228	Openen op de telefoon
+229	Richt de camera van de telefoon op deze code
+230	Typ met het systeemtoetsenbord in plaats van dat van de browser. De pagina pauzeert zolang het open is
+231	Een lichtbol in de themakleur volgt de cursor, er net achteraan
+232	Het licht van de controller brandt in de accentkleur van het thema
+233	Controller in webgames
+234	Op een site met games geeft een klik op de touchpad de controller aan de game; nog een klik geeft hem terug aan de cursor
+235	Knoppen
+236	De cursor bewegen
+237	Naar het volgende element springen
+238	Klikken
+239	Een adres typen
+240	Terug · het menu sluiten
+241	Tabbladen · in een game, de controller
+242	Menu (volledig scherm, afsluiten)
+243	Ontwikkelaarsconsole (indien aan)
+244	Wat pagina's mogen doen. Geldt voor de volgende pagina die opent.
+245	JavaScript
+246	Bijna elke site heeft het nodig
+247	Afbeeldingen
+248	Uit: pagina's openen sneller
+249	Pop-upvensters
+250	Sites mogen zelf vensters openen
+251	Automatisch afspelen
+252	Video's en geluid starten zonder dat je iets indrukt
+253	Uit: sites tonen hun mobiele versie
+254	Volledig scherm in video's
+255	De knop voor volledig scherm van sites werkt, zonder de balk (○ om te verlaten)
+256	Maakt lichte sites donker en laat foto's en video's zoals ze zijn
+257	Ontwikkelaarsconsole
+258	R3 (de rechterstick indrukken) toont de berichten en fouten van de pagina en voert JavaScript uit
+259	Wat op de console wordt bewaard en wat sites mogen bewaren.
+260	Bescherming
+261	Advertentieblokker
+262	Verbergt advertenties en laadt de scripts, frames en afbeeldingen van advertentienetwerken en trackers niet
+263	Verbergt advertenties en opent de frames van advertentienetwerken niet
+264	Cookies van derden toestaan
+265	Uit: alleen de geopende site bewaart cookies
+266	Sites waar advertenties zijn toegestaan
+267	Geen. Druk op een site op R2 en kies “Advertenties hier” om ze alleen op die site toe te staan.
+268	Opnieuw blokkeren
+269	Wachtwoorden
+270	Aanbieden om wachtwoorden op te slaan
+271	Nadat je op een site bent ingelogd, vraagt de browser of hij het wachtwoord moet bewaren; op die site toont het toetsenbord “Inloggen als …”. Ze blijven alleen op deze console
+272	Nog geen opgeslagen wachtwoorden.
+273	Nooit opslaan op deze site
+274	Gegevens wissen
+275	Wissen
+276	Cookies en sitegegevens
+277	Logt je uit bij de meeste sites
+278	Afbeeldingen en bestanden in de cache
+279	Pagina's openen de volgende keer iets trager
+280	Gegevens gewist
+281	Geschiedenis gewist
+282	De pagina's die met de ster in het adres zijn bewaard. De ✕ bij elke pagina verwijdert haar.
+283	Nog geen favorieten. Open een pagina en druk op de ster in het adres.
+284	Favorieten verwijderd
+285	De pagina's die op deze console zijn geopend, de nieuwste eerst.
+286	Zoeken in de geschiedenis
+287	Niets gevonden.
+288	De geschiedenis is leeg.
+289	Vandaag
+290	Gisteren
+291	De bestanden die sites je geven om op te slaan. Elk type heeft zijn eigen map, en de browser vraagt altijd waar hij moet opslaan, net als Windows.
+292	Waar opslaan
+293	Altijd vragen waar op te slaan
+294	Zoals in Windows. Uit: elk bestand gaat direct naar de map van zijn type
+295	Pakkettenmap (.pkg)
+296	Map voor video's, muziek en afbeeldingen
+297	Nog geen downloads.
+298	%s% van %s
+299	Bezig met downloaden
+300	Wacht op de map
+301	Voltooid
+302	Mislukt
+303	Geannuleerd
+304	staat stil
+305	nog %s
+306	Opnieuw proberen
+307	Uitpakken
+308	De downloads van de console
+309	De bestanden van de console
+310	Bekijk wat er in de downloadmappen en op USB-schijven staat, en haal het naar de telefoon.
+311	Plaatsen
+312	Er is nu geen map beschikbaar.
+313	Deze map is leeg.
+314	Opslaan op de telefoon
+315	Bekijken
+316	Sluiten
+317	Deze map verwijderen
+318	Verwijderd
+319	De map is niet leeg
+320	Verwijderen is niet gelukt
+321	Bezig met opslaan op de telefoon
+322	Deze map is niet meer beschikbaar
+323	Het bestand kon niet worden geopend
+324	Een naam waar de telefoon niet om kan vragen
+325	Bezig met uitpakken · %s%
+326	Uitpakken is niet gelukt
+327	De ZIP wordt uitgepakt
+328	Er wordt al een ZIP uitgepakt
+329	De map voor de ZIP kon niet worden gemaakt
+330	Deze ZIP is beschadigd of bestaat uit meerdere delen
+331	Er is geen ruimte om deze ZIP uit te pakken
+332	De bestanden van de ZIP konden niet worden geschreven
+333	De ZIP kon niet worden geopend
+334	Het bestand is er niet meer
+335	Opnieuw aan het downloaden
+336	Torrents
+337	De torrents openen
+338	Magnet-links en .torrent-bestanden gaan naar Transmission, dat doorgaat als de browser gesloten is. Ze komen in /data/downloads/torrents
+339	Geïnstalleerd
+340	Van BrowserPS5 zelf
+341	Geen extensies geïnstalleerd.
+342	Open een script en druk op “Dit script installeren”.
+343	Extensies zoeken op Greasy Fork
+344	Extensie installeren?
+345	Installeren
+346	Bezig met installeren…
+347	Verwijderen
+348	Extensie verwijderd
+349	Opgeslagen
+350	De blokker doet hier en op de adressen erin niets
+351	Aanzetten
+352	Uitzetten
+353	alle sites
+354	Gebruik de telefoon als toetsenbord en controller, open er een link op om op de tv te bekijken, of stuur video's en bestanden naar de console. Hetzelfde netwerk is genoeg.
+355	De telefoon toestaan
+356	Alleen telefoons op het thuisnetwerk, en alleen met de code van de tv
+357	De telefoon staat uit
+358	Zet hem hieronder aan om de code te zien.
+359	De console heeft geen netwerkadres. Verbind haar met de router en kom hier terug.
+360	Richt de camera van de telefoon op de code, of open
+361	Typ deze code op de telefoon:
+362	Verbindingen
+363	Geen telefoon verbonden
+364	1 telefoon verbonden
+365	De browser vergeet ze bij het afsluiten
+366	Alles vergeten
+367	De telefoons zijn vergeten
+368	Telefoon verbonden. De code is naar de volgende gegaan.
+369	De console op dit moment: temperatuur, geheugen, vrije ruimte en netwerk. Werkt zichzelf elke 2 seconden bij.
+370	Processor
+371	Hoofdchip
+372	Temperatuur niet beschikbaar
+373	Vrij geheugen
+374	Aan sinds
+375	Netwerkadres
+376	Geen netwerk
+377	Console
+378	Firmware
+379	Onbekend
+380	Systeemgeheugen
+381	Niet beschikbaar
+382	Temperaturen
+383	processor %s °C
+384	hoofdchip %s °C
+385	De console geeft ze niet aan deze browser
+386	Opslag
+387	Geen schijf die de browser kan bereiken
+388	Deze browser
+389	Deze sessie
+390	Open sinds
+391	Open tabbladen
+392	1 tabblad
+393	Geblokkeerde advertenties
+394	Geen sinds het openen
+395	1 sinds het openen
+396	Lopende downloads
+397	Geen enkele
+398	1 download
+399	Beeld en video
+400	Compositing op de GPU van de console (Mesa: zink en RADV), JavaScript met JIT
+401	%s vrij van %s
+402	%s vrij
+403	PS5-instellingen
+404	Netwerk
+405	Wifi, kabel en de internetverbinding
+406	Scherm en video
+407	Resolutie, 4K, HDR en verversingssnelheid
+408	Opslag van de console
+409	De ruimte op de console en haar schijven
+410	Controllers
+411	De DualSense: trillen, triggers en licht
+412	Er verschijnt een melding: druk daarin op “Openen”. De browser pauzeert erachter en komt terug zoals hij was.
+413	Druk in de melding op “Openen” om naar de PS5-instellingen te gaan
+414	Je TorBox-account: torrents en bestandslinks worden op de servers van TorBox gedownload, en de voltooide bestanden komen via de Downloads van de browser naar de console.
+415	Account
+416	Geen sleutel
+417	De API-sleutel staat op torbox.app, Settings. Hij blijft alleen op deze console en verschijnt nooit in de logboeken
+418	API-sleutel (je kunt hem vanaf de telefoon plakken)
+419	De sleutel verwijderen
+420	De browser vergeet het account
+421	Torrents naar TorBox sturen
+422	Magnet-links en .torrent-bestanden gaan naar TorBox in plaats van naar de Transmission van de console
+423	Toevoegen
+424	Een magnet-link, of het adres van een bestand
+425	Op TorBox
+426	torbox.app openen
+427	Sla de sleutel van je account op om te zien wat je daar hebt.
+428	Nog niets op TorBox.
+429	TorBox gaf geen antwoord.
+430	TorBox wordt niet voor YouTube gebruikt
+431	Eerst de sleutel van het account
+432	Gereed
+433	Bezig met downloaden op TorBox
+434	Gepauzeerd
+435	De torrent wordt gelezen
+436	Controleren
+437	In de wachtrij
+438	Geen bronnen
+439	Fout
+440	Wachten
+441	Geen naam
+442	bestand
+443	Naar de console halen
+444	Een echte browser voor de PS5, gebouwd op WebKit.
+445	Vrije software · GPL-3.0
+446	Pictogrammen en lettertype
+447	Fluent UI System Icons van Microsoft (MIT-licentie); het lettertype is dat van de console
+448	BrowserPS5 · Telefoon
+449	op je telefoon
+450	Verbinden met de PS5
+451	Typ de code van 6 cijfers die op de tv staat, in Instellingen → Telefoon.
+452	Code
+453	De telefoon en de console moeten op hetzelfde netwerk zitten.
+454	Bezig met verbinden…
+455	Het zijn 6 cijfers.
+456	Verkeerde code. Nog 1 poging.
+457	Te veel pogingen. Open opnieuw Instellingen → Telefoon op de tv voor een nieuwe code.
+458	Die code werkt niet meer. Open Instellingen → Telefoon op de tv om de huidige te zien.
+459	De console kent deze telefoon niet meer. Verbind hem opnieuw.
+460	De console is niet bereikbaar. Staat ze aan en zit ze op hetzelfde netwerk?
+461	Verbonden
+462	Niet verbonden
+463	Geen verbinding
+464	Verbonden met de PS5
+465	Verbinding verbroken
+466	Nu op de tv
+467	Pagina van de browser
+468	Openen op de tv
+469	Een adres of wat je wilt zoeken. Opent in een nieuw tabblad.
+470	Bezig met openen op de tv
+471	De tv accepteerde het niet
+472	Typen op de tv
+473	Gaat naar het tekstvak dat op de tv is gekozen. Handig voor wachtwoorden en lange teksten.
+474	Typ hier
+475	Aan het einde op Enter drukken
+476	Getypt op de tv
+477	Tekst te lang
+478	Het is niet gelukt
+479	Wat de pagina op de tv daarna doet.
+480	Begin
+481	Omhoog
+482	Omlaag
+483	Einde
+484	Bestanden naar de console sturen
+485	Video's, muziek, afbeeldingen of andere bestanden. .pkg-bestanden gaan naar de pakkettenmap; er wordt niets geïnstalleerd.
+486	Bestanden kiezen
+487	Op type
+488	Video's en muziek
+489	USB-schijf
+490	Naast de game
+491	Geen ruimte
+492	Geen USB-schijf
+493	Map niet beschikbaar
+494	Deze telefoon loskoppelen
+495	Nieuw
+496	De torrents worden geopend...
+497	De TorBox-sleutel is verwijderd
+498	De console is voor webpagina's
+499	Wordt aan TorBox gegeven...
+500	De torrent wordt aan Transmission gegeven...
+501	Het bestand wordt bij TorBox opgevraagd...
+502	Het bestand wordt van TorBox gehaald...
+503	Geopend vanaf de telefoon
+504	Toegevoegd aan TorBox
+505	Advertenties geblokkeerd op deze site
+506	Advertenties toegestaan op deze site
+507	Druk in de melding op “Openen”: de pagina opent in de systeemkaart, naast de game
+508	TorBox-sleutel opgeslagen
+509	Adres te lang voor de systeemkaart
+510	Dit lijkt geen TorBox-sleutel: kopieer hem van torbox.app, Settings, API
+511	Dit .torrent-bestand is niet leesbaar
+512	Deze site gebruikt de controller: klik op de touchpad om te spelen
+513	De TorBox-sleutel ontbreekt: vul hem in bij Instellingen, TorBox
+514	torrentd.elf ontbreekt: installeer het torrentpakket
+515	Bestand ontvangen van de telefoon
+516	Te veel sites in de lijst met uitzonderingen
+517	Zet de console aan in Instellingen → Site-inhoud
+518	Gamemodus: de controller is van de game. Touchpad om te verlaten
+519	De torrents konden niet worden geopend
+520	Het wachtwoord kon niet worden opgeslagen
+521	De lijst kon niet bij TorBox worden opgevraagd
+522	TorBox kon niet worden bevraagd
+523	Het bestand kon niet bij TorBox worden opgevraagd
+524	De torrent kon niet worden opgevraagd
+525	TorBox gaf geen antwoord (netwerk?)
+526	TorBox wordt hier niet voor gebruikt (YouTube, of geen link)
+527	TorBox vraagt om te wachten: te veel verzoeken achter elkaar
+528	TorBox weigerde de sleutel: controleer hem bij Instellingen, TorBox
+529	Transmission gaf geen antwoord
+530	Transmission gaf geen antwoord op het verzoek
+531	De payloadlader nam Transmission niet aan
+532	De payloadlader gaf geen antwoord
+533	De controller bestuurt weer de cursor
+534	Het systeem toonde de melding niet
+535	Laad de pagina opnieuw zodat de console haar ziet
+536	Vreemd antwoord van Transmission
+537	Geheugen vol
+538	Geen geheugen voor het verzoek aan TorBox
+539	Naast de game openen alleen webpagina's
+540	Een bestand van de telefoon kwam niet volledig aan
+541	Lichte pagina's naast de game
+542	“Naast de game openen” toont de pagina in de browser van het systeem, trager dan deze en in een smal paneel. Aan: sites sturen hun telefoonversie, lichter en gemaakt voor die breedte
+543	Pijltoetsen
+544	Voor games, presentaties, videospelers en pagina's die voor tv's zijn gemaakt
+545	Meldingen van sites
+546	Nog geen site heeft erom gevraagd. Als een site meldingen wil tonen, vraagt de browser: Toestaan of Blokkeren.
+547	Meldingen toegestaan
+548	Meldingen geblokkeerd
+549	Vergeten
+550	Snelle downloads
+551	wacht op het netwerk, gaat vanzelf verder
+552	Onderbroken
+553	Pauzeren
+554	Verdergaan waar hij stopte
+555	Uit de lijst halen
+556	Uit de lijst halen? Druk nogmaals om te bevestigen
+557	Het bestand verwijderen? Druk nogmaals om te bevestigen
+558	Grote bestanden (200 MB of meer) komen over meerdere verbindingen tegelijk, tot 8. Als de server dat niet toestaat, of het niet sneller is, gaat de browser vanzelf terug naar één
+P0	Uitgepakt naar %s; %d overgeslagen
+P1	Uitgepakt naar %s
+P2	Een bestand in de ZIP is beschadigd: %s
+P3	“%s” verwijderen? Dit kan niet ongedaan worden gemaakt.
+P4	en nog %d
+P5	USB-schijf %d
+P6	Inloggen als %s
+P7	Zoek met %s of typ een adres
+P8	Startpagina: %s
+P9	Advertenties worden weer geblokkeerd op %s
+P10	Werkt op: %s
+P11	%d pagina('s) opgeslagen
+P12	%d telefoons verbonden
+P13	%d tabbladen
+P14	%d sinds het openen
+P15	%d downloads
+P16	De code verandert over %s
+P17	Sleutel opgeslagen (eindigt op %s)
+P18	En nog %d bestanden: op torbox.app
+P19	%d van %d (het maximum)
+P20	%d van %d
+P21	%d open
+P22	Bezig met downloaden: %d%
+P23	Verkeerde code. Nog %d pogingen.
+P24	Nu op de tv · %s
+P25	Op de console · %s
+P26	Externe schijf %d
+P27	Torrent wordt gedownload: %s
+P28	Deze torrent staat al in de lijst: %s
+P29	Wachtwoord opgeslagen: %s
+P30	Wachtwoord bijgewerkt: %s
+P31	Ik vraag het niet meer op %s
+P32	Aangekomen van de telefoon: %s
+P33	Op TorBox: %s
+P34	TorBox accepteerde het niet: %s
+P35	TorBox antwoordde %d
+P36	Transmission weigerde: %s

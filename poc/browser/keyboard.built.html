@@ -1,0 +1,1581 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's own keyboard, a page of its own drawn by WebKit over the bottom
+KEYS_HEIGHT pixels of the screen (main.cpp). The system keyboard cannot open
+while the title draws with the GPU: it took the console down (2026-11-04
+18:19, docs/03-video-e-gpu.md).
+
+The app opens it with kb.open({kind, enter, text, logins}) and hides it again when
+it sends browserps5:done?<text> or browserps5:cancel (navigations the app
+never lets happen, as the bar's). What is typed stays here until then: the
+app puts it into the field in one go, as it did with the system keyboard's.
+
+The controller (main.cpp, keys_input()): the D-pad moves the highlight
+(kb.move) and cross or square press that key (kb.pressHighlighted); with
+the cursor on the keyboard and no D-pad since the stick moved, cross clicks
+the key under it; circle deletes (kb.backspace); triangle closes
+(kb.cancel); R1 is the Enter key (kb.done).
+
+logins: the user names saved for the page's origin (main.cpp,
+logins_for_keys(); docs/12-contas.md), as "Entrar como ..." keys in the top
+row, the first one highlighted: pressed, browserps5:login?<index>, and the
+app fills the page's fields itself (no password ever comes here). -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+/* BrowserPS5: the look of the browser's own pages (the bar, the menu, the
+   keyboard, the start page and the settings; docs/07-navegacao-e-
+   definicoes.md). Put into each page when the browser is built (include.awk).
+   A theme is a set of colours on <html data-theme="...">; the app calls
+   setTheme() when it changes. The PS5's own font (SST) comes first: the
+   console has it (fonts.conf reads /preinst/common/font in place). */
+
+:root, [data-theme="meia-noite"] {
+  --bg: #0a0c11; --bg-2: #0e1118;
+  --surface: #141823; --surface-2: #1b2030; --surface-3: #252b3d; --surface-4: #2f3650;
+  --line: rgba(255, 255, 255, .07); --line-2: rgba(255, 255, 255, .13);
+  --text: #eef1f8; --text-2: #b4bccc; --text-3: #7d879b;
+  --accent: #5b8cff; --accent-2: #8f6bff; --on-accent: #ffffff;
+  --accent-soft: rgba(91, 140, 255, .16);
+  --good: #3ddc97; --warn: #ffb547; --bad: #ff5d6c;
+  --glow: 0 0 0 1px rgba(91, 140, 255, .55), 0 0 24px rgba(91, 140, 255, .35);
+  --shadow: 0 18px 48px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .35);
+  --bar-bg: linear-gradient(180deg, #121624 0%, #0d1019 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(91, 140, 255, .22), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(143, 107, 255, .18), transparent 60%);
+  color-scheme: dark;
+}
+[data-theme="grafite"] {
+  --bg: #0f1012; --bg-2: #131417;
+  --surface: #18191c; --surface-2: #202125; --surface-3: #2a2b30; --surface-4: #35363c;
+  --line: rgba(255, 255, 255, .07); --line-2: rgba(255, 255, 255, .13);
+  --text: #f1f1f3; --text-2: #babcc2; --text-3: #85878f;
+  --accent: #2fd1c5; --accent-2: #4f9dff; --on-accent: #062321;
+  --accent-soft: rgba(47, 209, 197, .15);
+  --glow: 0 0 0 1px rgba(47, 209, 197, .55), 0 0 24px rgba(47, 209, 197, .3);
+  --bar-bg: linear-gradient(180deg, #1a1b1f 0%, #131417 100%);
+  --hero: radial-gradient(1200px 520px at 15% -10%, rgba(47, 209, 197, .16), transparent 60%);
+}
+[data-theme="oled"] {
+  --bg: #000000; --bg-2: #050505;
+  --surface: #0b0b0c; --surface-2: #141416; --surface-3: #1e1e21; --surface-4: #29292d;
+  --line: rgba(255, 255, 255, .08); --line-2: rgba(255, 255, 255, .16);
+  --text: #ffffff; --text-2: #c2c2c7; --text-3: #8a8a91;
+  --accent: #7aa7ff; --accent-2: #b38cff; --on-accent: #000000;
+  --accent-soft: rgba(122, 167, 255, .15);
+  --glow: 0 0 0 1px rgba(122, 167, 255, .6), 0 0 22px rgba(122, 167, 255, .3);
+  --bar-bg: #000000;
+  --hero: none;
+}
+[data-theme="claro"] {
+  --bg: #eef1f6; --bg-2: #e8ecf3;
+  --surface: #ffffff; --surface-2: #f2f4f8; --surface-3: #e5e9f1; --surface-4: #d8dee9;
+  --line: rgba(10, 20, 40, .08); --line-2: rgba(10, 20, 40, .15);
+  --text: #11151d; --text-2: #424b5c; --text-3: #6f7889;
+  --accent: #1a6dff; --accent-2: #7b4dff; --on-accent: #ffffff;
+  --accent-soft: rgba(26, 109, 255, .12);
+  --glow: 0 0 0 1px rgba(26, 109, 255, .55), 0 0 22px rgba(26, 109, 255, .25);
+  --shadow: 0 18px 48px rgba(20, 30, 60, .18), 0 2px 8px rgba(20, 30, 60, .12);
+  --bar-bg: linear-gradient(180deg, #ffffff 0%, #f4f6fa 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(26, 109, 255, .12), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(123, 77, 255, .10), transparent 60%);
+  color-scheme: light;
+}
+[data-theme="oceano"] {
+  --bg: #061019; --bg-2: #08151f;
+  --surface: #0c1c28; --surface-2: #112634; --surface-3: #173142; --surface-4: #1e3d52;
+  --line: rgba(160, 220, 255, .08); --line-2: rgba(160, 220, 255, .15);
+  --text: #eaf6ff; --text-2: #a9c4d6; --text-3: #708ea3;
+  --accent: #27c3ff; --accent-2: #2ee6c8; --on-accent: #02131c;
+  --accent-soft: rgba(39, 195, 255, .15);
+  --glow: 0 0 0 1px rgba(39, 195, 255, .55), 0 0 24px rgba(39, 195, 255, .3);
+  --bar-bg: linear-gradient(180deg, #0d1f2c 0%, #08151f 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(39, 195, 255, .2), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(46, 230, 200, .12), transparent 60%);
+}
+[data-theme="ametista"] {
+  --bg: #0d0916; --bg-2: #110c1c;
+  --surface: #181126; --surface-2: #211832; --surface-3: #2b2041; --surface-4: #372a52;
+  --line: rgba(220, 190, 255, .08); --line-2: rgba(220, 190, 255, .15);
+  --text: #f5efff; --text-2: #c3b6da; --text-3: #8d7fa6;
+  --accent: #b07cff; --accent-2: #ff7cd5; --on-accent: #1a0b2e;
+  --accent-soft: rgba(176, 124, 255, .16);
+  --glow: 0 0 0 1px rgba(176, 124, 255, .55), 0 0 24px rgba(176, 124, 255, .32);
+  --bar-bg: linear-gradient(180deg, #1c1430 0%, #110c1c 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(176, 124, 255, .22), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(255, 124, 213, .12), transparent 60%);
+}
+[data-theme="rubi"] {
+  --bg: #12080b; --bg-2: #170a0f;
+  --surface: #1e0f14; --surface-2: #29141b; --surface-3: #351b24; --surface-4: #42222e;
+  --line: rgba(255, 200, 210, .08); --line-2: rgba(255, 200, 210, .15);
+  --text: #fff0f3; --text-2: #d6b3bc; --text-3: #a07d87;
+  --accent: #ff4d6d; --accent-2: #ff9a5c; --on-accent: #ffffff;
+  --accent-soft: rgba(255, 77, 109, .16);
+  --glow: 0 0 0 1px rgba(255, 77, 109, .55), 0 0 24px rgba(255, 77, 109, .3);
+  --bar-bg: linear-gradient(180deg, #22111a 0%, #170a0f 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(255, 77, 109, .2), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(255, 154, 92, .12), transparent 60%);
+}
+[data-theme="floresta"] {
+  --bg: #07110c; --bg-2: #0a1610;
+  --surface: #0f1d16; --surface-2: #15271e; --surface-3: #1c3227; --surface-4: #243e31;
+  --line: rgba(190, 255, 220, .08); --line-2: rgba(190, 255, 220, .15);
+  --text: #edfff4; --text-2: #b0cdbd; --text-3: #789a86;
+  --accent: #3ddc84; --accent-2: #b4e05a; --on-accent: #04170c;
+  --accent-soft: rgba(61, 220, 132, .15);
+  --glow: 0 0 0 1px rgba(61, 220, 132, .55), 0 0 24px rgba(61, 220, 132, .28);
+  --bar-bg: linear-gradient(180deg, #12221a 0%, #0a1610 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(61, 220, 132, .18), transparent 60%);
+}
+[data-theme="champanhe"] {
+  --bg: #0d0b08; --bg-2: #12100b;
+  --surface: #1a1610; --surface-2: #231e16; --surface-3: #2e271d; --surface-4: #3a3125;
+  --line: rgba(255, 230, 180, .08); --line-2: rgba(255, 230, 180, .16);
+  --text: #fbf4e6; --text-2: #d3c6ac; --text-3: #9c8f76;
+  --accent: #e0bb6e; --accent-2: #f3d9a4; --on-accent: #1b1407;
+  --accent-soft: rgba(224, 187, 110, .15);
+  --glow: 0 0 0 1px rgba(224, 187, 110, .55), 0 0 24px rgba(224, 187, 110, .3);
+  --bar-bg: linear-gradient(180deg, #1d1912 0%, #12100b 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(224, 187, 110, .18), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(243, 217, 164, .08), transparent 60%);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font: 26px/1.35 "SST", "SST Roman", "Segoe UI Variable Text", "Segoe UI", "DejaVu Sans", sans-serif;
+  color: var(--text); background: var(--bg);
+  -webkit-font-smoothing: antialiased; user-select: none; overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button { border: 0; background: none; padding: 0; margin: 0; cursor: pointer; }
+.ic { width: 32px; height: 32px; fill: currentColor; flex: none; display: block; }
+.ic.s { width: 26px; height: 26px; }
+.ic.l { width: 40px; height: 40px; }
+
+/* A round button with an icon. */
+.ib {
+  width: 64px; height: 64px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: var(--text-2);
+  transition: background .12s, color .12s, transform .12s;
+}
+.ib:hover { background: var(--surface-3); color: var(--text); }
+.ib:active { transform: scale(.93); background: var(--surface-4); }
+.ib[disabled] { opacity: .32; pointer-events: none; }
+
+/* Text buttons. */
+.btn {
+  height: 60px; padding: 0 28px; border-radius: 30px; display: inline-flex;
+  align-items: center; gap: 12px; background: var(--surface-3); color: var(--text);
+  font-weight: 600; transition: background .12s, transform .12s;
+}
+.btn:hover { background: var(--surface-4); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); }
+.btn.danger { background: rgba(255, 93, 108, .14); color: var(--bad); }
+
+/* An on/off switch. */
+.switch {
+  width: 76px; height: 42px; border-radius: 21px; flex: none; position: relative;
+  background: var(--surface-4); transition: background .18s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 5px; left: 5px; width: 32px; height: 32px;
+  border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  transition: transform .18s;
+}
+.on > .switch, .switch.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.on > .switch::after, .switch.on::after { transform: translateX(34px); }
+
+/* A letter for a site with no picture of its own. */
+.avatar {
+  width: 44px; height: 44px; border-radius: 14px; flex: none; display: grid;
+  place-items: center; font-weight: 700; color: #fff; font-size: 22px;
+}
+
+.dim { color: var(--text-2); }
+.faint { color: var(--text-3); }
+/* Néon: the "Ciborgue" style of the first start (start.html's welcome). */
+[data-theme="neon"] {
+  --bg: #05060d; --bg-2: #080a14;
+  --surface: #0d1020; --surface-2: #131731; --surface-3: #1b2042; --surface-4: #252b57;
+  --line: rgba(0, 229, 255, .09); --line-2: rgba(0, 229, 255, .18);
+  --text: #eafcff; --text-2: #a9c3d6; --text-3: #6f86a0;
+  --accent: #00e5ff; --accent-2: #ff2bd6; --on-accent: #001318;
+  --accent-soft: rgba(0, 229, 255, .16);
+  --glow: 0 0 0 1px rgba(0, 229, 255, .6), 0 0 26px rgba(0, 229, 255, .38);
+  --bar-bg: linear-gradient(180deg, #0b0e1d 0%, #06070f 100%);
+  --hero: radial-gradient(1200px 520px at 15% -10%, rgba(0, 229, 255, .16), transparent 60%),
+          radial-gradient(900px 480px at 92% 0%, rgba(255, 43, 214, .12), transparent 60%);
+}
+
+/* The seasons (docs/19-temas-da-estacao.md): each can be chosen, and
+   "Estação (automático)" in the settings shows the one of the day
+   (settings_theme_for()). Winter and Christmas have a little snow. */
+[data-theme="inverno"] {
+  --bg: #070b12; --bg-2: #0a1019;
+  --surface: #0f1622; --surface-2: #151e2d; --surface-3: #1d2839; --surface-4: #263347;
+  --line: rgba(200, 230, 255, .08); --line-2: rgba(200, 230, 255, .16);
+  --text: #f0f7ff; --text-2: #b6c6d8; --text-3: #7d8ea3;
+  --accent: #8fd3ff; --accent-2: #c6b8ff; --on-accent: #05121d;
+  --accent-soft: rgba(143, 211, 255, .15);
+  --glow: 0 0 0 1px rgba(143, 211, 255, .55), 0 0 24px rgba(143, 211, 255, .3);
+  --bar-bg: linear-gradient(180deg, #111a28 0%, #0a1019 100%);
+  --hero: radial-gradient(3px 3px at 12% 14%, rgba(255, 255, 255, .55), transparent 70%),
+          radial-gradient(2px 2px at 31% 6%, rgba(255, 255, 255, .45), transparent 70%),
+          radial-gradient(3px 3px at 52% 18%, rgba(255, 255, 255, .5), transparent 70%),
+          radial-gradient(2px 2px at 71% 9%, rgba(255, 255, 255, .4), transparent 70%),
+          radial-gradient(3px 3px at 88% 21%, rgba(255, 255, 255, .45), transparent 70%),
+          radial-gradient(1200px 520px at 20% -10%, rgba(143, 211, 255, .18), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(198, 184, 255, .12), transparent 60%);
+}
+[data-theme="primavera"] {
+  --bg: #0e0b10; --bg-2: #130f16;
+  --surface: #19141d; --surface-2: #221b27; --surface-3: #2c2433; --surface-4: #382e40;
+  --line: rgba(255, 210, 235, .08); --line-2: rgba(255, 210, 235, .15);
+  --text: #fff4fa; --text-2: #d4bfcc; --text-3: #9d8796;
+  --accent: #ff7eb6; --accent-2: #7fdc7a; --on-accent: #2a0716;
+  --accent-soft: rgba(255, 126, 182, .15);
+  --glow: 0 0 0 1px rgba(255, 126, 182, .55), 0 0 24px rgba(255, 126, 182, .3);
+  --bar-bg: linear-gradient(180deg, #1d1622 0%, #130f16 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(255, 126, 182, .2), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(127, 220, 122, .14), transparent 60%);
+}
+[data-theme="verao"] {
+  --bg: #0e0b07; --bg-2: #130f0a;
+  --surface: #1b150e; --surface-2: #251d13; --surface-3: #30261a; --surface-4: #3d3122;
+  --line: rgba(255, 220, 170, .08); --line-2: rgba(255, 220, 170, .16);
+  --text: #fff7ec; --text-2: #d8c7ae; --text-3: #a08f77;
+  --accent: #ffb347; --accent-2: #2fd6c8; --on-accent: #1d1102;
+  --accent-soft: rgba(255, 179, 71, .15);
+  --glow: 0 0 0 1px rgba(255, 179, 71, .55), 0 0 24px rgba(255, 179, 71, .3);
+  --bar-bg: linear-gradient(180deg, #1f180f 0%, #130f0a 100%);
+  --hero: radial-gradient(700px 420px at 88% -12%, rgba(255, 179, 71, .26), transparent 60%),
+          radial-gradient(1200px 520px at 10% 0%, rgba(47, 214, 200, .12), transparent 60%);
+}
+[data-theme="outono"] {
+  --bg: #100a06; --bg-2: #160e08;
+  --surface: #1e140c; --surface-2: #281b10; --surface-3: #342316; --surface-4: #412d1d;
+  --line: rgba(255, 200, 150, .08); --line-2: rgba(255, 200, 150, .16);
+  --text: #fff3e8; --text-2: #d9c0aa; --text-3: #a18872;
+  --accent: #ff8a3d; --accent-2: #d9a441; --on-accent: #1e0c02;
+  --accent-soft: rgba(255, 138, 61, .15);
+  --glow: 0 0 0 1px rgba(255, 138, 61, .55), 0 0 24px rgba(255, 138, 61, .3);
+  --bar-bg: linear-gradient(180deg, #22170d 0%, #160e08 100%);
+  --hero: radial-gradient(1200px 520px at 20% -10%, rgba(255, 138, 61, .2), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(217, 164, 65, .14), transparent 60%);
+}
+[data-theme="natal"] {
+  --bg: #07100b; --bg-2: #0a150f;
+  --surface: #0f1d15; --surface-2: #15271d; --surface-3: #1c3226; --surface-4: #243e30;
+  --line: rgba(255, 235, 200, .08); --line-2: rgba(255, 235, 200, .16);
+  --text: #fffaf0; --text-2: #cfd8c9; --text-3: #8fa092;
+  --accent: #ff4d4d; --accent-2: #ffd166; --on-accent: #1f0606;
+  --accent-soft: rgba(255, 77, 77, .15);
+  --glow: 0 0 0 1px rgba(255, 77, 77, .55), 0 0 24px rgba(255, 77, 77, .3);
+  --bar-bg: linear-gradient(180deg, #12221a 0%, #0a150f 100%);
+  --hero: radial-gradient(3px 3px at 9% 12%, rgba(255, 255, 255, .55), transparent 70%),
+          radial-gradient(2px 2px at 27% 5%, rgba(255, 255, 255, .45), transparent 70%),
+          radial-gradient(3px 3px at 46% 16%, rgba(255, 255, 255, .5), transparent 70%),
+          radial-gradient(2px 2px at 64% 7%, rgba(255, 255, 255, .4), transparent 70%),
+          radial-gradient(3px 3px at 83% 15%, rgba(255, 255, 255, .45), transparent 70%),
+          radial-gradient(1200px 520px at 20% -10%, rgba(255, 77, 77, .18), transparent 60%),
+          radial-gradient(900px 480px at 90% 0%, rgba(255, 209, 102, .14), transparent 60%);
+}
+[data-theme="halloween"] {
+  --bg: #0b0710; --bg-2: #100a17;
+  --surface: #160f1f; --surface-2: #1f1529; --surface-3: #291c36; --surface-4: #342444;
+  --line: rgba(255, 190, 120, .08); --line-2: rgba(255, 190, 120, .16);
+  --text: #fff4ea; --text-2: #cdb9c6; --text-3: #94818f;
+  --accent: #ff8c1a; --accent-2: #a45cff; --on-accent: #1a0900;
+  --accent-soft: rgba(255, 140, 26, .15);
+  --glow: 0 0 0 1px rgba(255, 140, 26, .55), 0 0 24px rgba(255, 140, 26, .32);
+  --bar-bg: linear-gradient(180deg, #1c1326 0%, #100a17 100%);
+  --hero: radial-gradient(1200px 520px at 15% -10%, rgba(255, 140, 26, .2), transparent 60%),
+          radial-gradient(900px 480px at 92% 0%, rgba(164, 92, 255, .18), transparent 60%);
+}
+
+/* ---- 2026-11-09: "Noir", the premium layer (docs/27-design-premium.md) ----
+   Over every theme: smoked glass (a sheen from the top, a lit hairline at the
+   upper edge), deep soft shadows, light type with air, the accent kept for
+   light and focus, and a chrome like the app's icon. Selectors without quotes
+   on purpose: gen_native_assets.py reads only the quoted theme blocks. */
+:root {
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .018) 42%, rgba(255, 255, 255, 0) 72%);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, .09), inset 0 0 0 1px rgba(255, 255, 255, .045);
+  --lift: 0 40px 90px -24px rgba(0, 0, 0, .7), 0 14px 30px -10px rgba(0, 0, 0, .45);
+  --metal: linear-gradient(180deg, #ffffff 0%, #e6e9ef 32%, #a3aab7 50%, #d4d9e1 68%, #ffffff 100%);
+  --grain: url("data:image/png;base64,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");  /* 128 px of white noise, 3% on average: a fine grain, cheap to draw */
+  --vignette: radial-gradient(140% 90% at 50% 20%, transparent 55%, rgba(0, 0, 0, .55) 100%);
+}
+[data-theme=claro] {
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, .95) 0%, rgba(255, 255, 255, .45) 42%, rgba(255, 255, 255, 0) 72%);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 0 0 1px rgba(10, 20, 40, .05);
+  --lift: 0 34px 70px -24px rgba(20, 30, 60, .28), 0 12px 26px -10px rgba(20, 30, 60, .16);
+  --metal: linear-gradient(180deg, #4a5262 0%, #1d222c 50%, #0b0e14 100%);
+  --vignette: none;
+}
+
+/* Glass buttons and switches, lit at the top. */
+.ib { transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease), box-shadow .2s var(--ease); }
+.ib:hover { background: var(--sheen), var(--surface-3); box-shadow: var(--edge); }
+.btn { background: var(--sheen), var(--surface-3); box-shadow: var(--edge); letter-spacing: .01em; transition: background .2s var(--ease), transform .2s var(--ease), box-shadow .2s var(--ease); }
+.btn:hover { background: var(--sheen), var(--surface-4); box-shadow: var(--edge), 0 10px 26px -12px rgba(0, 0, 0, .6); }
+.btn.primary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%), linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 14px 34px -12px var(--accent);
+}
+.switch { background: var(--surface-4); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .05); transition: background .25s var(--ease), box-shadow .25s var(--ease); }
+.switch::after { background: linear-gradient(180deg, #ffffff, #e3e7ee); box-shadow: 0 3px 8px rgba(0, 0, 0, .45), inset 0 -1px 0 rgba(0, 0, 0, .08); transition: transform .28s var(--ease); }
+.on > .switch, .switch.on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, 0) 60%), linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 22px -4px var(--accent);
+}
+/* The site letters as small app icons: a gloss from the top, a fine ring. */
+.avatar { position: relative; letter-spacing: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.avatar::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .32) 0%, rgba(255, 255, 255, .06) 46%, rgba(0, 0, 0, .12) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+kbd { background: var(--sheen), var(--surface-3); box-shadow: var(--edge), 0 2px 0 rgba(0, 0, 0, .35); }
+:root { --height: 440px; }
+html, body {
+  height: var(--height); overflow: hidden; background: transparent;
+  font-size: 30px; -webkit-user-select: none; user-select: none;
+}
+#board {
+  height: var(--height); padding: 16px 30px 18px;
+  display: flex; flex-direction: column; gap: 9px;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+  border-top: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+#top { flex: none; height: 74px; display: flex; align-items: center; gap: 18px; }
+#label {
+  flex: none; width: 250px; color: var(--text-3); font-size: 20px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.4px;
+}
+#preview {
+  flex: 1; height: 66px; padding: 0 28px;
+  border-radius: 33px; background: var(--bg); overflow: hidden;
+  display: flex; align-items: center; border: 1px solid var(--accent);
+  box-shadow: var(--glow);
+}
+#line { white-space: pre; position: relative; color: var(--text); }
+#caret {
+  display: inline-block; width: 3px; height: 40px; margin: 0 -1px;
+  vertical-align: middle; background: var(--accent); border-radius: 2px;
+}
+/* The caret blinks from a timer (blink()), not a CSS animation: see there. */
+#caret.off { visibility: hidden; }
+#placeholder { color: var(--text-3); }
+#show { flex: none; }
+#legend { flex: none; color: var(--text-3); font-size: 20px; line-height: 29px; text-align: right; }
+#top .row.logins { flex: 0 1 auto; height: 62px; max-width: 1100px; min-width: 0; }
+.key.login {
+  flex: 0 1 auto; min-width: 0; padding: 0 28px; font-size: 24px; font-weight: 600;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+  overflow: hidden; text-overflow: ellipsis;
+}
+body.logins #legend { display: none; }
+.row { flex: 1; display: flex; gap: 9px; }
+.key {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; color: var(--text);
+  background: linear-gradient(180deg, var(--surface-4) 0%, var(--surface-3) 100%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .05);
+  font: inherit; white-space: nowrap; overflow: hidden;
+}
+.key.fn { background: var(--surface-2); color: var(--text-2); font-size: 25px; }
+.key.on { color: var(--accent); }
+.key.hl { box-shadow: 0 0 0 3px var(--accent), 0 0 22px var(--accent-soft); color: var(--text); }
+.key.down { background: var(--accent); color: var(--on-accent); }
+.key.enter { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); font-weight: 700; }
+.key.enter.hl { box-shadow: 0 0 0 3px var(--text), 0 0 22px var(--accent-soft); }
+</style></head><body>
+<div id="board">
+  <div id="top">
+    <div id="label"></div>
+    <div id="preview" translate="no"><span id="line"></span></div>
+    <div id="legend">✥ escolher · ✕ escrever · ○ apagar<br>△ fechar · R1 confirmar</div>
+  </div>
+</div>
+<script>
+// BrowserPS5's languages (docs/13-idioma.md), put in every one of the
+// browser's own pages by include.awk. The pages are written in Portuguese,
+// the browser's first language. setLang('en') puts a page in English:
+//   - every text of the page, and the title, placeholder and aria-label of
+//     every element, found in LANG_EN (exactly, or by one of the patterns,
+//     whose %s stands for any text and %d for a number) is swapped, now and
+//     whenever the page's scripts (or the app, as with the bar's messages)
+//     write one: a MutationObserver, so the page's own code stays as it is;
+//   - an element with data-en gets that as its content (static HTML of our
+//     own, for a sentence split by elements);
+//   - nothing inside translate="no" (what the user types, the sites' names);
+//   - T(text, ...args) gives the English of a text the scripts put together
+//     (each %s or %d in it is the next of args; "context|text" picks one of
+//     two meanings of the same Portuguese), langDay() a date, and LANG says
+//     which language a page is in.
+// setLang('pt') puts the Portuguese back. The app sends setLang() to the
+// panels (main.cpp, lang_apply()) and gives it to its pages in their data;
+// in Portuguese, nothing here runs at all.
+var LANG = 'pt';
+
+const LANG_EN = {
+  // The bar, the menu, the radial menus, the tabs
+  'Voltar': 'Back',
+  'Avançar': 'Forward',
+  'Recarregar': 'Reload',
+  'Início': 'Home',
+  'Pesquisar ou escrever um endereço': 'Search or type an address',
+  'Guardar este ficheiro': 'Save this file',
+  'Guardar': 'Save',
+  'Repor o zoom': 'Reset zoom',
+  'Guardar nos favoritos': 'Add to favorites',
+  'Transferências': 'Downloads',
+  'Separadores': 'Tabs',
+  'Extensões': 'Extensions',
+  'Menu': 'Menu',
+  'Os favoritos aparecem aqui. Carrega na estrela do endereço para guardar uma página.':
+    'Favorites show up here. Press the star in the address to keep a page.',
+  'Todos os favoritos': 'All favorites',
+  'Favoritos': 'Favorites',
+  'Histórico': 'History',
+  'Definições': 'Settings',
+  'Telemóvel': 'Phone',
+  'Adicionar aos favoritos': 'Add to favorites',
+  'Tirar dos favoritos': 'Remove from favorites',
+  'Ecrã inteiro': 'Full screen',
+  'Sair do ecrã inteiro': 'Leave full screen',
+  'Abrir ao lado do jogo': 'Open next to the game',
+  'Bloquear anúncios': 'Block ads',
+  'Modo escuro nos sites': 'Dark mode on sites',
+  'Versão para computador': 'Desktop version',
+  'Limpar dados de navegação': 'Clear browsing data',
+  'Sair do BrowserPS5': 'Quit BrowserPS5',
+  'Tema': 'Theme',
+  'Zoom': 'Zoom',
+  'Maior': 'Bigger',
+  'Mais pequeno': 'Smaller',
+  'Meia-noite': 'Midnight',
+  'Grafite': 'Graphite',
+  'Claro': 'Light',
+  'Oceano': 'Ocean',
+  'Ametista': 'Amethyst',
+  'Rubi': 'Ruby',
+  'Floresta': 'Forest',
+  'Champanhe': 'Champagne',
+  'Néon': 'Neon',
+  'Estação (automático)': 'Season (automatic)',
+  'Inverno': 'Winter',
+  'Primavera': 'Spring',
+  'Verão': 'Summer',
+  'Outono': 'Autumn',
+  'Natal': 'Christmas',
+  'Ir para': 'Go to',
+  'Página': 'Page',
+  'Pesquisar': 'Search',
+  'Ampliar': 'Zoom in',
+  'Reduzir': 'Zoom out',
+  'Adicionar favorito': 'Add favorite',
+  'Tirar favorito': 'Remove favorite',
+  'Anúncios aqui': 'Ads here',
+  'Modo escuro': 'Dark mode',
+  'Ligado': 'On',
+  'Desligado': 'Off',
+  'Bloqueados': 'Blocked',
+  'Permitidos': 'Allowed',
+  'Agora não': 'Not now',
+  'Aponta com o manípulo ou o D-pad': 'Point with the stick or the D-pad',
+  'Solta para escolher': 'Release to choose',
+  '○ fechar': '○ close',
+  'Novo separador': 'New tab',
+  'Fechar separador': 'Close tab',
+  'Abrir': 'Open',
+  'Atual': 'Current',
+  'Página de início': 'Start page',
+  'R1 em qualquer altura': 'R1 at any time',
+  'Sem imagem ainda': 'No picture yet',
+
+  // The keyboard
+  'Endereço': 'Address',
+  'Endereço ou pesquisa': 'Address or search',
+  'Pesquisa': 'Search',
+  'Texto': 'Text',
+  'Número': 'Number',
+  'Telefone': 'Phone',
+  'Palavra-passe': 'Password',
+  'Ir': 'Go',
+  'Seguinte': 'Next',
+  'Enviar': 'Send',
+  'espaço': 'space',
+  'fechar': 'close',
+  'mostrar': 'show',
+  'ocultar': 'hide',
+  '↵ linha': '↵ line',
+  '✥ escolher · ✕ escrever · ○ apagar': '✥ choose · ✕ type · ○ delete',
+  '△ fechar · R1 confirmar': '△ close · R1 confirm',
+
+  // The dialog
+  'Guardar como': 'Save as',
+  'Nome': 'Name',
+  'Cancelar': 'Cancel',
+  'A transferir…': 'Downloading…',
+  'Escolher uma pasta': 'Choose a folder',
+  'Escolher esta pasta': 'Choose this folder',
+  'Nova pasta': 'New folder',
+  'Pasta acima': 'Folder up',
+  'Pacotes (PKG)': 'Packages (PKG)',
+  'Multimédia': 'Media',
+  'Armazenamento interno': 'Internal storage',
+  'Pasta dos pacotes (PKG)': 'Packages folder (PKG)',
+  'Pasta da multimédia': 'Media folder',
+  'Pasta das transferências': 'Downloads folder',
+  'Os ficheiros .pkg transferidos ficam aqui.': 'Downloaded .pkg files go here.',
+  'Vídeos, música e imagens transferidos ficam aqui.': 'Downloaded videos, music and pictures go here.',
+  'Os outros ficheiros transferidos ficam aqui.': 'Other downloaded files go here.',
+  'Guardar a palavra-passe?': 'Save the password?',
+  'Atualizar a palavra-passe?': 'Update the password?',
+  'Atualizar': 'Update',
+  'Nunca neste site': 'Never on this site',
+  'Sem nome de utilizador': 'No user name',
+  'Fica só nesta consola, no ficheiro do browser. Da próxima vez, no teclado deste site aparece «Entrar como …» e o browser preenche o nome e a palavra-passe por ti.':
+    'It stays on this console only, in the browser\'s file. Next time, the keyboard on this site shows “Sign in as …” and the browser fills in the name and the password for you.',
+  'Este site não usa ligação segura (https): a palavra-passe viajou sem cifra.':
+    'This site doesn\'t use a secure connection (https): the password travelled unencrypted.',
+  'de %s': 'from %s',
+  'em %s': 'on %s',
+  '%s% · %s de %s': '%s% · %s of %s',
+  'Transferido · %s': 'Downloaded · %s',
+
+  // The start page
+  'Bem-vindo ao BrowserPS5': 'Welcome to BrowserPS5',
+  'Escolhe um estilo para começar. Mudas tudo quando quiseres nas definições.':
+    'Pick a style to start with. You can change everything in the settings whenever you like.',
+  'Escolher depois': 'Choose later',
+  'Cinema': 'Cinema',
+  'Ciborgue': 'Cyborg',
+  'Escuro e dourado, sem sons da interface. Para ver filmes e séries no sofá, com o mínimo à frente.':
+    'Dark and golden, with no interface sounds. For films and series from the sofa, with as little as possible in the way.',
+  'Néon azul e magenta, com sons a cada salto e o íman do cursor. Para quem explora a web a fundo.':
+    'Blue and magenta neon, with a sound on every jump and the cursor magnet. For exploring the web in depth.',
+  'Bom dia': 'Good morning',
+  'Boa tarde': 'Good afternoon',
+  'Boa noite': 'Good evening',
+  'Escolher o motor de pesquisa': 'Choose the search engine',
+  'Visitados recentemente': 'Recently visited',
+  'Guardar páginas em cache no disco': 'Keep pages cached on the disk',
+  'Os sites já visitados abrem mais depressa, até 1 GB na consola. Conta a partir da próxima vez que o browser abrir':
+    'Sites you visited before open faster, up to 1 GB on the console. Takes effect the next time the browser opens',
+  'Desempenho': 'Performance',
+  'Páginas dentro da app do browser': 'Pages inside the browser app',
+  'Mais núcleos para as páginas: abrem até 40% mais depressa. Desliga se alguma página falhar. Conta a partir da próxima vez que o browser abrir':
+    'More cores for the pages: they open up to 40% faster. Turn it off if a page fails. Takes effect the next time the browser opens',
+  'Reabrir os separadores da última vez': 'Reopen the tabs from last time',
+  'Reabrir a página da última vez': 'Reopen the page from last time',
+  'Editar': 'Edit',
+  'Concluído': 'Done',
+  'Apagar todos': 'Delete all',
+  'Apagar': 'Delete',
+  'Carrega outra vez para apagar todos': 'Press again to delete all',
+  'Abre uma página e carrega na estrela do endereço para a guardar aqui':
+    'Open a page and press the star in the address to keep it here',
+  'escrever um endereço': 'type an address',
+  'menus rápidos': 'quick menus',
+  'separadores (touch pad)': 'tabs (touch pad)',
+  'saltar entre elementos': 'jump between elements',
+  'menu e definições': 'menu and settings',
+  'abrir': 'open',
+
+  // The settings: the sections
+  'Geral': 'General',
+  'Aspeto': 'Appearance',
+  'Comando': 'Controller',
+  'Conteúdo dos sites': 'Site content',
+  'Privacidade e segurança': 'Privacy and security',
+  'Sistema': 'System',
+  'Acerca': 'About',
+  'TorBox': 'TorBox',
+  'As alterações ficam guardadas logo.': 'Changes are saved right away.',
+  '○ voltar à página anterior': '○ back to the previous page',
+  'Idioma · Language': 'Language · Idioma',
+
+  // General
+  'Por onde o browser começa e onde pesquisa.': 'Where the browser starts and where it searches.',
+  'Ao iniciar': 'On start',
+  'Abrir a página inicial': 'Open the home page',
+  'Continuar onde fiquei': 'Continue where I left off',
+  'Os separadores que estavam abertos': 'The tabs that were open',
+  'Sempre a mesma, todas as vezes': 'The same one, every time',
+  'Página inicial': 'Home page',
+  'Início do BrowserPS5': 'BrowserPS5 home',
+  'Favoritos, pesquisa e sites recentes': 'Favorites, search and recent sites',
+  'Um endereço': 'An address',
+  'Escolhe abaixo': 'Choose below',
+  'Escreve-o abaixo': 'Type it below',
+  'Motor de pesquisa': 'Search engine',
+  'Motor': 'Engine',
+  'https://www.exemplo.pt/': 'https://www.example.com/',
+  'O de origem. Pode pedir uma verificação': 'The original. It may ask for a check',
+  'Não guarda o que pesquisas': 'Doesn\'t keep what you search for',
+  'Da Microsoft': 'From Microsoft',
+  'Planta árvores': 'Plants trees',
+  'Resultados do Google, em privado': 'Google results, privately',
+  'Índice próprio, privado': 'Its own index, private',
+  'Barra': 'Bar',
+  'Mostrar os favoritos na barra': 'Show favorites in the bar',
+  'A fila de favoritos debaixo do endereço': 'The row of favorites under the address',
+  'Zoom das páginas': 'Page zoom',
+
+  // Appearance
+  'O tema muda a barra, o menu, o teclado e as páginas do browser.':
+    'The theme changes the bar, the menu, the keyboard and the browser\'s pages.',
+  'Sons da interface': 'Interface sounds',
+  'Um toque discreto ao saltar entre elementos e ao abrir menus':
+    'A discreet sound when jumping between elements and opening menus',
+  'Íman do cursor': 'Cursor magnet',
+  'Quando o manípulo pára, o cursor encaixa no link ou botão mais perto':
+    'When the stick stops, the cursor snaps to the nearest link or button',
+  'Modo cinema': 'Cinema mode',
+  'Num vídeo em ecrã inteiro: o cursor desaparece quando o comando descansa, sem sons nem vibração, a luz do comando baixa':
+    'In a full-screen video: the cursor hides while the controller rests, with no sounds or vibration, and the controller\'s light dims',
+
+  // Controller
+  'Como o DualSense anda pelas páginas.': 'How the DualSense moves around pages.',
+  'Botões de direção': 'Direction buttons',
+  'Saltar entre elementos': 'Jump between elements',
+  'Links, botões e caixas de texto, com destaque': 'Links, buttons and text boxes, highlighted',
+  'Deslocar a página': 'Scroll the page',
+  'Como o manípulo direito': 'Like the right stick',
+  'Velocidade do cursor': 'Cursor speed',
+  'Velocidade do deslocamento': 'Scroll speed',
+  'Lenta': 'Slow',
+  'Calma': 'Relaxed',
+  'Normal': 'Normal',
+  'Rápida': 'Fast',
+  'Muito rápida': 'Very fast',
+  'Vibração': 'Vibration',
+  'O comando vibra de leve ao saltar entre elementos, abrir menus e escolher':
+    'The controller vibrates lightly when jumping between elements, opening menus and choosing',
+  'Gatilhos adaptativos': 'Adaptive triggers',
+  'L2 e R2 dão um clique a meio, como botões, para os menus radiais':
+    'L2 and R2 click halfway, like buttons, for the radial menus',
+  'Barra de luz do tema': 'Theme light bar',
+  'Luz néon do cursor': 'Cursor neon light',
+  'Uma bola de luz na cor do tema segue o cursor, com um pequeno atraso': 'A ball of light in the theme colour follows the cursor, a little behind',
+  'A luz do comando acende na cor de destaque do tema': 'The controller\'s light glows in the theme\'s accent colour',
+  'Comando nos jogos da web': 'Controller in web games',
+  'Num site com jogos, um clique no touch pad dá o comando ao jogo; outro devolve-o ao cursor':
+    'On a site with games, a click on the touch pad gives the controller to the game; another gives it back to the cursor',
+  'Botões': 'Buttons',
+  'Mover o cursor': 'Move the cursor',
+  'Saltar para o elemento seguinte': 'Jump to the next element',
+  'Clicar': 'Click',
+  'Escrever um endereço': 'Type an address',
+  'Voltar · fechar o menu': 'Back · close the menu',
+  'Separadores · num jogo, o comando': 'Tabs · in a game, the controller',
+  'Menu (ecrã inteiro, sair)': 'Menu (full screen, quit)',
+  'Consola de programador (se ligada)': 'Developer console (if on)',
+
+  // Site content
+  'O que as páginas podem fazer. Vale para a próxima página que abrir.':
+    'What pages are allowed to do. Applies to the next page that opens.',
+  'JavaScript': 'JavaScript',
+  'Quase todos os sites precisam dele': 'Almost every site needs it',
+  'Imagens': 'Images',
+  'Desligado, as páginas abrem mais depressa': 'Off, pages open faster',
+  'Janelas pop-up': 'Pop-up windows',
+  'Os sites podem abrir janelas por si': 'Sites can open windows by themselves',
+  'Reprodução automática': 'Autoplay',
+  'Vídeos e som começam sem carregar em nada': 'Videos and sound start without pressing anything',
+  'Desligado, os sites mostram a versão para telemóvel': 'Off, sites show their mobile version',
+  'Ecrã inteiro nos vídeos': 'Full screen in videos',
+  'O botão de ecrã inteiro dos sites passa a funcionar, sem a barra (○ sai)':
+    'Sites\' full-screen button works, without the bar (○ leaves)',
+  'Escurece os sites claros, mantendo as fotografias e os vídeos':
+    'Darkens light sites, keeping the photos and videos as they are',
+  'Consola de programador': 'Developer console',
+  'R3 (carregar no manípulo direito) mostra as mensagens e os erros da página e corre JavaScript':
+    'R3 (pressing the right stick) shows the page\'s messages and errors and runs JavaScript',
+
+  // Privacy and security
+  'O que fica guardado na consola, e o que os sites podem guardar.':
+    'What is kept on the console, and what sites may keep.',
+  'Proteção': 'Protection',
+  'Bloqueador de anúncios': 'Ad blocker',
+  'Esconde anúncios, não carrega os scripts, quadros e imagens das redes de publicidade e dos rastreadores':
+    'Hides ads and doesn\'t load the scripts, frames and images of ad networks and trackers',
+  'Esconde anúncios e não abre os quadros das redes de publicidade':
+    'Hides ads and doesn\'t open ad networks\' frames',
+  'Permitir cookies de terceiros': 'Allow third-party cookies',
+  'Desligado: só o site que está aberto guarda cookies': 'Off: only the open site keeps cookies',
+  'Sites com anúncios permitidos': 'Sites with ads allowed',
+  'Nenhum. Num site, carrega em R2 e escolhe "Anúncios aqui" para os permitir só nesse site.':
+    'None. On a site, press R2 and choose "Ads here" to allow them on that site only.',
+  'Voltar a bloquear': 'Block again',
+  'Palavras-passe': 'Passwords',
+  'Oferecer para guardar palavras-passe': 'Offer to save passwords',
+  'Depois de entrares num site, o browser pergunta se a guarda; nesse site, o teclado mostra «Entrar como …». Ficam só nesta consola':
+    'After you sign in to a site, the browser asks whether to keep the password; on that site, the keyboard shows “Sign in as …”. They stay on this console only',
+  'Ainda não há palavras-passe guardadas.': 'No saved passwords yet.',
+  'Nunca guardar neste site': 'Never save on this site',
+  'Limpar dados': 'Clear data',
+  'Limpar': 'Clear',
+  'Cookies e dados dos sites': 'Cookies and site data',
+  'Sai das contas na maioria dos sites': 'Signs you out of most sites',
+  'Imagens e ficheiros em cache': 'Cached images and files',
+  'As páginas abrem um pouco mais devagar da próxima vez': 'Pages open a little slower next time',
+  'Dados limpos': 'Data cleared',
+  'Histórico limpo': 'History cleared',
+
+  // Favorites, history, downloads
+  'As páginas guardadas com a estrela do endereço. O ✕ de cada uma apaga-a.':
+    'The pages kept with the star in the address. The ✕ on each one deletes it.',
+  'Ainda não há favoritos. Abre uma página e carrega na estrela do endereço.':
+    'No favorites yet. Open a page and press the star in the address.',
+  'Favoritos apagados': 'Favorites deleted',
+  'As páginas abertas nesta consola, das mais recentes para as mais antigas.':
+    'The pages opened on this console, newest first.',
+  'Procurar no histórico': 'Search history',
+  'Nada encontrado.': 'Nothing found.',
+  'O histórico está vazio.': 'History is empty.',
+  'Hoje': 'Today',
+  'Ontem': 'Yesterday',
+  'Os ficheiros que os sites dão a guardar. Cada tipo tem a sua pasta, e o browser pergunta sempre onde guardar, como o Windows.':
+    'The files sites give you to save. Each type has its own folder, and the browser always asks where to save, like Windows.',
+  'Onde guardar': 'Where to save',
+  'Perguntar sempre onde guardar': 'Always ask where to save',
+  'Como no Windows. Desligado, cada ficheiro vai logo para a pasta do seu tipo':
+    'As on Windows. Off, each file goes straight to the folder for its type',
+  'Pasta dos pacotes (.pkg)': 'Packages folder (.pkg)',
+  'Pasta dos vídeos, músicas e imagens': 'Videos, music and pictures folder',
+  'Ainda não houve transferências.': 'No downloads yet.',
+  '%s% de %s': '%s% of %s',
+  'A transferir': 'Downloading',
+  'À espera da pasta': 'Waiting for the folder',
+  'Concluída': 'Done',
+  'Falhou': 'Failed',
+  'Cancelada': 'Cancelled',
+  'parada': 'stalled',
+  'faltam %s': '%s left',
+  'Voltar a tentar': 'Try again',
+  'Extrair': 'Extract',
+  'Transferências da consola': 'The console\'s downloads',
+  'Ficheiros da consola': 'The console\'s files',
+  'Vê o que está nas pastas das transferências e nas pens USB, e traz para o telemóvel.':
+    'See what is in the download folders and on USB drives, and bring it to the phone.',
+  'Locais': 'Places',
+  'Nenhuma pasta disponível agora.': 'No folder available right now.',
+  'Esta pasta está vazia.': 'This folder is empty.',
+  'Guardar no telemóvel': 'Save to phone',
+  'Ver': 'View',
+  'Fechar': 'Close',
+  'Apagar esta pasta': 'Delete this folder',
+  'Apagado': 'Deleted',
+  'A pasta não está vazia': 'The folder is not empty',
+  'Não foi possível apagar': 'Could not delete',
+  'A guardar no telemóvel': 'Saving to the phone',
+  'Esta pasta já não está disponível': 'This folder is no longer available',
+  'Não foi possível abrir o ficheiro': 'Could not open the file',
+  'Nome que o telemóvel não consegue pedir': 'A name the phone cannot ask for',
+  'A extrair · %s%': 'Extracting · %s%',
+  'Não foi possível extrair': 'Could not extract',
+  'A extrair o ZIP': 'Extracting the ZIP',
+  'Já está a extrair um ZIP': 'A ZIP is being extracted already',
+  'Não foi possível criar a pasta para o ZIP': 'The folder for the ZIP could not be made',
+  'Este ZIP está estragado ou tem várias partes': 'This ZIP is broken or in several parts',
+  'Não há espaço para extrair este ZIP': 'There is no room to extract this ZIP',
+  'Não foi possível escrever os ficheiros do ZIP': 'The ZIP\'s files could not be written',
+  'Não foi possível abrir o ZIP': 'The ZIP could not be opened',
+  'O ficheiro já não está lá': 'The file is not there any more',
+  'A transferir de novo': 'Downloading again',
+  'Torrents': 'Torrents',
+  'Abrir os torrents': 'Open the torrents',
+  'Os links magnet e os ficheiros .torrent vão para o Transmission, que continua com o browser fechado. Ficam em /data/downloads/torrents':
+    'Magnet links and .torrent files go to Transmission, which keeps going with the browser closed. They end up in /data/downloads/torrents',
+
+  // Extensions
+  'Instaladas': 'Installed',
+  'Do BrowserPS5': 'BrowserPS5\'s own',
+  'Nenhuma extensão instalada.': 'No extensions installed.',
+  'Abre um script e carrega em «Instalar este script».': 'Open a script and press “Install this script”.',
+  'Procurar extensões no Greasy Fork': 'Find extensions on Greasy Fork',
+  'Instalar extensão?': 'Install extension?',
+  'Instalar': 'Install',
+  'A instalar…': 'Installing…',
+  'Remover': 'Remove',
+  'Extensão removida': 'Extension removed',
+  'Guardado': 'Saved',
+  'O bloqueador não faz nada aqui nem nos endereços dentro dele':
+    'The blocker does nothing here or on the addresses inside it',
+  'Ligar': 'Turn on',
+  'Desligar': 'Turn off',
+  'todos os sites': 'all sites',
+
+  // Phone (the settings' section)
+  'Usa o telemóvel como teclado e comando, abre nele um link para ver na TV ou envia vídeos e ficheiros para a consola. Basta estar na mesma rede.':
+    'Use the phone as a keyboard and controller, open a link on it to watch on the TV, or send videos and files to the console. It just needs the same network.',
+  'Permitir o telemóvel': 'Allow the phone',
+  'Só telemóveis da rede de casa, e só com o código da TV': 'Only phones on the home network, and only with the code from the TV',
+  'O telemóvel está desligado': 'The phone is off',
+  'Liga-o abaixo para ver o código.': 'Turn it on below to see the code.',
+  'A consola não tem endereço na rede. Liga-a ao router e volta aqui.':
+    'The console has no network address. Connect it to the router and come back here.',
+  'Aponta a câmara do telemóvel ao código, ou abre': 'Point the phone\'s camera at the code, or open',
+  'Escreve este código no telemóvel:': 'Type this code on the phone:',
+  'Ligações': 'Connections',
+  'Nenhum telemóvel ligado': 'No phone connected',
+  '1 telemóvel ligado': '1 phone connected',
+  'O browser esquece-os quando fecha': 'The browser forgets them when it closes',
+  'Esquecer todos': 'Forget all',
+  'Os telemóveis foram esquecidos': 'The phones were forgotten',
+  'Telemóvel ligado. O código mudou para o próximo.': 'Phone connected. The code changed to the next one.',
+
+  // System
+  'A consola agora: temperatura, memória, espaço livre e rede. Atualiza sozinho a cada 2 segundos.':
+    'The console right now: temperature, memory, free space and network. Updates by itself every 2 seconds.',
+  'Processador': 'Processor',
+  'Chip principal': 'Main chip',
+  'Temperatura indisponível': 'Temperature unavailable',
+  'Memória livre': 'Free memory',
+  'Ligada há': 'On for',
+  'Endereço na rede': 'Network address',
+  'Sem rede': 'No network',
+  'Consola': 'Console',
+  'Firmware': 'Firmware',
+  'Desconhecido': 'Unknown',
+  'Memória do sistema': 'System memory',
+  'Indisponível': 'Unavailable',
+  'Temperaturas': 'Temperatures',
+  'processador %s °C': 'processor %s °C',
+  'chip principal %s °C': 'main chip %s °C',
+  'A consola não as dá a este browser': 'The console doesn\'t give them to this browser',
+  'Armazenamento': 'Storage',
+  'Nenhum disco a que o browser chegue': 'No drive the browser can reach',
+  'Este browser': 'This browser',
+  'Esta sessão': 'This session',
+  'Aberto há': 'Open for',
+  'Separadores abertos': 'Open tabs',
+  '1 separador': '1 tab',
+  'Anúncios bloqueados': 'Ads blocked',
+  'Nenhum desde que abriu': 'None since it opened',
+  '1 desde que abriu': '1 since it opened',
+  'Transferências a decorrer': 'Downloads in progress',
+  'Nenhuma': 'None',
+  '1 transferência': '1 download',
+  'Desenho e vídeo': 'Drawing and video',
+  'Composição no GPU da consola (Mesa: zink e RADV), JavaScript com JIT':
+    'Compositing on the console\'s GPU (Mesa: zink and RADV), JavaScript with JIT',
+  '%s livres de %s': '%s free of %s',
+  'Definições da PS5': 'PS5 settings',
+  'Rede': 'Network',
+  'Wi-Fi, cabo e a ligação à internet': 'Wi-Fi, cable and the internet connection',
+  'Ecrã e vídeo': 'Screen and video',
+  'Resolução, 4K, HDR e frequência': 'Resolution, 4K, HDR and refresh rate',
+  'Armazenamento da consola': 'Console storage',
+  'O espaço da consola e dos discos': 'The space on the console and its drives',
+  'Comandos': 'Controllers',
+  'O DualSense: vibração, gatilhos e luz': 'The DualSense: vibration, triggers and light',
+  'Aparece uma notificação: carrega em «Abrir» nela. O browser fica em pausa por trás e volta como estava.':
+    'A notification shows up: press “Open” on it. The browser pauses behind it and comes back as it was.',
+  'Carrega em «Abrir» na notificação para ir às definições da PS5':
+    'Press “Open” in the notification to go to the PS5\'s settings',
+
+  // TorBox
+  'A tua conta TorBox: os torrents e os links de ficheiros são transferidos nos servidores do TorBox, e os ficheiros prontos vêm para a consola pelas Transferências do browser.':
+    'Your TorBox account: torrents and file links are downloaded on TorBox\'s servers, and the finished files come to the console through the browser\'s Downloads.',
+  'Conta': 'Account',
+  'Sem chave': 'No key',
+  'A chave da API está em torbox.app, Settings. Fica só nesta consola e nunca aparece nos registos':
+    'The API key is on torbox.app, Settings. It stays on this console only and never appears in the logs',
+  'Chave da API (podes colá-la a partir do telemóvel)': 'API key (you can paste it from the phone)',
+  'Apagar a chave': 'Delete the key',
+  'O browser esquece a conta': 'The browser forgets the account',
+  'Mandar os torrents para o TorBox': 'Send torrents to TorBox',
+  'Os links magnet e os ficheiros .torrent vão para o TorBox em vez do Transmission da consola':
+    'Magnet links and .torrent files go to TorBox instead of the console\'s Transmission',
+  'Adicionar': 'Add',
+  'Um link magnet, ou o endereço de um ficheiro': 'A magnet link, or a file\'s address',
+  'No TorBox': 'On TorBox',
+  'Abrir torbox.app': 'Open torbox.app',
+  'Guarda a chave da tua conta para ver o que lá tens.': 'Save your account\'s key to see what you have there.',
+  'Ainda não há nada no TorBox.': 'Nothing on TorBox yet.',
+  'O TorBox não respondeu.': 'TorBox didn\'t answer.',
+  'O TorBox não é usado para o YouTube': 'TorBox isn\'t used for YouTube',
+  'Primeiro a chave da conta': 'The account key first',
+  'Pronto': 'Ready',
+  'A transferir no TorBox': 'Downloading on TorBox',
+  'Em pausa': 'Paused',
+  'A ler o torrent': 'Reading the torrent',
+  'A verificar': 'Checking',
+  'Em fila': 'Queued',
+  'Sem fontes': 'No sources',
+  'Erro': 'Error',
+  'À espera': 'Waiting',
+  'Sem nome': 'No name',
+  'ficheiro': 'file',
+  'Trazer para a consola': 'Bring to the console',
+
+  // About
+  'Um browser a sério para a PS5, feito sobre o WebKit.': 'A real browser for the PS5, built on WebKit.',
+  'Software livre · GPL-3.0': 'Free software · GPL-3.0',
+  'Ícones e letra': 'Icons and font',
+  'Fluent UI System Icons da Microsoft (licença MIT); a letra é a da própria consola':
+    'Microsoft\'s Fluent UI System Icons (MIT licence); the font is the console\'s own',
+
+  // The phone's page
+  'BrowserPS5 · Telemóvel': 'BrowserPS5 · Phone',
+  'no teu telemóvel': 'on your phone',
+  'Ligar à PS5': 'Connect to the PS5',
+  'Escreve o código de 6 algarismos que aparece na TV, em Definições → Telemóvel.':
+    'Type the 6-digit code shown on the TV, in Settings → Phone.',
+  'Código': 'Code',
+  'O telemóvel e a consola têm de estar na mesma rede.': 'The phone and the console must be on the same network.',
+  'A ligar…': 'Connecting…',
+  'São 6 algarismos.': 'It\'s 6 digits.',
+  'Código errado. Falta 1 tentativa.': 'Wrong code. 1 try left.',
+  'Demasiadas tentativas. Abre outra vez Definições → Telemóvel na TV para ter um código novo.':
+    'Too many tries. Open Settings → Phone on the TV again to get a new code.',
+  'Esse código já não serve. Abre Definições → Telemóvel na TV para ver o atual.':
+    'That code no longer works. Open Settings → Phone on the TV to see the current one.',
+  'A consola já não conhece este telemóvel. Liga-o outra vez.': 'The console no longer knows this phone. Connect it again.',
+  'Não chego à consola. Está ligada e na mesma rede?': 'Can\'t reach the console. Is it on and on the same network?',
+  'phone|Ligado': 'Connected',
+  'phone|Desligado': 'Disconnected',
+  'Sem ligação': 'No connection',
+  'Ligado à PS5': 'Connected to the PS5',
+  'Ligação perdida': 'Connection lost',
+  'Na TV agora': 'On the TV now',
+  'Página do browser': 'Browser page',
+  'Abrir na TV': 'Open on the TV',
+  'Um endereço ou o que queres pesquisar. Abre num separador novo.':
+    'An address or what you want to search for. Opens in a new tab.',
+  'A abrir na TV': 'Opening on the TV',
+  'A TV não aceitou': 'The TV didn\'t accept it',
+  'Escrever na TV': 'Type on the TV',
+  'Vai para a caixa de texto que está escolhida na TV. Bom para palavras-passe e textos compridos.':
+    'Goes into the text box chosen on the TV. Good for passwords and long texts.',
+  'Escreve aqui': 'Type here',
+  'Carregar em Enter no fim': 'Press Enter at the end',
+  'Escrito na TV': 'Typed on the TV',
+  'Texto comprido demais': 'Text too long',
+  'Não foi': 'Didn\'t work',
+  'O que a página na TV faz a seguir.': 'What the page on the TV does next.',
+  'Topo': 'Top',
+  'Subir': 'Up',
+  'Descer': 'Down',
+  'Fundo': 'Bottom',
+  'Enviar ficheiros para a consola': 'Send files to the console',
+  'Vídeos, músicas, imagens ou outros ficheiros. Os .pkg vão para a pasta dos pacotes; nada é instalado.':
+    'Videos, music, pictures or other files. .pkg files go to the packages folder; nothing is installed.',
+  'Escolher ficheiros': 'Choose files',
+  'Pelo tipo': 'By type',
+  'Vídeos e música': 'Videos and music',
+  'Pen USB': 'USB drive',
+  'Ao lado do jogo': 'Next to the game',
+  'Sem espaço': 'No space',
+  'Sem pen USB': 'No USB drive',
+  'Pasta indisponível': 'Folder unavailable',
+  'Desligar este telemóvel': 'Disconnect this phone',
+  'Novo': 'New',
+
+  // The app's messages (main.cpp, torrent.c, torbox.c), in the bar
+  'A abrir os torrents...': 'Opening the torrents...',
+  'A chave do TorBox foi apagada': 'The TorBox key was deleted',
+  'A consola é para as páginas da web': 'The console is for web pages',
+  'A entregar ao TorBox...': 'Handing it to TorBox...',
+  'A entregar o torrent ao Transmission...': 'Handing the torrent to Transmission...',
+  'A pedir o ficheiro ao TorBox...': 'Asking TorBox for the file...',
+  'A trazer o ficheiro do TorBox...': 'Bringing the file from TorBox...',
+  'Aberto a partir do telemóvel': 'Opened from the phone',
+  'Adicionado ao TorBox': 'Added to TorBox',
+  'Anúncios bloqueados neste site': 'Ads blocked on this site',
+  'Anúncios permitidos neste site': 'Ads allowed on this site',
+  'Carrega em «Abrir» na notificação: a página abre no cartão do sistema, ao lado do jogo':
+    'Press “Open” in the notification: the page opens in the system card, next to the game',
+  'Chave do TorBox guardada': 'TorBox key saved',
+  'Endereço longo demais para o cartão do sistema': 'Address too long for the system card',
+  'Esta chave não parece do TorBox: copia-a de torbox.app, Settings, API':
+    'This doesn\'t look like a TorBox key: copy it from torbox.app, Settings, API',
+  'Este ficheiro .torrent não se lê': 'This .torrent file can\'t be read',
+  'Este site usa o comando: clica no touch pad para jogar': 'This site uses the controller: click the touch pad to play',
+  'Falta a chave do TorBox: põe-na em Definições, TorBox': 'The TorBox key is missing: put it in Settings, TorBox',
+  'Falta o torrentd.elf: instala o pacote dos torrents': 'torrentd.elf is missing: install the torrents package',
+  'Ficheiro recebido do telemóvel': 'File received from the phone',
+  'Há sites demais na lista de exceções': 'Too many sites in the exceptions list',
+  'Liga a consola em Definições → Conteúdo dos sites': 'Turn on the console in Settings → Site content',
+  'Modo jogo: o comando é do jogo. Touch pad para sair': 'Game mode: the controller belongs to the game. Touch pad to leave',
+  'Não deu para abrir os torrents': 'Couldn\'t open the torrents',
+  'Não deu para guardar a palavra-passe': 'Couldn\'t save the password',
+  'Não deu para pedir a lista ao TorBox': 'Couldn\'t ask TorBox for the list',
+  'Não deu para pedir ao TorBox': 'Couldn\'t ask TorBox',
+  'Não deu para pedir o ficheiro ao TorBox': 'Couldn\'t ask TorBox for the file',
+  'Não deu para pedir o torrent': 'Couldn\'t ask for the torrent',
+  'O TorBox não respondeu (rede?)': 'TorBox didn\'t answer (network?)',
+  'O TorBox não é usado para isto (YouTube, ou não é um link)': 'TorBox isn\'t used for this (YouTube, or not a link)',
+  'O TorBox pede para esperar: muitos pedidos seguidos': 'TorBox asks to wait: too many requests in a row',
+  'O TorBox recusou a chave: vê-a em Definições, TorBox': 'TorBox refused the key: check it in Settings, TorBox',
+  'O Transmission não respondeu': 'Transmission didn\'t answer',
+  'O Transmission não respondeu ao pedido': 'Transmission didn\'t answer the request',
+  'O carregador de payloads não recebeu o Transmission': 'The payload loader didn\'t take Transmission',
+  'O carregador de payloads não respondeu': 'The payload loader didn\'t answer',
+  'O comando voltou ao cursor': 'The controller is back on the cursor',
+  'O sistema não mostrou a notificação': 'The system didn\'t show the notification',
+  'Recarrega a página para a consola a ver': 'Reload the page for the console to see it',
+  'Resposta estranha do Transmission': 'Odd answer from Transmission',
+  'Sem memória': 'Out of memory',
+  'Sem memória para o pedido ao TorBox': 'Out of memory for the TorBox request',
+  'Só as páginas da web abrem ao lado do jogo': 'Only web pages open next to the game',
+  'Um ficheiro do telemóvel não chegou inteiro': 'A file from the phone didn\'t arrive whole',
+};
+
+// Texts with a part that changes: %s any text, %d a number.
+const LANG_EN_PATTERNS = [
+  ['Extraído para %s; %d ficaram de fora', 'Extracted to %s; %d left out'],
+  ['Extraído para %s', 'Extracted to %s'],
+  ['Um ficheiro do ZIP está estragado: %s', 'A file in the ZIP is broken: %s'],
+  ['Apagar «%s»? Não dá para desfazer.', 'Delete “%s”? This cannot be undone.'],
+  ['e mais %d', 'and %d more'],
+  ['Pen USB %d', 'USB drive %d'],
+  ['Entrar como %s', 'Sign in as %s'],
+  ['Pesquisar no %s ou escrever um endereço', 'Search %s or type an address'],
+  ['Página inicial: %s', 'Home page: %s'],
+  ['Os anúncios voltam a ser bloqueados em %s', 'Ads are blocked again on %s'],
+  ['Funciona em: %s', 'Runs on: %s'],
+  ['%d página(s) guardada(s)', '%d page(s) saved'],
+  ['%d telemóveis ligados', '%d phones connected'],
+  ['%d separadores', '%d tabs'],
+  ['%d desde que abriu', '%d since it opened'],
+  ['%d transferências', '%d downloads'],
+  ['O código muda daqui a %s', 'The code changes in %s'],
+  ['Chave guardada (acaba em %s)', 'Key saved (ends in %s)'],
+  ['E mais %d ficheiros: em torbox.app', 'And %d more files: on torbox.app'],
+  ['%d de %d (o máximo)', '%d of %d (the most)'],
+  ['%d de %d', '%d of %d'],
+  ['%d abertos', '%d open'],
+  ['A transferir: %d%', 'Downloading: %d%'],
+  ['Código errado. Faltam %d tentativas.', 'Wrong code. %d tries left.'],
+  ['Na TV agora · %s', 'On the TV now · %s'],
+  ['Na consola · %s', 'On the console · %s'],
+  ['Disco externo %d', 'External drive %d'],
+  ['Torrent a transferir: %s', 'Downloading torrent: %s'],
+  ['Este torrent já está na lista: %s', 'This torrent is already in the list: %s'],
+  ['Palavra-passe guardada: %s', 'Password saved: %s'],
+  ['Palavra-passe atualizada: %s', 'Password updated: %s'],
+  ['Não volto a perguntar em %s', 'I won\'t ask again on %s'],
+  ['Chegou do telemóvel: %s', 'Arrived from the phone: %s'],
+  ['No TorBox: %s', 'On TorBox: %s'],
+  ['O TorBox não aceitou: %s', 'TorBox didn\'t accept it: %s'],
+  ['O TorBox respondeu %d', 'TorBox answered %d'],
+  ['O Transmission recusou: %s', 'Transmission refused: %s'],
+].map(([pt, en]) => {
+  const re = pt.split(/(%s|%d)/).map(p => p === '%s' ? '([\\s\\S]+?)' : p === '%d' ? '(\\d+)'
+    : p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+  return [new RegExp('^' + re + '$'), en];
+});
+
+const LANG_DAYS = {
+  pt: ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+};
+const LANG_MONTHS = {
+  pt: ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro',
+       'outubro', 'novembro', 'dezembro'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+       'October', 'November', 'December'],
+};
+const LANG_ATTRS = ['title', 'placeholder', 'aria-label'];
+
+// The English of text (its spaces at both ends kept), or null.
+function langEn(text) {
+  const t = text.trim();
+  if (!t) return null;
+  let en = Object.prototype.hasOwnProperty.call(LANG_EN, t) ? LANG_EN[t] : null;
+  for (let i = 0; en === null && i < LANG_EN_PATTERNS.length; i++) {
+    const m = LANG_EN_PATTERNS[i][0].exec(t);
+    if (m) {
+      let n = 1;
+      en = LANG_EN_PATTERNS[i][1].replace(/%[sd]/g, () => {
+        const part = m[n++];
+        return Object.prototype.hasOwnProperty.call(LANG_EN, part) ? LANG_EN[part] : part;
+      });
+    }
+  }
+  if (en === null) return null;
+  return text.slice(0, text.length - text.trimStart().length) + en + text.slice(text.trimEnd().length);
+}
+
+function T(text, ...args) {
+  const context = /^[a-z]+\|/.exec(text);
+  const plain = context ? text.slice(context[0].length) : text;
+  let s = LANG === 'en' ? (langEn(text) ?? (context ? langEn(plain) : null)) : null;
+  if (s === null) s = plain;
+  let n = 0;
+  return args.length ? s.replace(/%[sd]/g, () => String(args[n++])) : s;
+}
+
+// "sábado, 6 de março", "Saturday, 6 March".
+function langDay(d) {
+  return LANG === 'en'
+    ? LANG_DAYS.en[d.getDay()] + ', ' + d.getDate() + ' ' + LANG_MONTHS.en[d.getMonth()]
+    : LANG_DAYS.pt[d.getDay()] + ', ' + d.getDate() + ' de ' + LANG_MONTHS.pt[d.getMonth()];
+}
+
+// What was swapped, to put it back: text node -> [pt, en]; element ->
+// {attribute: [pt, en]}.
+const langTexts = new WeakMap();
+const langElements = new WeakMap();
+let langObserver = null;
+
+function langSkip(n) {
+  const e = n.nodeType === 1 ? n : n.parentElement;
+  return !e || e.closest('script, style, [translate="no"]') !== null;
+}
+
+function langNode(n) {
+  if (n.nodeType === 3) {
+    if (langSkip(n)) return;
+    const en = langEn(n.data);
+    if (en !== null && en !== n.data) {
+      langTexts.set(n, [n.data, en]);
+      n.data = en;
+    }
+    return;
+  }
+  if (n.nodeType !== 1 || langSkip(n)) return;
+  const done = langElements.get(n) || {};
+  if (n.hasAttribute('data-en') && !done.html) {
+    done.html = [n.innerHTML, n.getAttribute('data-en')];
+    langElements.set(n, done);
+    n.innerHTML = done.html[1];
+    return;
+  }
+  for (const a of LANG_ATTRS) {
+    const v = n.getAttribute(a);
+    const en = v ? langEn(v) : null;
+    if (en !== null && en !== v) {
+      done[a] = [v, en];
+      langElements.set(n, done);
+      n.setAttribute(a, en);
+    }
+  }
+  for (let c = n.firstChild; c; c = c.nextSibling) langNode(c);
+}
+
+function langRestore(n) {
+  if (n.nodeType === 3) {
+    const was = langTexts.get(n);
+    if (was && n.data === was[1]) n.data = was[0];
+    langTexts.delete(n);
+    return;
+  }
+  if (n.nodeType !== 1) return;
+  const done = langElements.get(n);
+  if (done) {
+    langElements.delete(n);
+    if (done.html) {
+      n.innerHTML = done.html[0];
+      return;
+    }
+    for (const a of LANG_ATTRS) {
+      if (done[a] && n.getAttribute(a) === done[a][1]) n.setAttribute(a, done[a][0]);
+    }
+  }
+  for (let c = n.firstChild; c; c = c.nextSibling) langRestore(c);
+}
+
+function setLang(lang) {
+  lang = lang === 'en' ? 'en' : 'pt';
+  if (lang === LANG) return;
+  LANG = lang;
+  document.documentElement.lang = lang;
+  if (lang === 'en') {
+    langNode(document.documentElement);
+    langObserver = new MutationObserver(records => {
+      for (const r of records) {
+        if (r.type === 'childList') r.addedNodes.forEach(langNode);
+        else if (r.type === 'characterData') langNode(r.target);
+        else if (LANG_ATTRS.includes(r.attributeName)) langNode(r.target);
+      }
+    });
+    langObserver.observe(document.documentElement, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: LANG_ATTRS,
+    });
+  } else {
+    if (langObserver) langObserver.disconnect();
+    langObserver = null;
+    langRestore(document.documentElement);
+  }
+  // For the pages' texts put together before (settings.html, start.html).
+  document.dispatchEvent(new Event('langchange'));
+}
+</script>
+<script>
+'use strict';
+
+// Each layer: rows of keys. A string is a key that types itself (shift
+// makes it upper case); an object is a key that does something else, w its
+// width in plain keys.
+const BKSP = {k: 'bksp', t: '⌫', w: 1.6};
+const layers = {
+  abc: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', "'"],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ç', '~'],
+    [{k: 'shift', t: '⇧', w: 1.6}, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '-'],
+  ],
+  acc: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['á', 'à', 'â', 'ã', 'é', 'è', 'ê', 'í', 'ì', 'î', 'ï'],
+    ['ó', 'ò', 'ô', 'õ', 'ö', 'ú', 'ù', 'û', 'ü', 'ç', 'ñ'],
+    [{k: 'shift', t: '⇧', w: 1.6}, 'ä', 'ë', 'ÿ', '«', '»', 'ª', 'º', '€', '£', '°'],
+  ],
+  sym: [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', BKSP],
+    ['!', '@', '#', '$', '%', '&', '*', '(', ')', '=', '+'],
+    ['-', '_', '/', '\\', ':', ';', '"', "'", '?', '¿', '¡'],
+    ['[', ']', '{', '}', '<', '>', '|', '^', '`', '§', ','],
+  ],
+};
+
+// The bottom row's own keys for each kind of field.
+const extras = {
+  bar: ['/', '.com', '.pt', 'www.'],
+  url: ['/', '.com', '.pt', 'www.'],
+  email: ['@', '.com', '.pt', '_'],
+  search: ['@', '?', '!'],
+  text: ['@', '?', '!'],
+  password: ['@', '_', '!', '#'],
+  tel: ['+', '*', '#'],
+  number: ['.', ',', '-'],
+  textarea: ['@', '?', {k: 'newline', t: '↵ linha'}],
+  edit: ['@', '?', {k: 'newline', t: '↵ linha'}],
+};
+
+const labels = {
+  bar: 'Endereço ou pesquisa', url: 'Endereço', email: 'E-mail',
+  search: 'Pesquisa', text: 'Texto', password: 'Palavra-passe',
+  tel: 'Telefone', number: 'Número', textarea: 'Texto', edit: 'Texto',
+};
+
+const enterLabels = {
+  go: 'Ir', search: 'Pesquisar', send: 'Enviar', next: 'Seguinte',
+  done: 'OK', enter: 'OK', previous: 'OK', '': 'OK',
+};
+
+const s = {
+  open: false, kind: 'text', enter: '', chars: [], caret: 0,
+  layer: 'abc', shift: 0,   // 0 off, 1 the next letter, 2 locked
+  reveal: false,            // a password shown as it is
+  hl: null,                 // the highlighted key (an element)
+  logins: [],               // "Entrar como ...": user names (kb.open)
+};
+
+const board = document.getElementById('board');
+const line = document.getElementById('line');
+const preview = document.getElementById('preview');
+const label = document.getElementById('label');
+
+function send(command, argument) {
+  location.href = 'browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument));
+}
+
+function keyText(key) {
+  if (typeof key !== 'string')
+    return key.t;
+  return s.shift && s.layer !== 'sym' ? key.toUpperCase() : key;
+}
+
+// The rows of the layer in use, and the bottom one.
+function rows() {
+  const r = layers[s.layer].slice();
+  const bottom = [
+    s.layer === 'sym' ? {k: 'abc', t: 'abc', w: 1.4} : {k: 'sym', t: '?123', w: 1.4},
+    s.layer === 'acc' ? {k: 'abc', t: 'abc', w: 1.4} : {k: 'acc', t: 'áé', w: 1.4},
+  ];
+  for (const e of extras[s.kind] || extras.text)
+    bottom.push(typeof e === 'string' ? e : Object.assign({w: 1.6}, e));
+  if (s.kind === 'password')
+    bottom.push({k: 'reveal', t: s.reveal ? 'ocultar' : 'mostrar', w: 1.6});
+  bottom.push({k: 'space', t: 'espaço', w: 3.5},
+              {k: 'left', t: '←'}, {k: 'right', t: '→'},
+              {k: 'close', t: 'fechar', w: 1.6},
+              {k: 'enter', t: enterLabels[s.enter] || 'OK', w: 2.2});
+  r.push(bottom);
+  return r;
+}
+
+// Draws the keys again (a layer, shift or the kind changed), keeping the
+// highlight at the same place.
+function makeKey(key, r, c) {
+  const e = document.createElement('div');
+  e.className = 'key';
+  e.dataset.row = r;
+  e.dataset.col = c;
+  e.textContent = keyText(key);
+  if (typeof key !== 'string' && key.k === 'login') {
+    e.classList.add('login');
+  } else if (typeof key !== 'string') {
+    e.classList.add(key.k === 'enter' ? 'enter' : 'fn');
+    e.style.flexGrow = key.w || 1;
+    if ((key.k === 'shift' && s.shift) ||
+        (key.k === s.layer))
+      e.classList.add('on');
+  } else if (key.length > 1) {
+    e.classList.add('fn');
+    e.style.flexGrow = 1.4;
+  }
+  e.key = key;
+  e.addEventListener('mousedown', down);
+  e.addEventListener('mouseup', up);
+  e.addEventListener('mouseleave', up);
+  e.addEventListener('mouseenter', () => highlight(e));
+  return e;
+}
+
+function build() {
+  // The logins' row (in the top one) is row 0 when there is one.
+  const offset = s.logins.length ? 1 : 0;
+  const at = s.hl ? [+s.hl.dataset.row, +s.hl.dataset.col] : [offset ? 0 : 1, 0];
+  for (const old of board.querySelectorAll('.row'))
+    old.remove();
+  document.body.classList.toggle('logins', !!offset);
+  if (offset) {
+    const row = document.createElement('div');
+    row.className = 'row logins';
+    s.logins.forEach((name, i) => row.appendChild(makeKey({k: 'login', i, t: 'Entrar como ' + name}, 0, i)));
+    document.getElementById('top').appendChild(row);
+  }
+  rows().forEach((keys, r) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    keys.forEach((key, c) => row.appendChild(makeKey(key, r + offset, c)));
+    board.appendChild(row);
+  });
+  const all = board.querySelectorAll('.row');
+  const row = all[Math.min(at[0], all.length - 1)];
+  highlight(row.children[Math.min(at[1], row.children.length - 1)]);
+}
+
+function highlight(e) {
+  if (s.hl)
+    s.hl.classList.remove('hl');
+  s.hl = e;
+  if (e)
+    e.classList.add('hl');
+}
+
+// What is typed, with the caret, scrolled so that the caret shows.
+function render() {
+  document.body.classList.toggle('closed', !s.open);
+  label.textContent = labels[s.kind] || labels.text;
+  line.textContent = '';
+  // One line: a new line shows as ↵.
+  const shown = s.kind === 'password' && !s.reveal
+    ? s.chars.map(() => '•') : s.chars.map(c => c === '\n' ? '↵' : c);
+  if (!s.chars.length) {
+    const p = document.createElement('span');
+    p.id = 'placeholder';
+    p.textContent = s.kind === 'bar' ? T('Pesquisar ou escrever um endereço') : '';
+    line.append(caretElement(), p);
+  } else {
+    line.append(document.createTextNode(shown.slice(0, s.caret).join('')),
+                caretElement(),
+                document.createTextNode(shown.slice(s.caret).join('')));
+  }
+  const caret = document.getElementById('caret');
+  const room = preview.clientWidth - 48;
+  const x = caret.offsetLeft;
+  const shift = Math.max(0, x - room + 40);
+  line.style.left = -shift + 'px';
+  blink();
+}
+
+// The caret blinks from a timer, two changes a second, and only while the
+// keyboard is open. A CSS animation runs on WebKit's compositor: the page
+// made a frame every 16 ms while the keyboard was open (each one read back
+// from the GPU), and closing the page during one crashed the WebProcess
+// (2026-11-05 00:53, docs/06). Each render() shows the caret again.
+let blinkTimer = 0;
+function blink() {
+  clearInterval(blinkTimer);
+  blinkTimer = 0;
+  if (s.open) {
+    blinkTimer = setInterval(() => {
+      const caret = document.getElementById('caret');
+      if (caret) {
+        caret.classList.toggle('off');
+      }
+    }, 530);
+  }
+}
+
+function caretElement() {
+  const c = document.createElement('span');
+  c.id = 'caret';
+  return c;
+}
+
+function insert(text) {
+  const add = Array.from(text);
+  s.chars.splice(s.caret, 0, ...add);
+  s.caret += add.length;
+  if (s.shift === 1) {
+    s.shift = 0;
+    build();
+  }
+  render();
+}
+
+function backspace() {
+  if (s.caret > 0) {
+    s.chars.splice(s.caret - 1, 1);
+    s.caret--;
+    render();
+  }
+}
+
+// A key pressed: with the cursor (down) or square (the highlighted one).
+function press(key) {
+  if (typeof key === 'string') {
+    insert(keyText(key));
+    return;
+  }
+  switch (key.k) {
+  case 'bksp': backspace(); break;
+  case 'space': insert(' '); break;
+  case 'newline': insert('\n'); break;
+  case 'left': s.caret = Math.max(0, s.caret - 1); render(); break;
+  case 'right': s.caret = Math.min(s.chars.length, s.caret + 1); render(); break;
+  case 'shift': s.shift = (s.shift + 1) % 3; build(); break;
+  case 'sym': case 'acc': case 'abc':
+    s.layer = key.k; s.shift = 0; build(); break;
+  case 'reveal': s.reveal = !s.reveal; build(); render(); break;
+  case 'close': kb.cancel(); break;
+  case 'enter': kb.done(); break;
+  case 'login': {
+    const i = key.i;
+    reset();
+    send('login', String(i));
+    break;
+  }
+  default: insert(key.t);
+  }
+}
+
+// Held down, ⌫ and the arrows repeat.
+let repeat = 0;
+function down(event) {
+  event.preventDefault();
+  const e = event.currentTarget;
+  highlight(e);
+  e.classList.add('down');
+  press(e.key);
+  const k = e.key.k;
+  if (k === 'bksp' || k === 'left' || k === 'right') {
+    clearTimeout(repeat);
+    const again = () => { press(e.key); repeat = setTimeout(again, 70); };
+    repeat = setTimeout(again, 450);
+  }
+}
+
+function up(event) {
+  event.currentTarget.classList.remove('down');
+  clearTimeout(repeat);
+}
+
+// The key in the next row (dy) or the next one in this row (dx) from the
+// highlighted one. Up and down go to the key whose middle is nearest.
+function move(dx, dy) {
+  const all = Array.from(board.querySelectorAll('.row'));
+  if (!s.hl) {
+    highlight(all[0].children[0]);
+    return;
+  }
+  let r = +s.hl.dataset.row;
+  let c = +s.hl.dataset.col;
+  if (dx) {
+    const n = all[r].children.length;
+    c = (c + (dx > 0 ? 1 : -1) + n) % n;
+    highlight(all[r].children[c]);
+    return;
+  }
+  if (dy) {
+    const middle = s.hl.offsetLeft + s.hl.offsetWidth / 2;
+    r = (r + (dy > 0 ? 1 : -1) + all.length) % all.length;
+    let best = null;
+    let bestDistance = 1e9;
+    for (const e of all[r].children) {
+      const d = Math.abs(e.offsetLeft + e.offsetWidth / 2 - middle);
+      if (d < bestDistance) {
+        best = e;
+        bestDistance = d;
+      }
+    }
+    highlight(best);
+  }
+}
+
+function flash(e) {
+  if (!e)
+    return;
+  e.classList.add('down');
+  setTimeout(() => e.classList.remove('down'), 120);
+}
+
+function reset() {
+  s.open = false;
+  s.logins = [];
+  s.chars = [];
+  s.caret = 0;
+  s.reveal = false;
+  render();
+}
+
+// What the app calls.
+window.kb = {
+  // kind: bar, text, search, url, email, tel, password, number, textarea or
+  // edit; enter: the field's enterkeyhint (go, search, send, next, done or
+  // ''); text: what the field has.
+  open(o) {
+    s.open = true;
+    s.kind = labels[o.kind] ? o.kind : 'text';
+    s.enter = o.kind === 'bar' ? 'go' : (o.enter || '');
+    s.chars = Array.from(o.text || '');
+    s.caret = s.chars.length;
+    s.layer = s.kind === 'number' || s.kind === 'tel' ? 'sym' : 'abc';
+    s.shift = 0;
+    s.reveal = false;
+    s.hl = null;
+    s.logins = Array.isArray(o.logins) ? o.logins.slice(0, 3).map(String) : [];
+    build();
+    render();
+  },
+  move,
+  pressHighlighted() {
+    if (s.hl) {
+      flash(s.hl);
+      press(s.hl.key);
+    }
+  },
+  backspace,
+  done() {
+    const text = s.chars.join('');
+    reset();
+    send('done', text);
+  },
+  cancel() {
+    reset();
+    send('cancel');
+  },
+};
+
+// From the app: the theme (theme.css).
+window.setTheme = (name) => { document.documentElement.dataset.theme = name; };
+
+build();
+render();
+</script></body></html>

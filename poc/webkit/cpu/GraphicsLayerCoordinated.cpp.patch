@@ -1,0 +1,60 @@
+--- a/GraphicsLayerCoordinated.cpp
++++ b/GraphicsLayerCoordinated.cpp
+@@ -28,6 +28,7 @@
+  * THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#include <pthread.h>
+ #include "config.h"
+ #include "GraphicsLayerCoordinated.h"
+ 
+@@ -101,10 +102,39 @@ std::optional<PlatformLayerIdentifier> GraphicsLayerCoordinated::primaryLayerID(
+     return m_platformLayer->id();
+ }
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5 RN (2026-11-11): BROWSERPS5_PAINT_STATS=1, who asks for a big
++// layer to be painted again whole: its name and the page thread's stack
++// (crash-report.c), a few times a run.
++extern "C" void browserps5_dump_thread(pthread_t) __attribute__((weak));
++
++static void browserPS5NoteBigRepaint(const GraphicsLayerCoordinated& layer, const char* how, const FloatRect& rect)
++{
++    static const bool enabled = [] {
++        const char* value = getenv("BROWSERPS5_PAINT_STATS");
++        return value && *value == '1';
++    }();
++    if (!enabled || rect.width() * rect.height() < 1000000)
++        return;
++    static unsigned calls;
++    static unsigned dumps;
++    ++calls;
++    if (calls % 40 != 20 || dumps >= 12)
++        return;
++    ++dumps;
++    WTFLogAlways("BrowserPS5 paint: %s (call %u) on %s, %.0fx%.0f at %.0f,%.0f of %.0fx%.0f", how, calls, layer.name().utf8().data(), rect.width(), rect.height(), rect.x(), rect.y(), layer.size().width(), layer.size().height());
++    if (browserps5_dump_thread)
++        browserps5_dump_thread(pthread_self());
++}
++#endif
++
+ void GraphicsLayerCoordinated::setNeedsDisplay()
+ {
+     if (!m_drawsContent || !m_contentsVisible || m_size.isEmpty())
+         return;
++#if PLATFORM(PLAYSTATION)
++    browserPS5NoteBigRepaint(*this, "setNeedsDisplay", { { }, m_size });
++#endif
+ 
+     if (m_dirtyRegion) {
+         if (m_dirtyRegion->mode() == Damage::Mode::Full)
+@@ -132,6 +162,9 @@ void GraphicsLayerCoordinated::setNeedsDisplayInRect(const FloatRect& initialRec
+ 
+     if (rect.isEmpty())
+         return;
++#if PLATFORM(PLAYSTATION)
++    browserPS5NoteBigRepaint(*this, "setNeedsDisplayInRect", rect);
++#endif
+ 
+     addRepaintRect(rect);
+ 

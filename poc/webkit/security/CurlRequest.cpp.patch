@@ -1,0 +1,81 @@
+--- a/Source/WebCore/platform/network/curl/CurlRequest.cpp
++++ b/Source/WebCore/platform/network/curl/CurlRequest.cpp
+@@ -184,6 +184,29 @@
+         task();
+ }
+ 
++// BrowserPS5 (poc/webkit/security; CurlContext.cpp, "connections to this
++// console"): the requests that may connect to the console itself. Only to a
++// loopback name written as such (never a name that merely resolves there),
++// and only: the user's own navigation (the address typed, a tile of the
++// start page: Sec-Fetch-Site "none"), what the page so opened asks of its
++// own origin ("same-origin": websrv's launcher at http://127.0.0.1:8080/),
++// and what the browser's own start page asks (a favorite's icon). A site's
++// fetch(), form, frame, link or redirect to it is "cross-site" and does not
++// (a redirect: NetworkDataTaskCurl.cpp). The console's address in the house's
++// network (192.168.x.x) gets no Sec-Fetch-Site (not a trustworthy origin):
++// never; the services are opened as 127.0.0.1.
++static bool browserps5MayReachThisConsole(const ResourceRequest& request)
++{
++    auto host = request.url().host();
++    if (host != "127.0.0.1"_s && !equalLettersIgnoringASCIICase(host, "localhost"_s) && host != "[::1]"_s)
++        return false;
++    auto& firstParty = request.firstPartyForCookies();
++    if (firstParty.protocolIsFile() && (firstParty.path() == "/user/homebrew/browserps5-rn/data/start.html"_s || firstParty.path() == "/user/homebrew/browserps5/data/start.html"_s))
++        return true;
++    auto site = request.httpHeaderField(HTTPHeaderName::SecFetchSite);
++    return site == "none"_s || site == "same-origin"_s;
++}
++
+ CURL* CurlRequest::setupTransfer()
+ {
+     auto httpHeaderFields = m_request.httpHeaderFields();
+@@ -192,6 +215,7 @@
+     m_curlHandle = makeUnique<CurlHandle>();
+ 
+     m_curlHandle->setURL(m_request.url(), m_localhostAlias);
++    m_curlHandle->setConnectionsToThisConsoleAllowed(browserps5MayReachThisConsole(m_request)); // BrowserPS5
+ 
+     m_curlHandle->appendRequestHeaders(httpHeaderFields);
+ 
+@@ -221,6 +245,40 @@
+ 
+     m_curlHandle->setTimeout(timeoutInterval());
+ 
++#if defined(__PROSPERO__)
++    // BrowserPS5 (2026-11-12): a part of a download in several parts. A
++    // connection takes ~9 MB/s on the console whatever the line gives (the
++    // TCP window stops at the 512 KiB the system allows a socket); four take
++    // 24. The app (browser/main.cpp, multi_*) asks for the rest of a large
++    // download as three more downloads of the same address, each with
++    // "#bps5range=<first byte>-<last byte>" after it (a fragment never goes
++    // to the server). Such a request asks for that range only, as the bytes
++    // are (no content coding: a coded part is not those bytes), and over
++    // HTTP/1.1, which gives each part a connection of its own (HTTP/2 would
++    // put them all in the one the download has).
++    if (method == "GET"_s) {
++        auto fragment = m_request.url().fragmentIdentifier();
++        if (fragment.startsWith("bps5range="_s) && fragment.length() > 12 && fragment.length() < 58) {
++            auto text = fragment.substring(10);
++            unsigned dashes = 0;
++            bool fine = true;
++            for (unsigned i = 0; i < text.length(); ++i) {
++                auto c = text[i];
++                if (c == '-')
++                    dashes++;
++                else if (c < '0' || c > '9')
++                    fine = false;
++            }
++            if (fine && dashes == 1 && text[0] != '-') {
++                auto range = text.utf8();
++                curl_easy_setopt(m_curlHandle->handle(), CURLOPT_RANGE, range.data());
++                curl_easy_setopt(m_curlHandle->handle(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
++                curl_easy_setopt(m_curlHandle->handle(), CURLOPT_ACCEPT_ENCODING, nullptr);
++            }
++        }
++    }
++#endif
++
+     m_performStartTime = MonotonicTime::now();
+ 
+     return m_curlHandle->handle();

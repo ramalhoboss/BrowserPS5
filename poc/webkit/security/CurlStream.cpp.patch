@@ -1,0 +1,13 @@
+--- a/Source/WebCore/platform/network/curl/CurlStream.cpp
++++ b/Source/WebCore/platform/network/curl/CurlStream.cpp
+@@ -58,6 +58,10 @@
+         notifyFailure(errorCode);
+         return;
+     }
++    if (m_curlHandle->isConnectedToThisConsole()) { // BrowserPS5 (CurlContext.cpp): no WebSocket to this console
++        notifyFailure(CURLE_COULDNT_CONNECT);
++        return;
++    }
+ 
+     m_scheduler.callClientOnMainThread(m_streamID, [streamID = m_streamID](Client& client) {
+         client.didOpen(streamID);

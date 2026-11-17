@@ -1,0 +1,596 @@
+0	Retour
+1	Suivant
+2	Actualiser
+3	Accueil
+4	Rechercher ou saisir une adresse
+5	Enregistrer ce fichier
+6	Enregistrer
+7	Réinitialiser le zoom
+8	Ajouter aux favoris
+9	Téléchargements
+10	Onglets
+11	Extensions
+12	Menu
+13	Les favoris apparaissent ici. Appuie sur l'étoile de l'adresse pour garder une page.
+14	Tous les favoris
+15	Favoris
+16	Historique
+17	Paramètres
+18	Téléphone
+19	Ajouter aux favoris
+20	Retirer des favoris
+21	Plein écran
+22	Quitter le plein écran
+23	Ouvrir à côté du jeu
+24	Bloquer les publicités
+25	Mode sombre sur les sites
+26	Version pour ordinateur
+27	Effacer les données de navigation
+28	Quitter BrowserPS5
+29	Thème
+30	Zoom
+31	Plus grand
+32	Plus petit
+33	Minuit
+34	Graphite
+35	Clair
+36	Océan
+37	Améthyste
+38	Rubis
+39	Forêt
+40	Champagne
+41	Néon
+42	Saison (automatique)
+43	Hiver
+44	Printemps
+45	Été
+46	Automne
+47	Noël
+48	Aller à
+49	Page
+50	Rechercher
+51	Zoom avant
+52	Zoom arrière
+53	Ajouter le favori
+54	Retirer le favori
+55	Publicités ici
+56	Mode sombre
+57	Activé
+58	Désactivé
+59	Bloquées
+60	Autorisées
+61	Pas maintenant
+62	Vise avec le stick ou la croix directionnelle
+63	Relâche pour choisir
+64	○ fermer
+65	Nouvel onglet
+66	Rouvrir l'onglet fermé
+67	Fermer l'onglet
+68	Ouvrir
+69	Actuel
+70	Page d'accueil
+71	R1 à tout moment
+72	Pas encore d'image
+73	Adresse
+74	Adresse ou recherche
+75	Rechercher
+76	Texte
+77	Nombre
+78	Téléphone
+79	Mot de passe
+80	Aller
+81	Suivant
+82	Envoyer
+83	espace
+84	fermer
+85	afficher
+86	masquer
+87	↵ ligne
+88	✥ choisir · ✕ écrire · ○ effacer
+89	△ fermer · R1 confirmer
+90	Enregistrer sous
+91	Nom
+92	Annuler
+93	Téléchargement…
+94	Choisis un dossier
+95	Choisir ce dossier
+96	Nouveau dossier
+97	Dossier parent
+98	Choisis un fichier
+99	%s dit
+100	La page dit
+101	Exécuter le payload
+102	Exécuter ce payload sur la console ? Appuie encore pour confirmer
+103	Choisir des fichiers
+104	Ce dossier est vide
+105	À envoyer à la page qui l'a demandé
+106	La page accepte : %s
+107	%s fichier choisi
+108	%s fichiers choisis
+109	Paquets (PKG)
+110	Multimédia
+111	Stockage interne
+112	Dossier des paquets (PKG)
+113	Dossier multimédia
+114	Dossier des téléchargements
+115	Les fichiers .pkg téléchargés vont ici.
+116	Les vidéos, la musique et les images téléchargées vont ici.
+117	Les autres fichiers téléchargés vont ici.
+118	Enregistrer le mot de passe ?
+119	Mettre à jour le mot de passe ?
+120	Mettre à jour
+121	Jamais sur ce site
+122	Sans nom d'utilisateur
+123	Il reste uniquement sur cette console, dans le fichier du navigateur. La prochaine fois, le clavier sur ce site affiche « Se connecter en tant que… » et le navigateur remplit le nom et le mot de passe pour toi.
+124	Ce site n'utilise pas de connexion sécurisée (https) : le mot de passe a voyagé sans chiffrement.
+125	de %s
+126	sur %s
+127	%s% · %s sur %s
+128	Téléchargé · %s
+129	Bienvenue dans BrowserPS5
+130	Choisis un style pour commencer. Tu peux tout changer dans les paramètres quand tu veux.
+131	Choisir plus tard
+132	Cinéma
+133	Cyborg
+134	Sombre et doré, sans sons d'interface. Pour les films et les séries depuis le canapé, avec le moins de choses possible devant.
+135	Néon bleu et magenta, avec un son à chaque saut et l'aimant du curseur. Pour explorer le web en profondeur.
+136	Bonjour
+137	Bon après-midi
+138	Bonsoir
+139	Choisis le moteur de recherche
+140	Visités récemment
+141	Garder les pages en cache sur le disque
+142	Les sites déjà visités s'ouvrent plus vite, jusqu'à 1 Go sur la console. Prend effet à la prochaine ouverture du navigateur
+143	Performances
+144	Pages dans l'application du navigateur
+145	Plus de cœurs pour les pages : elles s'ouvrent jusqu'à 40% plus vite. Désactive-le si une page échoue. Prend effet à la prochaine ouverture du navigateur
+146	Rouvrir les onglets de la dernière fois
+147	Rouvrir la page de la dernière fois
+148	Modifier
+149	Terminé
+150	Tout supprimer
+151	Supprimer
+152	Appuie encore pour tout supprimer
+153	Ouvre une page et appuie sur l'étoile de l'adresse pour la garder ici
+154	saisir une adresse
+155	menus rapides
+156	onglets (pavé tactile)
+157	sauter entre les éléments
+158	menu et paramètres
+159	ouvrir
+160	Général
+161	Apparence
+162	Manette
+163	Contenu des sites
+164	Confidentialité et sécurité
+165	Système
+166	À propos
+167	TorBox
+168	Les changements sont enregistrés tout de suite.
+169	○ retour à la page précédente
+170	Langue · Language
+171	Où le navigateur démarre et où il cherche.
+172	Au démarrage
+173	Ouvrir la page d'accueil
+174	Reprendre où j'en étais
+175	Les onglets qui étaient ouverts
+176	La même, à chaque fois
+177	Page d'accueil
+178	Accueil de BrowserPS5
+179	Favoris, recherche et sites récents
+180	Une adresse
+181	Choisis ci-dessous
+182	Saisis-la ci-dessous
+183	Moteur de recherche
+184	Moteur
+185	https://www.example.com/
+186	L'original. Peut demander une vérification
+187	Ne garde pas ce que tu cherches
+188	De Microsoft
+189	Plante des arbres
+190	Résultats de Google, en privé
+191	Son propre index, privé
+192	Barre
+193	Afficher les favoris dans la barre
+194	La rangée de favoris sous l'adresse
+195	Zoom de la page
+196	Le thème change la barre, le menu, le clavier et les pages du navigateur.
+197	Sons de l'interface
+198	Un son discret en sautant entre les éléments et en ouvrant les menus
+199	Aimant du curseur
+200	Quand le stick s'arrête, le curseur se cale sur le lien ou le bouton le plus proche
+201	Mode cinéma
+202	Dans une vidéo en plein écran : le curseur se cache quand la manette est au repos, sans sons ni vibration, et la lumière de la manette baisse
+203	Comment la DualSense se déplace dans les pages.
+204	Touches directionnelles
+205	Sauter entre les éléments
+206	Liens, boutons et zones de texte, mis en évidence
+207	Faire défiler la page
+208	Comme le stick droit
+209	Vitesse du curseur
+210	Vitesse de défilement
+211	Lente
+212	Tranquille
+213	Normale
+214	Rapide
+215	Très rapide
+216	Vibration
+217	La manette vibre légèrement en sautant entre les éléments, en ouvrant les menus et en choisissant
+218	Gâchettes adaptatives
+219	L2 et R2 cliquent à mi-course, comme des boutons, pour les menus radiaux
+220	Barre lumineuse du thème
+221	Lumière néon du curseur
+222	Clavier de la PS5
+223	Rechercher dans la page
+224	Lecture
+225	Traduire
+226	Code QR
+227	Privé
+228	Ouvrir sur le téléphone
+229	Vise ce code avec l'appareil photo du téléphone
+230	Écris avec le clavier du système au lieu de celui du navigateur. La page se met en pause tant qu'il est ouvert
+231	Une boule de lumière de la couleur du thème suit le curseur, un peu en retrait
+232	La lumière de la manette s'allume dans la couleur d'accent du thème
+233	Manette dans les jeux web
+234	Sur un site de jeux, un clic sur le pavé tactile donne la manette au jeu ; un autre la rend au curseur
+235	Boutons
+236	Déplacer le curseur
+237	Sauter à l'élément suivant
+238	Cliquer
+239	Saisir une adresse
+240	Retour · fermer le menu
+241	Onglets · dans un jeu, la manette
+242	Menu (plein écran, quitter)
+243	Console de développement (si activée)
+244	Ce que les pages ont le droit de faire. S'applique à la prochaine page ouverte.
+245	JavaScript
+246	Presque tous les sites en ont besoin
+247	Images
+248	Désactivées, les pages s'ouvrent plus vite
+249	Fenêtres pop-up
+250	Les sites peuvent ouvrir des fenêtres tout seuls
+251	Lecture automatique
+252	Les vidéos et le son démarrent sans rien appuyer
+253	Désactivée, les sites affichent leur version mobile
+254	Plein écran dans les vidéos
+255	Le bouton plein écran des sites fonctionne, sans la barre (○ pour quitter)
+256	Assombrit les sites clairs, en gardant les photos et les vidéos telles quelles
+257	Console de développement
+258	R3 (appui sur le stick droit) affiche les messages et les erreurs de la page et exécute du JavaScript
+259	Ce qui est gardé sur la console, et ce que les sites peuvent garder.
+260	Protection
+261	Bloqueur de publicités
+262	Masque les publicités et ne charge pas les scripts, cadres et images des régies publicitaires et des traqueurs
+263	Masque les publicités et n'ouvre pas les cadres des régies publicitaires
+264	Autoriser les cookies tiers
+265	Désactivé : seul le site ouvert garde des cookies
+266	Sites où les publicités sont autorisées
+267	Aucun. Sur un site, appuie sur R2 et choisis « Publicités ici » pour les autoriser sur ce site seulement.
+268	Bloquer à nouveau
+269	Mots de passe
+270	Proposer d'enregistrer les mots de passe
+271	Après une connexion à un site, le navigateur demande s'il garde le mot de passe ; sur ce site, le clavier affiche « Se connecter en tant que… ». Ils restent uniquement sur cette console
+272	Aucun mot de passe enregistré pour l'instant.
+273	Ne jamais enregistrer sur ce site
+274	Effacer les données
+275	Effacer
+276	Cookies et données des sites
+277	Te déconnecte de la plupart des sites
+278	Images et fichiers en cache
+279	Les pages s'ouvrent un peu plus lentement la prochaine fois
+280	Données effacées
+281	Historique effacé
+282	Les pages gardées avec l'étoile de l'adresse. Le ✕ de chacune la supprime.
+283	Pas encore de favoris. Ouvre une page et appuie sur l'étoile de l'adresse.
+284	Favoris supprimés
+285	Les pages ouvertes sur cette console, les plus récentes d'abord.
+286	Rechercher dans l'historique
+287	Rien trouvé.
+288	L'historique est vide.
+289	Aujourd'hui
+290	Hier
+291	Les fichiers que les sites te donnent à enregistrer. Chaque type a son dossier, et le navigateur demande toujours où enregistrer, comme Windows.
+292	Où enregistrer
+293	Toujours demander où enregistrer
+294	Comme sous Windows. Désactivé, chaque fichier va directement dans le dossier de son type
+295	Dossier des paquets (.pkg)
+296	Dossier des vidéos, de la musique et des images
+297	Pas encore de téléchargements.
+298	%s% sur %s
+299	En cours
+300	En attente du dossier
+301	Terminé
+302	Échec
+303	Annulé
+304	à l'arrêt
+305	reste %s
+306	Réessayer
+307	Extraire
+308	Les téléchargements de la console
+309	Les fichiers de la console
+310	Vois ce qu'il y a dans les dossiers de téléchargement et sur les clés USB, et rapporte-le sur le téléphone.
+311	Emplacements
+312	Aucun dossier disponible pour l'instant.
+313	Ce dossier est vide.
+314	Enregistrer sur le téléphone
+315	Voir
+316	Fermer
+317	Supprimer ce dossier
+318	Supprimé
+319	Le dossier n'est pas vide
+320	Suppression impossible
+321	Enregistrement sur le téléphone
+322	Ce dossier n'est plus disponible
+323	Impossible d'ouvrir le fichier
+324	Un nom que le téléphone ne peut pas demander
+325	Extraction · %s%
+326	Extraction impossible
+327	Extraction du ZIP
+328	Un ZIP est déjà en cours d'extraction
+329	Impossible de créer le dossier du ZIP
+330	Ce ZIP est abîmé ou en plusieurs parties
+331	Pas assez de place pour extraire ce ZIP
+332	Impossible d'écrire les fichiers du ZIP
+333	Impossible d'ouvrir le ZIP
+334	Le fichier n'est plus là
+335	Nouveau téléchargement en cours
+336	Torrents
+337	Ouvrir les torrents
+338	Les liens magnet et les fichiers .torrent vont à Transmission, qui continue quand le navigateur est fermé. Ils finissent dans /data/downloads/torrents
+339	Installées
+340	Propres à BrowserPS5
+341	Aucune extension installée.
+342	Ouvre un script et appuie sur « Installer ce script ».
+343	Trouver des extensions sur Greasy Fork
+344	Installer l'extension ?
+345	Installer
+346	Installation…
+347	Retirer
+348	Extension retirée
+349	Enregistré
+350	Le bloqueur ne fait rien ici ni sur les adresses qu'il contient
+351	Activer
+352	Désactiver
+353	tous les sites
+354	Utilise le téléphone comme clavier et manette, ouvre un lien dessus pour le voir sur la télé, ou envoie des vidéos et des fichiers à la console. Il suffit d'être sur le même réseau.
+355	Autoriser le téléphone
+356	Seulement les téléphones du réseau de la maison, et seulement avec le code de la télé
+357	Le téléphone est désactivé
+358	Active-le ci-dessous pour voir le code.
+359	La console n'a pas d'adresse réseau. Connecte-la au routeur et reviens ici.
+360	Vise le code avec l'appareil photo du téléphone, ou ouvre
+361	Saisis ce code sur le téléphone :
+362	Connexions
+363	Aucun téléphone connecté
+364	1 téléphone connecté
+365	Le navigateur les oublie à sa fermeture
+366	Tout oublier
+367	Les téléphones ont été oubliés
+368	Téléphone connecté. Le code est passé au suivant.
+369	La console en ce moment : température, mémoire, espace libre et réseau. Se met à jour toute seule toutes les 2 secondes.
+370	Processeur
+371	Puce principale
+372	Température indisponible
+373	Mémoire libre
+374	Allumée depuis
+375	Adresse réseau
+376	Pas de réseau
+377	Console
+378	Firmware
+379	Inconnu
+380	Mémoire du système
+381	Indisponible
+382	Températures
+383	processeur %s °C
+384	puce principale %s °C
+385	La console ne les donne pas à ce navigateur
+386	Stockage
+387	Aucun disque que le navigateur puisse atteindre
+388	Ce navigateur
+389	Cette session
+390	Ouvert depuis
+391	Onglets ouverts
+392	1 onglet
+393	Publicités bloquées
+394	Aucune depuis l'ouverture
+395	1 depuis l'ouverture
+396	Téléchargements en cours
+397	Aucun
+398	1 téléchargement
+399	Affichage et vidéo
+400	Composition sur le GPU de la console (Mesa : zink et RADV), JavaScript avec JIT
+401	%s libres sur %s
+402	%s libres
+403	Paramètres de la PS5
+404	Réseau
+405	Wi-Fi, câble et connexion à internet
+406	Écran et vidéo
+407	Résolution, 4K, HDR et fréquence de rafraîchissement
+408	Stockage de la console
+409	L'espace de la console et de ses disques
+410	Manettes
+411	La DualSense : vibration, gâchettes et lumière
+412	Une notification apparaît : appuie sur « Ouvrir » dessus. Le navigateur se met en pause derrière et revient tel qu'il était.
+413	Appuie sur « Ouvrir » dans la notification pour aller aux paramètres de la PS5
+414	Ton compte TorBox : les torrents et les liens de fichiers sont téléchargés sur les serveurs de TorBox, et les fichiers terminés arrivent sur la console par les Téléchargements du navigateur.
+415	Compte
+416	Pas de clé
+417	La clé d'API est sur torbox.app, Settings. Elle reste uniquement sur cette console et n'apparaît jamais dans les journaux
+418	Clé d'API (tu peux la coller depuis le téléphone)
+419	Supprimer la clé
+420	Le navigateur oublie le compte
+421	Envoyer les torrents à TorBox
+422	Les liens magnet et les fichiers .torrent vont à TorBox au lieu du Transmission de la console
+423	Ajouter
+424	Un lien magnet, ou l'adresse d'un fichier
+425	Sur TorBox
+426	Ouvrir torbox.app
+427	Enregistre la clé de ton compte pour voir ce que tu y as.
+428	Rien sur TorBox pour l'instant.
+429	TorBox n'a pas répondu.
+430	TorBox ne sert pas pour YouTube
+431	D'abord la clé du compte
+432	Prêt
+433	Téléchargement sur TorBox
+434	En pause
+435	Lecture du torrent
+436	Vérification
+437	En file d'attente
+438	Pas de sources
+439	Erreur
+440	En attente
+441	Sans nom
+442	fichier
+443	Rapporter sur la console
+444	Un vrai navigateur pour la PS5, construit sur WebKit.
+445	Logiciel libre · GPL-3.0
+446	Icônes et police
+447	Fluent UI System Icons de Microsoft (licence MIT) ; la police est celle de la console
+448	BrowserPS5 · Téléphone
+449	sur ton téléphone
+450	Se connecter à la PS5
+451	Saisis le code à 6 chiffres affiché sur la télé, dans Paramètres → Téléphone.
+452	Code
+453	Le téléphone et la console doivent être sur le même réseau.
+454	Connexion…
+455	Il fait 6 chiffres.
+456	Code incorrect. Il reste 1 essai.
+457	Trop d'essais. Rouvre Paramètres → Téléphone sur la télé pour avoir un nouveau code.
+458	Ce code ne marche plus. Ouvre Paramètres → Téléphone sur la télé pour voir l'actuel.
+459	La console ne connaît plus ce téléphone. Reconnecte-le.
+460	Impossible de joindre la console. Est-elle allumée et sur le même réseau ?
+461	Connecté
+462	Déconnecté
+463	Pas de connexion
+464	Connecté à la PS5
+465	Connexion perdue
+466	Sur la télé en ce moment
+467	Page du navigateur
+468	Ouvrir sur la télé
+469	Une adresse ou ce que tu veux chercher. S'ouvre dans un nouvel onglet.
+470	Ouverture sur la télé
+471	La télé ne l'a pas accepté
+472	Écrire sur la télé
+473	Va dans la zone de texte choisie sur la télé. Pratique pour les mots de passe et les longs textes.
+474	Écris ici
+475	Appuyer sur Entrée à la fin
+476	Écrit sur la télé
+477	Texte trop long
+478	Ça n'a pas marché
+479	Ce que la page de la télé fait ensuite.
+480	Début
+481	Haut
+482	Bas
+483	Fin
+484	Envoyer des fichiers à la console
+485	Vidéos, musique, images ou autres fichiers. Les .pkg vont dans le dossier des paquets ; rien n'est installé.
+486	Choisir des fichiers
+487	Par type
+488	Vidéos et musique
+489	Clé USB
+490	À côté du jeu
+491	Pas de place
+492	Pas de clé USB
+493	Dossier indisponible
+494	Déconnecter ce téléphone
+495	Nouveau
+496	Ouverture des torrents...
+497	La clé TorBox a été supprimée
+498	La console est faite pour les pages web
+499	Remise à TorBox...
+500	Remise du torrent à Transmission...
+501	Demande du fichier à TorBox...
+502	Récupération du fichier depuis TorBox...
+503	Ouvert depuis le téléphone
+504	Ajouté à TorBox
+505	Publicités bloquées sur ce site
+506	Publicités autorisées sur ce site
+507	Appuie sur « Ouvrir » dans la notification : la page s'ouvre dans la carte du système, à côté du jeu
+508	Clé TorBox enregistrée
+509	Adresse trop longue pour la carte du système
+510	Ça ne ressemble pas à une clé TorBox : copie-la depuis torbox.app, Settings, API
+511	Ce fichier .torrent est illisible
+512	Ce site utilise la manette : clique sur le pavé tactile pour jouer
+513	Il manque la clé TorBox : mets-la dans Paramètres, TorBox
+514	Il manque torrentd.elf : installe le paquet des torrents
+515	Fichier reçu du téléphone
+516	Trop de sites dans la liste des exceptions
+517	Active la console dans Paramètres → Contenu des sites
+518	Mode jeu : la manette appartient au jeu. Pavé tactile pour quitter
+519	Impossible d'ouvrir les torrents
+520	Impossible d'enregistrer le mot de passe
+521	Impossible de demander la liste à TorBox
+522	Impossible d'interroger TorBox
+523	Impossible de demander le fichier à TorBox
+524	Impossible de demander le torrent
+525	TorBox n'a pas répondu (le réseau ?)
+526	TorBox ne sert pas pour ça (YouTube, ou ce n'est pas un lien)
+527	TorBox demande d'attendre : trop de demandes à la suite
+528	TorBox a refusé la clé : vérifie-la dans Paramètres, TorBox
+529	Transmission n'a pas répondu
+530	Transmission n'a pas répondu à la demande
+531	Le chargeur de payloads n'a pas pris Transmission
+532	Le chargeur de payloads n'a pas répondu
+533	La manette est revenue au curseur
+534	Le système n'a pas affiché la notification
+535	Actualise la page pour que la console la voie
+536	Réponse étrange de Transmission
+537	Mémoire insuffisante
+538	Mémoire insuffisante pour la demande à TorBox
+539	Seules les pages web s'ouvrent à côté du jeu
+540	Un fichier du téléphone n'est pas arrivé en entier
+541	Pages légères à côté du jeu
+542	« Ouvrir à côté du jeu » affiche la page dans le navigateur du système, plus lent que celui-ci et dans un panneau étroit. Activé : les sites envoient leur version pour téléphone, plus légère et faite pour cette largeur
+543	Touches fléchées
+544	Pour les jeux, les présentations, les lecteurs vidéo et les pages faites pour la télé
+545	Notifications des sites
+546	Aucun site n'a encore demandé. Quand un site veut afficher des notifications, le navigateur demande : Autoriser ou Bloquer.
+547	Notifications autorisées
+548	Notifications bloquées
+549	Oublier
+550	Téléchargements rapides
+551	en attente du réseau, reprend tout seul
+552	Interrompu
+553	Pause
+554	Reprendre là où il s'est arrêté
+555	Retirer de la liste
+556	Retirer de la liste ? Appuie encore pour confirmer
+557	Supprimer le fichier ? Appuie encore pour confirmer
+558	Les gros fichiers (200 Mo ou plus) arrivent par plusieurs connexions à la fois, jusqu'à 8. Si le serveur ne le permet pas, ou si ce n'est pas plus rapide, le navigateur revient tout seul à une seule
+P0	Extrait dans %s ; %d laissés de côté
+P1	Extrait dans %s
+P2	Un fichier du ZIP est abîmé : %s
+P3	Supprimer « %s » ? C'est irréversible.
+P4	et %d de plus
+P5	Clé USB %d
+P6	Se connecter en tant que %s
+P7	Rechercher sur %s ou saisir une adresse
+P8	Page d'accueil : %s
+P9	Les publicités sont de nouveau bloquées sur %s
+P10	Fonctionne sur : %s
+P11	%d page(s) enregistrée(s)
+P12	%d téléphones connectés
+P13	%d onglets
+P14	%d depuis l'ouverture
+P15	%d téléchargements
+P16	Le code change dans %s
+P17	Clé enregistrée (se termine par %s)
+P18	Et %d fichiers de plus : sur torbox.app
+P19	%d sur %d (le maximum)
+P20	%d sur %d
+P21	%d ouverts
+P22	Téléchargement : %d%
+P23	Code incorrect. Il reste %d essais.
+P24	Sur la télé en ce moment · %s
+P25	Sur la console · %s
+P26	Disque externe %d
+P27	Torrent en téléchargement : %s
+P28	Ce torrent est déjà dans la liste : %s
+P29	Mot de passe enregistré : %s
+P30	Mot de passe mis à jour : %s
+P31	Je ne demanderai plus sur %s
+P32	Arrivé du téléphone : %s
+P33	Sur TorBox : %s
+P34	TorBox ne l'a pas accepté : %s
+P35	TorBox a répondu %d
+P36	Transmission a refusé : %s

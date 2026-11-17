@@ -1,0 +1,396 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's dialog, a page of its own drawn by WebKit in a panel of
+DIALOG_WIDTH x DIALOG_HEIGHT in the middle of the screen, over the rest made
+darker (main.cpp). Two kinds, as Windows's "Save as" and "Choose a folder":
+  dialog.save({id, name, size, host, kind, dir, places})
+                 where to keep a download, which goes on meanwhile
+                 (dialog.progress(received, total) as it does)
+  dialog.folder({key, title, dir, places})
+                 a folder for a setting (the downloads, the packages)
+  dialog.login({host, user, update, secure})
+                 keep a password a site was sent (logins.h, docs/12):
+                 login-save, login-never or login-skip
+places: [{label, path, icon, free}], the usual folders and the USB drives.
+The app gives a folder's subfolders with dialog.folders(dir, [names]) after
+browserps5:browse?<dir>. The answers: save?<id>\n<dir>\n<name>,
+cancel?<id>, pick?<key>\n<dir>, close, mkdir?<dir>\n<name>. Circle is
+Cancelar. -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+html, body { height: 100%; background: var(--surface); }
+#box { height: 100%; display: flex; flex-direction: column; padding: 34px 40px 30px; gap: 18px; }
+#head { display: flex; align-items: center; gap: 22px; }
+#file-ic {
+  width: 76px; height: 76px; border-radius: 22px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+  box-shadow: 0 10px 28px var(--accent-soft);
+}
+#file-ic .ic { width: 40px; height: 40px; }
+#title { font-size: 34px; font-weight: 700; }
+#sub { color: var(--text-3); font-size: 21px; margin-top: 2px; }
+#name-row { display: flex; gap: 14px; align-items: center; }
+#name-row label { color: var(--text-3); font-size: 20px; width: 110px; flex: none; }
+input.field {
+  flex: 1; height: 62px; border-radius: 16px; border: 2px solid var(--line-2); padding: 0 20px;
+  background: var(--surface-2); color: var(--text); font-size: 24px; outline: none;
+}
+input.field:focus { border-color: var(--accent); box-shadow: var(--glow); }
+#body { flex: 1; min-height: 0; display: flex; gap: 18px; }
+#places { width: 330px; flex: none; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.place {
+  min-height: 70px; border-radius: 16px; padding: 8px 16px; display: flex; align-items: center; gap: 14px;
+  text-align: left; color: var(--text-2); transition: background .12s;
+}
+.place .ic { color: var(--accent); width: 30px; height: 30px; }
+.place b { display: block; font-weight: 600; color: var(--text); font-size: 22px; }
+.place span { display: block; font-size: 17px; color: var(--text-3); }
+.place:hover { background: var(--surface-3); }
+.place.on { background: var(--accent-soft); }
+#browser { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); border-radius: 20px; border: 1px solid var(--line); overflow: hidden; }
+#path { height: 62px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+#path button { height: 46px; padding: 0 12px; border-radius: 12px; font-size: 20px; color: var(--text-2); }
+#path button:hover { background: var(--surface-3); color: var(--text); }
+#path button:last-child { color: var(--text); font-weight: 600; }
+#path .sep { color: var(--text-3); font-size: 18px; }
+#list { flex: 1; overflow: hidden; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; gap: 6px; }
+.dir { height: 64px; border-radius: 14px; padding: 0 14px; display: flex; align-items: center; gap: 12px; text-align: left; font-size: 21px; color: var(--text-2); overflow: hidden; }
+.dir .ic { color: #f6c453; width: 30px; height: 30px; }
+.dir span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dir:hover { background: var(--surface-3); color: var(--text); }
+.dir.new .ic { color: var(--text-3); }
+#empty { grid-column: 1 / -1; color: var(--text-3); padding: 30px; text-align: center; font-size: 21px; }
+#foot { display: flex; align-items: center; gap: 16px; }
+#progress { flex: 1; display: flex; align-items: center; gap: 14px; color: var(--text-3); font-size: 19px; }
+#bar { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; max-width: 380px; }
+#bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 4px; transition: width .3s; }
+.save-only { }
+body.folder .save-only { display: none !important; }
+/* The files mode (BrowserPS5 RN, a page's file chooser): files after the
+   folders, the list scrolls, a chosen file is lit. */
+body.files .save-only { display: none !important; }
+body.files #list { overflow-y: auto; }
+.dir.file .ic { color: var(--accent); }
+.dir.file small { margin-left: auto; padding-left: 10px; flex: none; color: var(--text-3); font-size: 16px; }
+.dir.file.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 2px var(--accent); }
+body.files:not(.multiple) #ok { display: none; }
+/* The ask mode (BrowserPS5 RN): a page's alert(), confirm() or prompt(). */
+#ask { display: none; flex: 1; min-height: 0; flex-direction: column; justify-content: center; gap: 22px; padding: 0 12px; }
+#ask-text { color: var(--text); font-size: 28px; line-height: 1.45; max-width: 1200px; max-height: 420px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#ask-value { display: none; flex: none; max-width: 1100px; }
+body.ask #ask { display: flex; }
+body.ask.prompt #ask-value { display: block; }
+body.ask.alert #cancel { display: none; }
+body.ask #name-row, body.ask #body, body.ask #progress { display: none !important; }
+#login { display: none; flex: 1; flex-direction: column; justify-content: center; gap: 22px; padding: 0 12px; }
+#login .who { font-size: 30px; font-weight: 600; }
+#login .who span { color: var(--text-3); font-weight: 400; }
+#login p { color: var(--text-2); font-size: 22px; line-height: 1.5; max-width: 1100px; }
+#login .warn { color: #f6c453; }
+#never { display: none; }
+body.login #login { display: flex; }
+body.login #never { display: inline-flex; }
+body.login #name-row, body.login #body, body.login #progress { display: none !important; }
+</style></head><body>
+<!--#include icons.svg-->
+<div id="box">
+  <div id="head">
+    <div id="file-ic"><svg class="ic"><use id="file-icon" href="#i-arrow-download"/></svg></div>
+    <div style="min-width: 0"><div id="title">Guardar como</div><div id="sub"></div></div>
+  </div>
+  <form id="name-row" class="save-only" autocomplete="off">
+    <label for="name">Nome</label>
+    <input class="field" id="name" type="text" enterkeyhint="done" spellcheck="false">
+  </form>
+  <div id="login">
+    <div class="who" id="login-who"></div>
+    <p>Fica só nesta consola, no ficheiro do browser. Da próxima vez, no teclado deste site aparece «Entrar como …» e o browser preenche o nome e a palavra-passe por ti.</p>
+    <p class="warn" id="login-warn">Este site não usa ligação segura (https): a palavra-passe viajou sem cifra.</p>
+  </div>
+  <div id="ask">
+    <div id="ask-text" translate="no"></div>
+    <input class="field" id="ask-value" type="text" enterkeyhint="done" spellcheck="false">
+  </div>
+  <div id="body">
+    <div id="places"></div>
+    <div id="browser">
+      <div id="path"></div>
+      <div id="list"></div>
+    </div>
+  </div>
+  <div id="foot">
+    <div id="progress" class="save-only"><span id="pct"></span><div id="bar"><i></i></div></div>
+    <div style="flex: 1" class="folder-only"></div>
+    <button class="btn" id="never">Nunca neste site</button>
+    <button class="btn" id="cancel">Cancelar</button>
+    <button class="btn primary" id="ok"><svg class="ic s"><use href="#i-checkmark"/></svg><span id="ok-label">Guardar</span></button>
+  </div>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+let st = {mode: 'save', id: 0, key: '', dir: '/data', places: []};
+
+function send(command, argument) {
+  location.href = 'browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument));
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function icon(name) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('class', 'ic');
+  const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  u.setAttribute('href', '#i-' + name);
+  s.appendChild(u);
+  return s;
+}
+function size(n) {
+  if (!(n > 0)) return '';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i ? n.toFixed(n < 10 ? 1 : 0) : String(n)).replace('.', LANG === 'en' ? '.' : ',') + ' ' + u[i];
+}
+
+function renderPlaces() {
+  const box = document.getElementById('places');
+  box.textContent = '';
+  // The place the folder is in: the longest path that holds it (/data/pkg,
+  // not /data too).
+  let here = null;
+  for (const p of st.places) {
+    if ((st.dir === p.path || st.dir.startsWith(p.path + '/'))
+        && (!here || p.path.length > here.path.length)) here = p;
+  }
+  for (const p of st.places) {
+    const b = el('button', 'place' + (p === here ? ' on' : ''));
+    const text = el('div');
+    text.append(el('b', '', p.label), el('span', '', p.free ? T('%s livres', size(p.free)) : p.path));
+    b.append(icon(p.icon || 'folder'), text);
+    b.onclick = () => browse(p.path);
+    box.appendChild(b);
+  }
+}
+function renderPath() {
+  const box = document.getElementById('path');
+  box.textContent = '';
+  const parts = st.dir.split('/').filter(Boolean);
+  let at = '';
+  parts.forEach((part, i) => {
+    at += '/' + part;
+    const target = at;
+    if (i) box.appendChild(el('span', 'sep', '›'));
+    const b = el('button', '', part);
+    b.onclick = () => browse(target);
+    box.appendChild(b);
+  });
+}
+function browse(dir) {
+  st.dir = dir;
+  renderPlaces();
+  renderPath();
+  document.getElementById('list').textContent = '';
+  send(st.mode === 'files' ? 'entries' : 'browse', dir);
+}
+
+// From the app: the subfolders of dir.
+function folders(dir, names) {
+  if (dir !== st.dir) return;
+  const list = document.getElementById('list');
+  list.textContent = '';
+  const up = st.dir.lastIndexOf('/');
+  if (up > 0 && !st.places.some((p) => p.path === st.dir)) {
+    const b = el('button', 'dir new');
+    b.append(icon('arrow-left'), el('span', '', 'Pasta acima'));
+    b.onclick = () => browse(st.dir.slice(0, up));
+    list.appendChild(b);
+  }
+  for (const n of names) {
+    const b = el('button', 'dir');
+    b.append(icon('folder'), el('span', '', n));
+    b.onclick = () => browse(st.dir + '/' + n);
+    list.appendChild(b);
+  }
+  const add = el('button', 'dir new');
+  add.append(icon('add'), el('span', '', 'Nova pasta'));
+  add.onclick = () => {
+    let n = 1;
+    while (names.includes('Nova pasta' + (n > 1 ? ' ' + n : ''))) n++;
+    send('mkdir', st.dir + '\n' + 'Nova pasta' + (n > 1 ? ' ' + n : ''));
+  };
+  list.appendChild(add);
+  if (!names.length) list.appendChild(el('div', '', '')).id = 'empty';
+}
+
+// From the app, in the files mode: the folders of dir and its files ({n: name,
+// s: bytes, t: when}), the newest first. One file: a press sends it. Many
+// (the page takes several): each press picks or drops one, "Enviar" sends.
+function fileIcon(name) {
+  const ext = (name.match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase();
+  if (/^(jpe?g|png|gif|webp|bmp|heic|avif|svg)$/.test(ext)) return 'image';
+  if (/^(mp4|webm|mkv|mov|avi|m4v|ts)$/.test(ext)) return 'video-clip';
+  if (ext === 'pkg') return 'box';
+  return 'document';
+}
+function picked() {
+  document.getElementById('sub').textContent = st.sel.length
+    ? T(st.sel.length === 1 ? '%s ficheiro escolhido' : '%s ficheiros escolhidos', st.sel.length)
+    : (st.note || '');
+  document.getElementById('ok').disabled = !st.sel.length;
+}
+function entries(dir, names, files) {
+  if (dir !== st.dir || st.mode !== 'files') return;
+  const list = document.getElementById('list');
+  list.textContent = '';
+  list.scrollTop = 0;
+  const up = st.dir.lastIndexOf('/');
+  if (up > 0 && !st.places.some((p) => p.path === st.dir)) {
+    const b = el('button', 'dir new');
+    b.append(icon('arrow-left'), el('span', '', 'Pasta acima'));
+    b.onclick = () => browse(st.dir.slice(0, up));
+    list.appendChild(b);
+  }
+  for (const n of names) {
+    const b = el('button', 'dir');
+    const name = el('span', '', n);
+    name.setAttribute('translate', 'no');
+    b.append(icon('folder'), name);
+    b.onclick = () => browse(st.dir + '/' + n);
+    list.appendChild(b);
+  }
+  for (const f of files) {
+    const path = st.dir + '/' + f.n;
+    const b = el('button', 'dir file' + (st.sel.includes(path) ? ' on' : ''));
+    const name = el('span', '', f.l || f.n);  // (l: what the app calls it, when the name is a path: the PS5's captures)
+    name.setAttribute('translate', 'no');
+    b.append(icon(fileIcon(f.n)), name, el('small', '', size(f.s)));
+    b.onclick = () => {
+      if (!st.multiple) return send('upload', path);
+      const i = st.sel.indexOf(path);
+      if (i >= 0) st.sel.splice(i, 1);
+      else if (st.sel.length < 12) st.sel.push(path);
+      b.classList.toggle('on', st.sel.includes(path));
+      picked();
+    };
+    list.appendChild(b);
+  }
+  if (!names.length && !files.length) list.appendChild(el('div', '', 'Esta pasta está vazia')).id = 'empty';
+}
+
+function open(o, mode) {
+  st = Object.assign({mode, places: [], sel: []}, o);
+  document.body.classList.toggle('ask', mode === 'ask');
+  for (const kind of ['alert', 'confirm', 'prompt'])
+    document.body.classList.toggle(kind, mode === 'ask' && o.kind === kind);
+  if (mode === 'ask') {  // a page's alert(), confirm() or prompt(): its text, a field for prompt()
+    document.body.classList.remove('login', 'folder', 'files', 'multiple');
+    document.documentElement.dataset.theme = o.theme || document.documentElement.dataset.theme;
+    document.getElementById('ok').disabled = false;
+    document.getElementById('cancel').textContent = 'Cancelar';
+    const site = document.getElementById('title');
+    site.textContent = o.host ? T('%s diz', o.host) : 'A página diz';
+    document.getElementById('sub').textContent = '';
+    document.getElementById('ok-label').textContent = 'OK';
+    document.getElementById('file-icon').setAttribute('href', '#i-info');
+    document.getElementById('ask-text').textContent = o.text || '';
+    document.getElementById('ask-value').value = o.value || '';
+    return;
+  }
+  document.body.classList.toggle('folder', mode === 'folder');
+  document.body.classList.toggle('files', mode === 'files');
+  document.body.classList.toggle('multiple', mode === 'files' && !!o.multiple);
+  document.getElementById('ok').disabled = false;
+  if (mode === 'files') {
+    document.body.classList.remove('login');
+    document.documentElement.dataset.theme = o.theme || document.documentElement.dataset.theme;
+    document.getElementById('cancel').textContent = 'Cancelar';
+    document.getElementById('title').textContent = o.multiple ? 'Escolher ficheiros' : 'Escolher um ficheiro';
+    document.getElementById('ok-label').textContent = 'Enviar';
+    document.getElementById('file-icon').setAttribute('href', '#i-folder-open');
+    st.note = o.accept ? T('A página aceita: %s', o.accept) : 'Para enviar à página que o pediu';
+    picked();
+    browse(o.dir || (st.places[0] && st.places[0].path) || '/data');
+    return;
+  }
+  document.body.classList.toggle('login', mode === 'login');
+  document.getElementById('cancel').textContent = mode === 'login' ? 'Agora não' : 'Cancelar';
+  if (mode === 'login') {
+    document.documentElement.dataset.theme = o.theme || document.documentElement.dataset.theme;
+    document.getElementById('title').textContent = o.update ? 'Atualizar a palavra-passe?' : 'Guardar a palavra-passe?';
+    document.getElementById('ok-label').textContent = o.update ? 'Atualizar' : 'Guardar';
+    document.getElementById('file-icon').setAttribute('href', '#i-lock-closed');
+    document.getElementById('sub').textContent = o.host || '';
+    const who = document.getElementById('login-who');
+    who.textContent = '';
+    who.append(document.createTextNode(o.user || 'Sem nome de utilizador'),
+               Object.assign(document.createElement('span'), {textContent: ' ' + T('em %s', o.host || '')}));
+    document.getElementById('login-warn').style.display = o.secure ? 'none' : '';
+    return;
+  }
+  document.documentElement.dataset.theme = o.theme || document.documentElement.dataset.theme;
+  document.getElementById('title').textContent = mode === 'folder' ? (o.title || 'Escolher uma pasta') : 'Guardar como';
+  document.getElementById('ok-label').textContent = mode === 'folder' ? 'Escolher esta pasta' : 'Guardar';
+  document.getElementById('file-icon').setAttribute('href', mode === 'folder' ? '#i-folder' : o.kind === 'pkg' ? '#i-box' : '#i-arrow-download');
+  if (mode === 'save') {
+    document.getElementById('name').value = o.name || '';
+    document.getElementById('sub').textContent = [size(o.size), o.host ? T('de %s', o.host) : ''].filter(Boolean).join(' · ');
+    progress(0, o.size);
+  } else {
+    document.getElementById('sub').textContent = o.note || '';
+  }
+  browse(o.dir || (st.places[0] && st.places[0].path) || '/data');
+}
+function progress(received, total, speed) {
+  const p = total > 0 ? Math.min(100, received * 100 / total) : 0;
+  document.querySelector('#bar i').style.width = p + '%';
+  document.getElementById('pct').textContent = received > 0
+    ? (total > 0 ? T('%s% · %s de %s', Math.floor(p), size(received), size(total)) : size(received)) +
+      (speed > 0 ? ' · ' + size(speed) + '/s' : '')
+    : 'A transferir…';
+  if (total > 0 && received >= total) document.getElementById('pct').textContent = T('Transferido · %s', size(total));
+}
+
+document.getElementById('ok').onclick = () => {
+  if (st.mode === 'ask') {
+    send('ask-ok', st.kind === 'prompt' ? document.getElementById('ask-value').value : '');
+  } else if (st.mode === 'files') {
+    if (st.sel.length) send('upload', st.sel.join('\n'));
+  } else if (st.mode === 'login') {
+    send('login-save');
+  } else if (st.mode === 'folder') {
+    send('pick', st.key + '\n' + st.dir);
+  } else {
+    const name = document.getElementById('name').value.trim();
+    if (!name) return document.getElementById('name').focus();
+    send('save', st.id + '\n' + st.dir + '\n' + name);
+  }
+};
+document.getElementById('cancel').onclick = () => st.mode === 'login' ? send('login-skip')
+  : st.mode === 'files' ? send('upload-cancel')
+  : st.mode === 'ask' ? send(st.kind === 'alert' ? 'ask-ok' : 'ask-cancel', '')
+  : send(st.mode === 'folder' ? 'close' : 'cancel', String(st.id));
+document.getElementById('never').onclick = () => send('login-never');
+document.getElementById('name-row').onsubmit = (e) => {
+  e.preventDefault();
+  document.getElementById('name').blur();
+};
+
+window.dialog = {
+  save: (o) => open(o, 'save'),
+  folder: (o) => open(o, 'folder'),
+  login: (o) => open(o, 'login'),
+  files: (o) => open(o, 'files'),
+  ask: (o) => open(o, 'ask'),
+  folders, entries, progress,
+  cancel: () => document.getElementById('cancel').click(),
+};
+window.setTheme = (name) => { document.documentElement.dataset.theme = name; };
+</script></body></html>

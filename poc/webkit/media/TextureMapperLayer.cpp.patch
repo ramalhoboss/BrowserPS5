@@ -1,0 +1,97 @@
+diff --git a/Source/WebCore/platform/graphics/texmap/TextureMapperLayer.cpp b/Source/WebCore/platform/graphics/texmap/TextureMapperLayer.cpp
+index 2e8c38a1e..1bd46ca26 100644
+--- a/Source/WebCore/platform/graphics/texmap/TextureMapperLayer.cpp
++++ b/Source/WebCore/platform/graphics/texmap/TextureMapperLayer.cpp
+@@ -55,6 +55,9 @@ public:
+     IntSize offset;
+     TextureMapperLayer* backdropLayer { nullptr };
+     TextureMapperLayer* replicaLayer { nullptr };
++    // BrowserPS5 (2026-11-14): the videos' holes painted into the intermediate surface in hand, in the
++    // page's coordinates (0: painting the page itself). See commitSurface().
++    Vector<IntRect>* holes { nullptr };
+ };
+ 
+ struct TextureMapperLayer::ComputeTransformData {
+@@ -631,6 +634,7 @@ void TextureMapperLayer::paintSelf(TextureMapperPaintOptions& options)
+         options.textureMapper.beginClip(transform, m_state.contentsClippingRect);
+     }
+ 
++    options.textureMapper.setHolePunchTarget(options.offset, !!options.backdropLayer, options.holes);
+     contentsLayer->paintToTextureMapper(options.textureMapper, m_state.contentsRect, transform, options.opacity);
+ 
+     if (shouldClip)
+@@ -1132,43 +1136,63 @@ void TextureMapperLayer::paintIntoSurface(TextureMapperPaintOptions& options)
+         m_state.replicaLayer->m_state.maskLayer->applyMask(options);
+ }
+ 
+-static void commitSurface(TextureMapperPaintOptions& options, BitmapTexture& surface, const IntRect& rect, float opacity)
++// BrowserPS5 (2026-11-14): a video's hole is a transparent rectangle drawn without blending, which only
++// works on the page itself. Painted into an intermediate surface (a filter, a mask or an opacity on an
++// element around the video, or the backdrop-filter of an element over it: a player's subtitles and its
++// seek bar's label), the hole was in the surface alone, and the surface, blended over the page, left
++// there what the page had under the video (black). So the holes painted into a surface are listed
++// (TextureMapper::noteHolePunch), and made again in the target the surface goes to, before it; the
++// surface then brings what was drawn over the video. A target that is a surface too hands them on.
++static void commitSurface(TextureMapperPaintOptions& options, BitmapTexture& surface, const IntRect& rect, float opacity, const Vector<IntRect>& holes)
+ {
+     IntRect targetRect(rect);
+     targetRect.move(options.offset);
+     options.textureMapper.bindSurface(options.surface.get());
++    for (auto hole : holes) {
++        hole.intersect(rect);
++        if (hole.isEmpty())
++            continue;
++        if (options.holes)
++            options.holes->append(hole);
++        hole.move(options.offset);
++        options.textureMapper.drawSolidColor(hole, TransformationMatrix(), Color::transparentBlack, false);
++    }
+     options.textureMapper.drawTexture(surface, targetRect, { }, opacity);
+ }
+ 
+ void TextureMapperLayer::paintWithIntermediateSurface(TextureMapperPaintOptions& options, const IntRect& rect)
+ {
+     auto surface = BitmapTexturePool::singleton().acquireTexture(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
++    Vector<IntRect> holes;
+     {
+         SetForScope scopedSurface(options.surface, surface.ptr());
+         SetForScope scopedOffset(options.offset, -toIntSize(rect.location()));
+         SetForScope scopedOpacity(options.opacity, 1);
++        SetForScope scopedHoles(options.holes, &holes);
+ 
+         options.textureMapper.bindSurface(options.surface.get());
+ 
+         paintSelfChildrenReplicaFilterAndMask(options);
+     }
+ 
+-    commitSurface(options, surface.get(), rect, options.opacity);
++    commitSurface(options, surface.get(), rect, options.opacity, holes);
+ }
+ 
+ void TextureMapperLayer::paintSelfAndChildrenWithIntermediateSurface(TextureMapperPaintOptions& options, const IntRect& rect)
+ {
+     auto surface = BitmapTexturePool::singleton().acquireTexture(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
++    Vector<IntRect> holes;
+     {
+         SetForScope scopedSurface(options.surface, surface.ptr());
+         SetForScope scopedOffset(options.offset, -toIntSize(rect.location()));
+         SetForScope scopedOpacity(options.opacity, 1);
++        SetForScope scopedHoles(options.holes, &holes);
+ 
+         paintIntoSurface(options);
+         surface = Ref { *options.surface };
+     }
+ 
+-    commitSurface(options, surface.get(), rect, options.opacity);
++    commitSurface(options, surface.get(), rect, options.opacity, holes);
+ }
+ 
+ void TextureMapperLayer::paintSelfChildrenReplicaFilterAndMask(TextureMapperPaintOptions& options)
+@@ -1226,6 +1250,7 @@ void TextureMapperLayer::paintFlattened(TextureMapperPaintOptions& options)
+         SetForScope scopedTransform(options.transform, TransformationMatrix());
+         SetForScope scopedCombinedTransform(m_layerTransforms.combined, TransformationMatrix());
+         SetForScope scopedBackdropLayer(m_state.backdropLayer, nullptr);
++        SetForScope scopedHoles(options.holes, nullptr); // (BrowserPS5: a flattened layer's own space; its holes stay in it)
+ 
+         m_flattenedLayer->update(options, [&](TextureMapperPaintOptions& options) {
+             paintIntoSurface(options);

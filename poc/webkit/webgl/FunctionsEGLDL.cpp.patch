@@ -1,0 +1,42 @@
+--- a/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp
++++ b/Source/ThirdParty/ANGLE/src/libANGLE/renderer/gl/egl/FunctionsEGLDL.cpp
+@@ -10,6 +10,16 @@
+ 
+ #include <dlfcn.h>
+ 
++#if defined(__PROSPERO__)
++// BrowserPS5 (2026-11-11, poc/webkit/webgl): on the console the system's EGL
++// (Mesa) is part of the process already: the title and the engine's library
++// link it. There is no library to open: dlopen() failed, dlerror() gave a
++// null text, and the error's message was made from it (the WebProcess fell at
++// the first WebGL context, and the app with it). Its functions come from its
++// own eglGetProcAddress(), which gives the EGL entry points too.
++extern "C" void (*eglGetProcAddress(const char *procname))(void);
++#endif
++
+ namespace rx
+ {
+ namespace
+@@ -33,6 +43,12 @@
+                                       const char *libName,
+                                       void *eglHandle)
+ {
++#if defined(__PROSPERO__)
++    (void)libName;
++    (void)eglHandle;
++    mGetProcAddressPtr = reinterpret_cast<PFNEGLGETPROCADDRESSPROC>(&eglGetProcAddress);
++    return FunctionsEGL::initialize(platformType, nativeDisplay);
++#endif
+ 
+     if (eglHandle)
+     {
+@@ -69,6 +85,9 @@
+     {
+         return f;
+     }
++#if defined(__PROSPERO__)
++    return nullptr;
++#endif
+     return dlsym(nativeEGLHandle, name);
+ }
+ 

@@ -1,0 +1,933 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+The page a phone opens (http://<console>:<port>/, the QR code in the
+settings, "Telemóvel"), served by the browser itself (phone.c). First the
+PIN the TV shows; then: open a page on the TV, type into the field in focus
+there, a remote, the console's downloads and files (docs/17, docs/18), and
+files to the console. The token phone.c gives stays in
+this phone (localStorage) until the browser on the console ends or this
+phone lets it go. docs/07, "Telemóvel". -->
+<html lang="pt" data-theme="meia-noite"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c11">
+<title>BrowserPS5 · Telemóvel</title><style>
+<!--#include theme.css-->
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100vh; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--hero), var(--bg); background-attachment: fixed; color: var(--text);
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+.ic { width: 22px; height: 22px; fill: currentColor; flex: none; }
+.wrap { max-width: 560px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+header { display: flex; align-items: center; gap: 12px; margin: 6px 0 18px; }
+.logo {
+  width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent);
+  box-shadow: 0 8px 24px var(--accent-soft);
+}
+header b { font-size: 19px; display: block; }
+header span { color: var(--text-3); font-size: 14px; }
+.state {
+  margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-2);
+  padding: 6px 11px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.state.on .dot { background: var(--good); box-shadow: 0 0 10px var(--good); }
+.state.off .dot { background: var(--bad); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  box-shadow: var(--shadow); padding: 18px; margin-bottom: 14px;
+}
+.card h2 { margin: 0 0 4px; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+.card h2 .ic { color: var(--accent); }
+.card p { margin: 0 0 14px; color: var(--text-3); font-size: 14px; }
+.now { display: flex; gap: 12px; align-items: center; }
+.now .fav {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: var(--surface-3); color: var(--accent); font-weight: 700;
+}
+.now .t { min-width: 0; }
+.now b, .now span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now span { color: var(--text-3); font-size: 13px; }
+
+.field, textarea {
+  width: 100%; box-sizing: border-box; border-radius: 14px; border: 1.5px solid var(--line-2);
+  background: var(--surface-2); padding: 12px 14px; outline: none; font-size: 16px;
+}
+.field:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--glow); }
+textarea { min-height: 96px; resize: vertical; }
+.row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.btn {
+  height: 46px; padding: 0 18px; border-radius: 14px; display: inline-flex; align-items: center;
+  justify-content: center; gap: 8px; background: var(--surface-3); font-weight: 600;
+  transition: transform .08s, background .12s;
+}
+.btn:active { transform: scale(.97); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); }
+.btn.grow { flex: 1; }
+.btn[disabled] { opacity: .5; }
+.check { display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 14px; flex: 1; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pad .btn { height: 64px; flex-direction: column; gap: 4px; padding: 0; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.pad .btn .ic { width: 24px; height: 24px; color: var(--text); }
+.pad .btn.wide { grid-column: span 2; }
+
+.seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.seg button {
+  padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line-2); background: var(--surface-2);
+  text-align: left; font-size: 14px; display: flex; align-items: center; gap: 8px; color: var(--text-2);
+}
+.seg button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.seg button .ic { width: 18px; height: 18px; }
+.files { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.file { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.file .top { display: flex; gap: 8px; }
+.file .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file .what { color: var(--text-3); white-space: nowrap; }
+.file.done .what { color: var(--good); }
+.file.bad .what { color: var(--bad); }
+.file.dl .top { flex-direction: column; gap: 2px; }
+.file.dl .what { white-space: normal; }
+.file .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.file .acts .btn { height: 38px; padding: 0 14px; font-size: 14px; }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-4); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
+input[type=file] { display: none; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; margin: 0 0 4px; font-size: 14px; }
+.crumbs button { color: var(--accent); padding: 4px 2px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs button:last-of-type { color: var(--text); font-weight: 600; }
+.crumbs .ic { width: 14px; height: 14px; color: var(--text-3); }
+.entry {
+  display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; text-align: left;
+  padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px;
+}
+.entry .ic { color: var(--accent); }
+.entry .t { flex: 1; min-width: 0; }
+.entry b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry small { display: block; color: var(--text-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry.bad { opacity: .55; }
+.fs-file .acts { display: none; flex-wrap: wrap; gap: 8px; padding: 10px 2px 4px; }
+.fs-file.open .entry { background: var(--surface-3); }
+.fs-file.open .acts { display: flex; }
+.fs-file .acts .btn { height: 38px; padding: 0 14px; font-size: 14px; }
+.fs-note { color: var(--text-3); font-size: 14px; padding: 6px 2px; }
+#viewer {
+  position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: rgba(0, 0, 0, .94);
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+#viewer.on { display: flex; }
+#viewer .vtop { display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: #fff; }
+#viewer .vtop span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#viewer .vtop .btn { height: 40px; background: rgba(255, 255, 255, .14); color: #fff; }
+#viewer .stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 8px 12px; }
+#viewer img, #viewer video { max-width: 100%; max-height: 100%; }
+#viewer audio { width: 92%; }
+
+#pair { text-align: center; padding-top: 6vh; }
+#pair .logo { width: 72px; height: 72px; border-radius: 22px; margin: 0 auto 18px; }
+#pair .logo .ic { width: 40px; height: 40px; }
+#pair h1 { font-size: 26px; margin: 0 0 8px; }
+#pair p { color: var(--text-2); margin: 0 auto 26px; max-width: 360px; }
+#pin {
+  width: 100%; max-width: 320px; box-sizing: border-box; height: 72px; text-align: center; letter-spacing: 12px;
+  font-size: 34px; font-weight: 700; border-radius: 18px; border: 2px solid var(--line-2);
+  background: var(--surface-2); outline: none; padding-left: 12px;
+}
+#pin:focus { border-color: var(--accent); box-shadow: var(--glow); }
+#pair .btn { width: 100%; max-width: 320px; height: 54px; margin-top: 14px; font-size: 17px; }
+#pair-error { color: var(--bad); min-height: 22px; margin-top: 14px; font-size: 14px; }
+.hint { color: var(--text-3); font-size: 13px; margin-top: 28px; }
+#main { display: none; }
+body.paired #pair { display: none; }
+body.paired #main { display: block; }
+.leave { display: block; margin: 22px auto 0; color: var(--text-3); font-size: 14px; text-decoration: underline; }
+
+/* 2026-11-16 (BrowserPS5 RN): the card "O teu jogo" (hidden when the app does not answer /api/game) */
+.card[hidden], #game-card [hidden] { display: none; }
+#game-card select.field { margin-bottom: 4px; font-weight: 600; }
+#game-card h3 { margin: 16px 0 8px; font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: .6px; }
+#game-card .file a.name { color: inherit; text-decoration: none; font-weight: 600; }
+#game-card .file .host { color: var(--text-3); font-size: 13px; margin-top: 2px; }
+#game-card #game-keep-form { margin-top: 12px; }
+
+#toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+  opacity: 0; transition: .22s; padding: 12px 18px; border-radius: 16px; background: var(--surface-4);
+  box-shadow: var(--shadow); font-size: 15px; pointer-events: none; max-width: 86vw; text-align: center;
+}
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+</style></head><body>
+<!--#include icons.svg-->
+
+<div class="wrap">
+  <div id="pair">
+    <div class="logo"><svg class="ic"><use href="#i-phone-arrow-right"/></svg></div>
+    <h1>Ligar à PS5</h1>
+    <p>Escreve o código de 6 algarismos que aparece na TV, em Definições → Telemóvel.</p>
+    <form id="pair-form" autocomplete="off">
+      <input id="pin" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" placeholder="000000" aria-label="Código">
+      <button class="btn primary" type="submit" data-en="Connect">Ligar</button>
+    </form>
+    <div id="pair-error"></div>
+    <div class="hint">O telemóvel e a consola têm de estar na mesma rede.</div>
+  </div>
+
+  <div id="main">
+    <header>
+      <div class="logo"><svg class="ic"><use href="#i-globe"/></svg></div>
+      <div><b>BrowserPS5</b><span>no teu telemóvel</span></div>
+      <div class="state" id="state"><i class="dot"></i><span>A ligar…</span></div>
+    </header>
+
+    <div class="card now" id="now">
+      <div class="fav" id="now-fav">?</div>
+      <div class="t"><b id="now-title">—</b><span id="now-host">Na TV agora</span></div>
+    </div>
+
+    <div class="card" id="game-card" hidden>
+      <h2><svg class="ic"><use href="#i-games"/></svg>O teu jogo</h2>
+      <p>As notas e as páginas que guardas com o jogo, escritas com o teclado do telemóvel. Aparecem na página do jogo na TV.</p>
+      <p id="game-none" hidden>Ainda não há jogos nesta consola.</p>
+      <div id="game-body" hidden>
+        <select class="field" id="game-pick" aria-label="Jogo" translate="no"></select>
+        <h3>Notas</h3>
+        <textarea id="game-notes" maxlength="1500" placeholder="Códigos, mapas, o que falta fazer…"></textarea>
+        <div class="row"><button class="btn primary grow" id="game-notes-save"><svg class="ic"><use href="#i-checkmark"/></svg>Guardar as notas</button></div>
+        <h3>Páginas guardadas</h3>
+        <p id="game-pages-none">Nenhuma página guardada com este jogo.</p>
+        <div class="files" id="game-pages"></div>
+        <form id="game-keep-form" autocomplete="off">
+          <input class="field" id="game-keep" inputmode="url" enterkeyhint="done" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Endereço de um guia ou de um mapa">
+          <div class="row">
+            <button class="btn primary grow" type="submit"><svg class="ic"><use href="#i-add"/></svg>Guardar no jogo</button>
+            <button class="btn" type="button" id="game-keep-tv">Guardar a página da TV</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card" id="discord-card" hidden>
+      <h2><svg class="ic"><use href="#i-send"/></svg>Discord</h2>
+      <p>Na página de cada jogo, «Enviar para o Discord» manda a captura para um canal teu. Cola aqui o webhook do canal: no Discord, Definições do servidor → Integrações → Webhooks → Copiar URL do webhook.</p>
+      <p id="discord-state"></p>
+      <form id="discord-form" autocomplete="off">
+        <input class="field" id="discord-hook" inputmode="url" enterkeyhint="done" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…" translate="no">
+        <div class="row">
+          <button class="btn primary grow" type="submit"><svg class="ic"><use href="#i-checkmark"/></svg>Guardar o webhook</button>
+          <button class="btn" type="button" id="discord-forget" hidden><svg class="ic"><use href="#i-dismiss"/></svg>Esquecer</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-open"/></svg>Abrir na TV</h2>
+      <p>Um endereço ou o que queres pesquisar. Abre num separador novo.</p>
+      <form id="open-form" autocomplete="off">
+        <input class="field" id="open-text" inputmode="url" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Endereço ou pesquisa">
+        <div class="row"><button class="btn primary grow" type="submit"><svg class="ic"><use href="#i-send"/></svg>Abrir na TV</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-keyboard"/></svg>Escrever na TV</h2>
+      <p>Vai para a caixa de texto que está escolhida na TV. Bom para palavras-passe e textos compridos.</p>
+      <textarea id="type-text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Escreve aqui"></textarea>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="type-enter">Carregar em Enter no fim</label>
+        <button class="btn primary" id="type-send"><svg class="ic"><use href="#i-send"/></svg>Enviar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-games"/></svg>Comando</h2>
+      <p>O que a página na TV faz a seguir.</p>
+      <div class="pad">
+        <button class="btn" data-key="back"><svg class="ic"><use href="#i-arrow-left"/></svg>Voltar</button>
+        <button class="btn" data-key="forward"><svg class="ic"><use href="#i-arrow-right"/></svg>Avançar</button>
+        <button class="btn" data-key="reload"><svg class="ic"><use href="#i-arrow-clockwise"/></svg>Recarregar</button>
+        <button class="btn" data-key="home"><svg class="ic"><use href="#i-home"/></svg>Início</button>
+        <button class="btn" data-key="up"><svg class="ic" style="transform: rotate(0)"><use href="#i-arrow-up"/></svg>Subir</button>
+        <button class="btn" data-key="down"><svg class="ic" style="transform: rotate(180deg)"><use href="#i-arrow-up"/></svg>Descer</button>
+        <button class="btn" data-key="top"><svg class="ic"><use href="#i-arrow-up-f"/></svg>Topo</button>
+        <button class="btn" data-key="bottom"><svg class="ic" style="transform: rotate(180deg)"><use href="#i-arrow-up-f"/></svg>Fundo</button>
+        <button class="btn" data-key="tab"><svg class="ic"><use href="#i-arrow-right-f"/></svg>Tab</button>
+        <button class="btn" data-key="enter"><svg class="ic"><use href="#i-checkmark"/></svg>Enter</button>
+        <button class="btn" data-key="backspace"><svg class="ic"><use href="#i-delete"/></svg>Apagar</button>
+        <button class="btn" data-key="escape"><svg class="ic"><use href="#i-dismiss"/></svg>Esc</button>
+        <button class="btn wide" data-key="tabs"><svg class="ic"><use href="#i-apps"/></svg>Separadores</button>
+        <button class="btn" data-key="newtab"><svg class="ic"><use href="#i-add"/></svg>Novo</button>
+        <button class="btn" data-key="fullscreen"><svg class="ic"><use href="#i-full-screen-maximize"/></svg>Ecrã inteiro</button>
+        <button class="btn wide" data-key="sidecard"><svg class="ic"><use href="#i-games"/></svg>Ao lado do jogo</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-arrow-download"/></svg>Transferências da consola</h2>
+      <p id="dl-empty">Ainda não houve transferências.</p>
+      <div class="files" id="dl-list"></div>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-folder-open"/></svg>Ficheiros da consola</h2>
+      <p>Vê o que está nas pastas das transferências e nas pens USB, e traz para o telemóvel.</p>
+      <div class="crumbs" id="fs-crumbs"></div>
+      <div class="files" id="fs-list"></div>
+    </div>
+
+    <div class="card">
+      <h2><svg class="ic"><use href="#i-arrow-download"/></svg>Enviar ficheiros para a consola</h2>
+      <p>Vídeos, músicas, imagens ou outros ficheiros. Os .pkg vão para a pasta dos pacotes; nada é instalado.</p>
+      <div class="seg" id="where">
+        <button data-where="auto" class="on"><svg class="ic"><use href="#i-sparkle"/></svg>Pelo tipo</button>
+        <button data-where="media"><svg class="ic"><use href="#i-video-clip"/></svg>Vídeos e música</button>
+        <button data-where="downloads"><svg class="ic"><use href="#i-folder"/></svg>Transferências</button>
+        <button data-where="usb"><svg class="ic"><use href="#i-usb-stick"/></svg>Pen USB</button>
+      </div>
+      <label class="btn primary" style="width: 100%; box-sizing: border-box"><svg class="ic"><use href="#i-add"/></svg>Escolher ficheiros<input type="file" id="files" multiple></label>
+      <div class="files" id="file-list"></div>
+    </div>
+
+    <button class="leave" id="leave">Desligar este telemóvel</button>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="viewer">
+  <div class="vtop"><span id="viewer-name" translate="no"></span><button class="btn" id="viewer-close"><svg class="ic"><use href="#i-dismiss"/></svg>Fechar</button></div>
+  <div class="stage" id="viewer-stage"></div>
+</div>
+
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+// The phone's own language until the console says (/api/state's lang).
+setLang(/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
+const KEY = 'bps5-token';
+let token = '';
+try { token = localStorage.getItem(KEY) || ''; } catch (e) {}
+
+function $(id) { return document.getElementById(id); }
+let toastTimer = 0;
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+}
+function remember(t) {
+  token = t;
+  try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) {}
+  document.body.classList.toggle('paired', !!t);
+  if (t) {
+    refresh();
+    gameLoad(gameId);
+    discordLoad();
+    downloads();
+    fsHome();
+  }
+}
+
+async function call(method, path, body) {
+  const headers = {'Content-Type': 'text/plain;charset=utf-8'};
+  if (token) headers['X-Token'] = token;
+  let r;
+  try {
+    r = await fetch(path, {method, headers, body, cache: 'no-store'});
+  } catch (e) {
+    connected(false);
+    throw e;
+  }
+  connected(true);
+  let data = {};
+  try { data = await r.json(); } catch (e) {}
+  if (r.status == 401 && path != '/api/pair') {
+    remember('');
+    $('pair-error').textContent = 'A consola já não conhece este telemóvel. Liga-o outra vez.';
+  }
+  data.status = r.status;
+  return data;
+}
+function connected(on) {
+  const s = $('state');
+  s.classList.toggle('on', on);
+  s.classList.toggle('off', !on);
+  s.querySelector('span').textContent = on ? T('phone|Ligado') : 'Sem ligação';
+}
+
+// The PIN.
+$('pair-form').onsubmit = async e => {
+  e.preventDefault();
+  const pin = $('pin').value.replace(/\D/g, '');
+  if (pin.length != 6) {
+    $('pair-error').textContent = 'São 6 algarismos.';
+    return;
+  }
+  $('pair-error').textContent = '';
+  let r;
+  try { r = await call('POST', '/api/pair', pin); } catch (e) {
+    $('pair-error').textContent = 'Não chego à consola. Está ligada e na mesma rede?';
+    return;
+  }
+  if (r.token) {
+    $('pin').value = '';
+    remember(r.token);
+    toast('Ligado à PS5');
+  } else if (r.error == 'pin') {
+    $('pair-error').textContent = 'Código errado. ' + (r.left == 1 ? 'Falta 1 tentativa.' : 'Faltam ' + r.left + ' tentativas.');
+  } else if (r.error == 'tries') {
+    $('pair-error').textContent = 'Demasiadas tentativas. Abre outra vez Definições → Telemóvel na TV para ter um código novo.';
+  } else {
+    $('pair-error').textContent = 'Esse código já não serve. Abre Definições → Telemóvel na TV para ver o atual.';
+  }
+};
+
+// What the TV shows.
+async function refresh() {
+  if (!token || document.hidden) return;
+  try {
+    const s = await call('GET', '/api/state');
+    if (s.status != 200) return;
+    if (s.theme) document.documentElement.dataset.theme = s.theme;
+    if (s.lang) setLang(s.lang);
+    let host = '';
+    try { host = s.url ? new URL(s.url).host : ''; } catch (e) {}
+    $('now-title').textContent = s.title || host || 'Página do browser';
+    $('now-host').textContent = host ? 'Na TV agora · ' + host : 'Na TV agora';
+    $('now-fav').textContent = (s.title || host || '?').trim().charAt(0).toUpperCase();
+  } catch (e) {}
+}
+setInterval(refresh, 5000);
+document.addEventListener('visibilitychange', refresh);
+
+// 2026-11-16 (BrowserPS5 RN): the card "O teu jogo": the notes and the pages kept with a game of the TV's row,
+// written here with the phone's keyboard (/api/game; main.cpp phone_game_json(), phone_game_do()). They show on the
+// game's page on the TV at once. An app that does not answer /api/game leaves the card hidden.
+var gameId = '', gameDirty = false, gameTries = 0;
+function gameHost(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+async function gameLoad(id) {
+  if (!token || document.hidden) return;
+  const r = await call('GET', '/api/game' + (id ? '?id=' + encodeURIComponent(id) : '')).catch(() => ({}));
+  if (r.status != 200) {
+    if (r.status) $('game-card').hidden = true;
+    return;
+  }
+  $('game-card').hidden = false;
+  const games = Array.isArray(r.games) ? r.games : [];
+  $('game-none').hidden = games.length > 0;
+  $('game-body').hidden = !games.length;
+  if (!games.length) {
+    if (gameTries++ < 3) setTimeout(() => gameLoad(id), 1500);  // (the console reads its games when first asked)
+    return;
+  }
+  gameTries = 0;
+  const pick = $('game-pick');
+  pick.textContent = '';
+  for (const g of games) {
+    const o = document.createElement('option');
+    o.value = g.id;
+    o.textContent = String(g.name || g.id) + (g.open ? ' \u25cf' : '');
+    pick.append(o);
+  }
+  if (r.id !== gameId) gameDirty = false;
+  gameId = String(r.id || '');
+  pick.value = gameId;
+  if (!gameDirty && document.activeElement !== $('game-notes'))
+    $('game-notes').value = typeof r.notes == 'string' ? r.notes : '';
+  const list = $('game-pages');
+  list.textContent = '';
+  const pages = (Array.isArray(r.pages) ? r.pages : []).filter(p => p && /^https?:\/\//i.test(String(p.u)));
+  $('game-pages-none').hidden = pages.length > 0;
+  for (const p of pages) {
+    const row = document.createElement('div');
+    row.className = 'file';
+    row.innerHTML = '<div class="top"><a class="name" target="_blank" rel="noopener noreferrer" translate="no"></a></div><div class="host" translate="no"></div>'
+      + '<div class="acts"><button class="btn" data-a="tv"><svg class="ic"><use href="#i-open"/></svg>Na TV</button>'
+      + '<button class="btn" data-a="unpin"><svg class="ic"><use href="#i-dismiss"/></svg>Tirar</button></div>';
+    const a = row.querySelector('a');
+    a.href = p.u;
+    a.textContent = String(p.t || '').trim() || gameHost(p.u) || p.u;
+    row.querySelector('.host').textContent = gameHost(p.u);
+    row.querySelector('[data-a=tv]').onclick = async () => {
+      const x = await call('POST', '/api/open', p.u).catch(() => ({}));
+      toast(x.status == 200 ? 'A abrir na TV' : 'A TV não aceitou');
+    };
+    row.querySelector('[data-a=unpin]').onclick = async () => {
+      const x = await gameDo('unpin', p.u);
+      if (x.status != 200) return;
+      row.remove();
+      $('game-pages-none').hidden = !!list.children.length;
+      toast('Tirada do jogo');
+    };
+    list.append(row);
+  }
+}
+function gameDo(what, body) {
+  return call('POST', '/api/game?do=' + what + '&id=' + encodeURIComponent(gameId), body).catch(() => ({}));
+}
+$('game-pick').onchange = () => { gameDirty = false; gameLoad($('game-pick').value); };
+$('game-notes').oninput = () => { gameDirty = true; };
+$('game-notes-save').onclick = async () => {
+  const r = await gameDo('note', $('game-notes').value.slice(0, 1500));
+  if (r.status == 200) { gameDirty = false; toast('Notas guardadas'); }
+  else if (r.status == 413) toast('Notas compridas demais');
+  else if (r.status) toast('A TV não aceitou');
+};
+$('game-keep-form').onsubmit = async e => {
+  e.preventDefault();
+  let u = $('game-keep').value.trim();
+  if (!u) return;
+  if (!/^https?:\/\//i.test(u)) u = /^[^\s\/:]+\.[^\s\/:]+/.test(u) ? 'https://' + u : '';
+  if (!u || /\s/.test(u)) { toast('Só endereços da web (http ou https)'); return; }
+  const r = await gameDo('keep', u + '\t');
+  if (r.status == 200) { $('game-keep').value = ''; toast('Guardada no jogo'); setTimeout(() => gameLoad(gameId), 800); }
+  else if (r.status) toast('A TV não aceitou');
+};
+$('game-keep-tv').onclick = async () => {
+  const r = await gameDo('keep', '');
+  if (r.status == 200) setTimeout(() => gameLoad(gameId), 900);  // (the TV says whether it was kept)
+  else if (r.status) toast('A TV não aceitou');
+};
+document.addEventListener('visibilitychange', () => gameLoad(gameId));
+
+// 2026-11-16 (BrowserPS5 RN): the card "Discord": the webhook the game page's captures go to (/api/discord; main.cpp
+// phone_discord_json(), phone_discord_set()). Only its start comes back, never its token. An app that does not
+// answer leaves the card hidden.
+async function discordLoad() {
+  if (!token || document.hidden) return;
+  const r = await call('GET', '/api/discord').catch(() => ({}));
+  if (r.status != 200) {
+    if (r.status) $('discord-card').hidden = true;
+    return;
+  }
+  $('discord-card').hidden = false;
+  const state = $('discord-state');
+  state.textContent = '';
+  const said = document.createElement('b');
+  said.textContent = r.set ? 'Webhook guardado' : 'Nenhum webhook guardado.';
+  state.append(said);
+  if (r.set) {
+    const w = document.createElement('span');
+    w.setAttribute('translate', 'no');
+    w.textContent = ' · ' + String(r.where || '');
+    state.append(w);
+  }
+  $('discord-forget').hidden = !r.set;
+}
+$('discord-form').onsubmit = async e => {
+  e.preventDefault();
+  const u = $('discord-hook').value.trim();
+  if (!u) return;
+  if (!/^https:\/\/(ptb\.|canary\.)?discord(app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(u)) { toast('Isso não é o endereço de um webhook do Discord'); return; }
+  const r = await call('POST', '/api/discord', u).catch(() => ({}));
+  if (r.status == 200) { $('discord-hook').value = ''; toast('Webhook guardado'); discordLoad(); }
+  else if (r.status == 400) toast('Isso não é o endereço de um webhook do Discord');
+  else if (r.status) toast('A TV não aceitou');
+};
+$('discord-forget').onclick = async () => {
+  const r = await call('POST', '/api/discord', '').catch(() => ({}));
+  if (r.status == 200) { toast('Webhook esquecido'); discordLoad(); }
+  else if (r.status) toast('A TV não aceitou');
+};
+document.addEventListener('visibilitychange', discordLoad);
+
+// Open, type, keys.
+$('open-form').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('open-text').value.trim();
+  if (!text) return;
+  const r = await call('POST', '/api/open', text).catch(() => ({}));
+  if (r.status == 200) {
+    $('open-text').value = '';
+    toast('A abrir na TV');
+    setTimeout(refresh, 1500);
+  } else if (r.status) toast('A TV não aceitou');
+};
+$('type-send').onclick = async () => {
+  const text = $('type-text').value;
+  const enter = $('type-enter').checked;
+  if (!text && !enter) return;
+  const r = await call('POST', '/api/type' + (enter ? '?enter=1' : ''), text).catch(() => ({}));
+  if (r.status == 200) {
+    $('type-text').value = '';  // it may have been a password
+    toast('Escrito na TV');
+  } else if (r.status == 413) toast('Texto comprido demais');
+  else if (r.status) toast('A TV não aceitou');
+};
+document.querySelectorAll('[data-key]').forEach(b => b.onclick = async () => {
+  if (navigator.vibrate) navigator.vibrate(12);
+  const r = await call('POST', '/api/key?k=' + b.dataset.key, '').catch(() => ({}));
+  if (r.status && r.status != 200) toast('A TV não aceitou');
+  else if (b.dataset.key == 'back' || b.dataset.key == 'forward' || b.dataset.key == 'reload' || b.dataset.key == 'home')
+    setTimeout(refresh, 1500);
+});
+
+// Files, one at a time.
+let where = 'auto';
+document.querySelectorAll('[data-where]').forEach(b => b.onclick = () => {
+  where = b.dataset.where;
+  document.querySelectorAll('[data-where]').forEach(o => o.classList.toggle('on', o == b));
+});
+function size(n) {
+  return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' KB'
+       : n < 1024 * 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB'
+       : (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+const REASONS = {room: 'Sem espaço', usb: 'Sem pen USB', place: 'Pasta indisponível'};
+let queue = Promise.resolve();
+$('files').onchange = () => {
+  for (const f of $('files').files) {
+    const row = document.createElement('div');
+    row.className = 'file';
+    row.innerHTML = '<div class="top"><span class="name" translate="no"></span><span class="what">À espera</span></div><div class="bar"><i></i></div>';
+    row.querySelector('.name').textContent = f.name;
+    $('file-list').prepend(row);
+    const w = where;
+    queue = queue.then(() => send(f, w, row));
+  }
+  $('files').value = '';
+};
+async function send(file, w, row) {
+  const what = row.querySelector('.what'), bar = row.querySelector('.bar i');
+  const q = 'name=' + encodeURIComponent(file.name) + '&where=' + w;
+  const room = await call('GET', '/api/room?' + q + '&size=' + file.size).catch(() => ({}));
+  if (room.status != 200) {
+    row.classList.add('bad');
+    what.textContent = REASONS[room.error] || 'Não foi';
+    return;
+  }
+  await new Promise(done => {
+    const x = new XMLHttpRequest();
+    const start = Date.now();
+    x.open('POST', '/api/file?' + q);
+    x.setRequestHeader('X-Token', token);
+    x.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      bar.style.width = (100 * e.loaded / e.total).toFixed(1) + '%';
+      const s = (Date.now() - start) / 1000;
+      what.textContent = Math.floor(100 * e.loaded / e.total) + '% · ' + (s > 1 ? size(e.loaded / s) + '/s' : size(e.total));
+    };
+    x.onload = () => {
+      let r = {};
+      try { r = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status == 200) {
+        row.classList.add('done');
+        bar.style.width = '100%';
+        what.textContent = 'Na consola · ' + size(file.size);
+      } else {
+        row.classList.add('bad');
+        what.textContent = REASONS[r.error] || 'Não foi';
+      }
+      done();
+    };
+    x.onerror = x.onabort = () => {
+      row.classList.add('bad');
+      what.textContent = 'Ligação perdida';
+      done();
+    };
+    x.send(file);
+  });
+}
+
+// The console's downloads (Definições → Transferências on the TV): every 3 s
+// while this page shows; cancel, try again, open on the TV, extract a ZIP.
+const DL_STATES = {running: 'A transferir', waiting: 'À espera da pasta', done: 'Concluída',
+                   failed: 'Falhou', cancelled: 'Cancelada'};
+const DL_DONE = {cancel: 'Cancelada', retry: 'A transferir de novo', open: 'A abrir na TV',
+                 unzip: 'A extrair o ZIP'};
+function dlLeft(s) {
+  if (s < 60) return Math.max(1, Math.round(s)) + ' s';
+  if (s < 3600) return Math.round(s / 60) + ' min';
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return m ? h + ' h ' + m + ' min' : h + ' h';
+}
+function dlButton(label, action, d) {
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = T(label);
+  b.onclick = async () => {
+    const r = await call('POST', '/api/download?do=' + action + '&id=' + d.id, '').catch(() => ({}));
+    toast(r.status == 200 ? T(DL_DONE[action]) : T('A TV não aceitou'));
+    setTimeout(downloads, 800);
+  };
+  return b;
+}
+async function downloads() {
+  if (!token || document.hidden) return;
+  let r;
+  try { r = await call('GET', '/api/downloads'); } catch (e) { return; }
+  if (r.status != 200 || !Array.isArray(r.downloads)) return;
+  const list = $('dl-list');
+  list.textContent = '';
+  $('dl-empty').hidden = r.downloads.length > 0;
+  for (const d of r.downloads.slice().reverse()) {
+    const row = document.createElement('div');
+    row.className = 'file dl' + (d.state == 'done' ? ' done' : d.state == 'failed' ? ' bad' : '');
+    row.innerHTML = '<div class="top"><span class="name" translate="no"></span><span class="what"></span></div>';
+    row.querySelector('.name').textContent = d.name || '?';
+    const pct = d.total > 0 ? Math.floor(d.received * 100 / d.total) : 0;
+    const what = [T(DL_STATES[d.state] || d.state)];
+    if (d.state == 'running') {
+      what.push(d.total > 0 ? pct + '%' : size(d.received));
+      if (d.speed > 0) what.push(size(d.speed) + '/s');
+      if (d.stalled) what.push(T('parada'));
+      if (d.speed > 0 && d.left >= 0) what.push(T('faltam %s', dlLeft(d.left)));
+    }
+    if (d.unzip == 'running') what.push(T('A extrair · %s%', Math.max(0, d.unzip_percent)));
+    else if (d.unzip == 'done') what.push(T('Extraído para %s', d.unzip_dir));
+    else if (d.unzip == 'failed') what.push(T('Não foi possível extrair'));
+    row.querySelector('.what').textContent = what.join(' · ');
+    if (d.state == 'running' && d.total > 0) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.innerHTML = '<i></i>';
+      bar.querySelector('i').style.width = pct + '%';
+      row.appendChild(bar);
+    }
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    if (d.state == 'running' || d.state == 'waiting') acts.appendChild(dlButton('Cancelar', 'cancel', d));
+    if (d.retry) acts.appendChild(dlButton('Voltar a tentar', 'retry', d));
+    if (d.state == 'done' && d.kind == 'media') acts.appendChild(dlButton('Abrir na TV', 'open', d));
+    if (d.state == 'done' && /\.zip$/i.test(d.name || '') && d.unzip != 'running') acts.appendChild(dlButton('Extrair', 'unzip', d));
+    if (acts.childNodes.length) row.appendChild(acts);
+    list.appendChild(row);
+  }
+}
+setInterval(downloads, 3000);
+document.addEventListener('visibilitychange', downloads);
+
+// The console's files (docs/18): the places (the downloads' and media
+// folders, USB and external drives), then their folders. A file comes to the
+// phone, shows here (pictures, videos, sounds), opens on the TV or goes.
+// The phone asks for a ticket (with its token) and fetches the file by
+// address, so an <a download>, a <video> or an <img> can take it.
+const FS_LABELS = {downloads: 'Transferências', media: 'Vídeos e música', usb: 'Pen USB %d',
+                   ext: 'Disco externo %d'};
+const FS_PLACE_ICONS = {downloads: 'folder', media: 'video-clip', usb: 'usb-stick', ext: 'storage'};
+const FS_PICTURE = /\.(jpe?g|png|gif|webp|bmp)$/i;
+const FS_VIDEO = /\.(mp4|m4v|webm|mov)$/i;
+const FS_SOUND = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
+const FS_TV = /\.(mp4|m4v|mkv|webm|mov|avi|ts|mp3|m4a|aac|flac|wav|ogg|opus|jpe?g|png|gif|webp)$/i;
+let fsPlaces = [], fsPlace = null, fsPath = '';
+
+function fsIcon(name) {
+  return '<svg class="ic"><use href="#i-' + name + '"/></svg>';
+}
+function fsLabel(p) {
+  const n = /(\d+)$/.exec(p.path);
+  return T(FS_LABELS[p.kind] || p.kind, n ? +n[1] + 1 : 1);
+}
+function fsFileIcon(name) {
+  return FS_PICTURE.test(name) ? 'image' : /\.(mkv|avi|ts)$/i.test(name) || FS_VIDEO.test(name) ? 'video-clip'
+       : FS_SOUND.test(name) ? 'speaker-2' : /\.zip$/i.test(name) ? 'box' : 'document';
+}
+function fsWhen(t) {
+  return t > 0 ? new Date(t * 1000).toLocaleDateString(LANG == 'en' ? 'en-GB' : 'pt-PT') : '';
+}
+// One line: an icon, a name (never translated when it is a file's) and a note.
+function fsRow(icon, title, note, plain) {
+  const b = document.createElement('button');
+  b.className = 'entry';
+  b.innerHTML = fsIcon(icon) + '<span class="t"><b></b><small translate="no"></small></span>';
+  b.querySelector('b').textContent = title;
+  if (plain) b.querySelector('b').setAttribute('translate', 'no');
+  b.querySelector('small').textContent = note;
+  if (!note) b.querySelector('small').remove();
+  return b;
+}
+function fsNote(text) {
+  const d = document.createElement('div');
+  d.className = 'fs-note';
+  d.textContent = text;
+  $('fs-list').appendChild(d);
+}
+function fsCrumbs() {
+  const c = $('fs-crumbs');
+  c.textContent = '';
+  const add = (text, go, plain) => {
+    if (c.childNodes.length) c.insertAdjacentHTML('beforeend', fsIcon('chevron-right'));
+    const b = document.createElement('button');
+    b.textContent = text;
+    if (plain) b.setAttribute('translate', 'no');
+    b.onclick = go;
+    c.appendChild(b);
+  };
+  add(T('Locais'), fsHome);
+  if (!fsPlace) return;
+  const place = fsPlace;
+  add(fsLabel(place), () => fsGo(place, place.path));
+  let at = place.path;
+  for (const part of fsPath.slice(place.path.length).split('/').filter(Boolean)) {
+    at += '/' + part;
+    const to = at;
+    add(part, () => fsGo(place, to), true);
+  }
+}
+async function fsHome() {
+  if (!token) return;
+  let r;
+  try { r = await call('GET', '/api/files'); } catch (e) { return; }
+  if (r.status != 200 || !Array.isArray(r.places)) return;
+  fsPlaces = r.places;
+  fsPlace = null;
+  fsPath = '';
+  fsCrumbs();
+  $('fs-list').textContent = '';
+  if (!fsPlaces.length) fsNote(T('Nenhuma pasta disponível agora.'));
+  for (const p of fsPlaces) {
+    const b = fsRow(FS_PLACE_ICONS[p.kind] || 'folder', fsLabel(p), p.path, false);
+    b.onclick = () => fsGo(p, p.path);
+    $('fs-list').appendChild(b);
+  }
+}
+async function fsGo(place, path) {
+  let r;
+  try { r = await call('GET', '/api/files?path=' + encodeURIComponent(path)); } catch (e) { return; }
+  if (r.status != 200 || !Array.isArray(r.entries)) {
+    if (r.status != 401) toast(T('Esta pasta já não está disponível'));
+    if (token) fsHome();
+    return;
+  }
+  fsPlace = place;
+  fsPath = path;
+  fsCrumbs();
+  const list = $('fs-list');
+  list.textContent = '';
+  if (!r.entries.length) {
+    fsNote(T('Esta pasta está vazia.'));
+    if (path != place.path) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.innerHTML = fsIcon('delete') + '<span></span>';
+      b.querySelector('span').textContent = T('Apagar esta pasta');
+      b.onclick = () => fsRemove(path, path.slice(path.lastIndexOf('/') + 1), true);
+      list.appendChild(b);
+    }
+  }
+  for (const e of r.entries) {
+    const full = path + '/' + e.name;
+    if (e.dir) {
+      const b = fsRow('folder', e.name, fsWhen(e.time), true);
+      if (e.bad) {
+        b.classList.add('bad');
+        b.title = T('Nome que o telemóvel não consegue pedir');
+      } else b.onclick = () => fsGo(place, full);
+      list.appendChild(b);
+      continue;
+    }
+    const box = document.createElement('div');
+    box.className = 'fs-file';
+    const b = fsRow(fsFileIcon(e.name), e.name, size(e.size) + (e.time ? ' · ' + fsWhen(e.time) : ''), true);
+    box.appendChild(b);
+    if (e.bad) {
+      b.classList.add('bad');
+      b.title = T('Nome que o telemóvel não consegue pedir');
+      list.appendChild(box);
+      continue;
+    }
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const act = (icon, label, go) => {
+      const a = document.createElement('button');
+      a.className = 'btn';
+      a.innerHTML = fsIcon(icon) + '<span></span>';
+      a.querySelector('span').textContent = T(label);
+      a.onclick = go;
+      acts.appendChild(a);
+    };
+    act('arrow-download', 'Guardar no telemóvel', () => fsSave(full, e.name));
+    if (FS_PICTURE.test(e.name) || FS_VIDEO.test(e.name) || FS_SOUND.test(e.name))
+      act('eye', 'Ver', () => fsView(full, e.name));
+    if (FS_TV.test(e.name)) act('open', 'Abrir na TV', () => fsShow(full));
+    act('delete', 'Apagar', () => fsRemove(full, e.name, false));
+    box.appendChild(acts);
+    b.onclick = () => {
+      const open = !box.classList.contains('open');
+      list.querySelectorAll('.fs-file.open').forEach(o => o.classList.remove('open'));
+      box.classList.toggle('open', open);
+    };
+    list.appendChild(box);
+  }
+  if (r.more > 0) fsNote(T('e mais %d', r.more));
+}
+async function fsTicket(full) {
+  const r = await call('POST', '/api/ticket?path=' + encodeURIComponent(full), '').catch(() => ({}));
+  if (r.status == 200 && r.ticket) return '/api/get?t=' + r.ticket;
+  toast(T('Não foi possível abrir o ficheiro'));
+  return '';
+}
+async function fsSave(full, name) {
+  const url = await fsTicket(full);
+  if (!url) return;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast(T('A guardar no telemóvel'));
+}
+async function fsView(full, name) {
+  const url = await fsTicket(full);
+  if (!url) return;
+  const stage = $('viewer-stage');
+  stage.textContent = '';
+  const el = document.createElement(FS_PICTURE.test(name) ? 'img' : FS_VIDEO.test(name) ? 'video' : 'audio');
+  if (el.tagName != 'IMG') {
+    el.controls = true;
+    el.autoplay = true;
+    el.playsInline = true;
+  }
+  el.onerror = () => toast(T('Não foi possível abrir o ficheiro'));
+  el.src = url;
+  stage.appendChild(el);
+  $('viewer-name').textContent = name;
+  $('viewer').classList.add('on');
+}
+function fsClose() {
+  const stage = $('viewer-stage');
+  stage.querySelectorAll('video, audio').forEach(m => {
+    m.pause();
+    m.removeAttribute('src');
+    m.load();
+  });
+  stage.textContent = '';
+  $('viewer').classList.remove('on');
+}
+$('viewer-close').onclick = fsClose;
+async function fsShow(full) {
+  const r = await call('POST', '/api/show?path=' + encodeURIComponent(full), '').catch(() => ({}));
+  toast(r.status == 200 ? T('A abrir na TV') : T('A TV não aceitou'));
+}
+async function fsRemove(full, name, folder) {
+  if (!confirm(T('Apagar «%s»? Não dá para desfazer.', name))) return;
+  const r = await call('POST', '/api/remove?path=' + encodeURIComponent(full), '').catch(() => ({}));
+  if (r.status == 200) {
+    toast(T('Apagado'));
+    if (fsPlace) fsGo(fsPlace, folder ? full.slice(0, full.lastIndexOf('/')) : fsPath);
+  } else if (r.status == 409) toast(T('A pasta não está vazia'));
+  else if (r.status) toast(T('Não foi possível apagar'));
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !token || $('viewer').classList.contains('on')) return;
+  if (fsPlace) fsGo(fsPlace, fsPath);
+  else fsHome();
+});
+
+$('leave').onclick = async () => {
+  await call('POST', '/api/forget', '').catch(() => {});
+  remember('');
+  toast(T('phone|Desligado'));
+};
+
+remember(token);
+if (!token) $('pin').focus();
+</script></body></html>

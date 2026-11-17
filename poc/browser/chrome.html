@@ -1,0 +1,604 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's bar, a page of its own drawn by WebKit over the top 152 pixels
+of the screen (main.cpp, BAR_HEIGHT): the buttons and the address, and under
+them the favorites. The commands go to the app as navigations to
+browserps5:<command>?<argument>, which it never lets happen; the app calls
+update() with the state of the page below and setTheme() with the theme.
+
+The favorites live here, in `favorites` ({url, title} each, in the order
+they were added). After a change the bar sends favorites-changed and the app
+reads JSON.stringify(favorites) back and saves it (DATA_DIR/favorites.json);
+at the start it hands it back with setFavorites(). The look is theme.css and
+the icons icons.svg, put in when the browser is built (include.awk). -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+html, body { height: 100%; background: var(--bar-bg); }
+#chrome { position: relative; height: 152px; border-bottom: 1px solid var(--line); }
+#bar { height: 96px; display: flex; align-items: center; gap: 6px; padding: 0 22px 0 18px; }
+.group { display: flex; gap: 2px; align-items: center; }
+#form { flex: 1; margin: 0 14px; position: relative; height: 64px; }
+#pill {
+  position: absolute; inset: 0; border-radius: 32px; background: var(--surface-2);
+  border: 1px solid var(--line); transition: border-color .15s, box-shadow .15s, background .15s;
+}
+#form:hover #pill { border-color: var(--line-2); background: var(--surface-3); }
+#form.editing #pill { border-color: var(--accent); box-shadow: var(--glow); background: var(--surface); }
+#site {
+  position: absolute; left: 12px; top: 8px; width: 48px; height: 48px; border-radius: 24px;
+  display: grid; place-items: center; color: var(--text-2);
+}
+#site.secure { color: var(--good); }
+#site.insecure { color: var(--warn); }
+/* A notice over the address for a moment (notify(): from the phone). */
+#notice {
+  position: absolute; inset: 0; z-index: 5; border-radius: 32px; display: flex; align-items: center;
+  gap: 14px; padding: 0 26px; font-size: 24px; font-weight: 600; color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--glow);
+  opacity: 0; transform: translateY(-6px) scale(.985); transition: opacity .25s, transform .25s;
+  pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#notice.on { opacity: 1; transform: none; }
+#notice span { overflow: hidden; text-overflow: ellipsis; }
+#address {
+  position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 168px 0 72px;
+  border: 0; outline: none; background: transparent; font-size: 28px; color: var(--text);
+}
+#address::placeholder { color: var(--text-3); }
+/* The address when it is not being written: the site in full colour, the
+   rest dimmer (#address shows through when it is). */
+#pretty {
+  position: absolute; left: 72px; right: 168px; top: 0; bottom: 0; display: flex;
+  align-items: center; font-size: 28px; white-space: nowrap; overflow: hidden;
+  pointer-events: none; color: var(--text-3);
+}
+#pretty b { color: var(--text); font-weight: 600; }
+#form.pretty #address { color: transparent; }
+#form:not(.pretty) #pretty { display: none; }
+#tools { position: absolute; right: 8px; top: 4px; display: flex; gap: 4px; align-items: center; }
+#tools .ib { width: 56px; height: 56px; }
+#zoom {
+  height: 40px; padding: 0 14px; border-radius: 20px; background: var(--accent-soft);
+  color: var(--accent); font-size: 21px; font-weight: 700; display: none;
+}
+#zoom.on { display: block; }
+/* A video or a sound opened by itself (its own address): it can be kept. */
+#save {
+  height: 40px; padding: 0 16px 0 12px; border-radius: 20px; background: var(--accent-soft);
+  color: var(--accent); font-size: 21px; font-weight: 700; display: none; align-items: center; gap: 8px;
+}
+#save.on { display: flex; }
+#save .ic { width: 24px; height: 24px; }
+#star.on { color: #ffc93c; }
+#menu.open { background: var(--surface-4); color: var(--text); }
+/* The downloads: shown while there are any, its ring how far they got. */
+#dl { display: none; position: relative; }
+#dl.on { display: grid; }
+#dl::before {
+  content: ""; position: absolute; inset: 6px; border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--p, 0) * 1%), var(--surface-4) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+}
+#dl.done::before { background: var(--good); }
+#dl .ic { width: 28px; height: 28px; }
+#dl.active .ic { color: var(--accent); }
+/* The tabs: how many, in a rounded square (the switcher, tabs.html). */
+#tabs-n {
+  min-width: 32px; height: 32px; padding: 0 6px; border: 3px solid currentColor;
+  border-radius: 9px; display: grid; place-items: center; font-size: 17px; font-weight: 700;
+  line-height: 1;
+}
+body.nofav #favbar { display: none; }
+body.nofav #chrome { height: 100px; }
+#favbar {
+  height: 56px; padding: 0 24px 10px 22px; display: flex; align-items: center; gap: 8px;
+  overflow: hidden;
+}
+.fav {
+  flex: none; max-width: 330px; height: 42px; padding: 0 16px 0 7px; border-radius: 12px;
+  display: flex; align-items: center; gap: 11px; font-size: 21px; color: var(--text-2);
+  transition: background .12s, color .12s;
+}
+.fav:hover { background: var(--surface-3); color: var(--text); }
+.fav .avatar { width: 28px; height: 28px; border-radius: 8px; font-size: 15px; }
+.fav span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* BrowserPS5 RN (2026-11-11): the site's own icon in place of the letter (siteIcon()); a small one (a 16 px
+   favicon) in the middle of the white square, not stretched. */
+.avatar.icon { background: #fff !important; text-shadow: none; }
+.avatar.icon img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.avatar.icon.small img { width: 16px; height: 16px; border-radius: 3px; }
+#favs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+/* BrowserPS5 RN (2026-11-10 22:50): the open tabs in a row of their own at
+   the top, as in Chrome (apart from the favorites), when the app
+   sends their list (setTabs); v1 sends only the count: no row. */
+#tabrow { display: none; }
+body.strip #chrome { height: 204px; }
+body.strip.nofav #chrome { height: 148px; }
+body.strip #tabrow {
+  display: flex; align-items: flex-end; height: 52px; padding: 0 18px;
+  background: rgba(0, 0, 0, .34); box-shadow: inset 0 -1px var(--line);
+}
+#strip { display: flex; align-items: flex-end; gap: 4px; min-width: 0; max-width: 100%; height: 100%; }
+.tab {
+  position: relative; width: 270px; flex: 0 1 auto; min-width: 140px; height: 44px;
+  padding: 0 6px 0 12px; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 10px;
+  font-size: 20px; color: var(--text-3); border: 1px solid transparent; border-bottom: 0;
+  transition: background .12s, color .12s;
+}
+.tab:hover { background: var(--surface-2); color: var(--text); }
+.tab.on {
+  color: var(--text); background: var(--bar-bg); background-attachment: fixed; border-color: var(--line);
+}
+.tab.on::before {
+  content: ''; position: absolute; left: 16px; right: 16px; top: 0; height: 3px;
+  border-radius: 0 0 3px 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 10px var(--accent);
+}
+.tab .avatar { position: relative; flex: none; width: 26px; height: 26px; border-radius: 8px; font-size: 14px; }
+/* A notice from its site while it was behind (the app's notify_take()). */
+.tab.new .avatar::after {
+  content: ''; position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; border-radius: 50%;
+  background: #ff2e4a; box-shadow: 0 0 0 2px rgba(0, 0, 0, .6), 0 0 8px #ff2e4a;
+}
+.tab.new .name { color: var(--text); font-weight: 600; }
+/* A private tab (RN): nothing of it is kept. */
+.tab.priv { background: rgba(120, 70, 200, .28); color: #e9ddff; }
+.tab.priv.on { background: linear-gradient(180deg, rgba(120, 70, 200, .55), var(--bar-bg)); }
+.tab.priv .name::before { content: "privado · "; opacity: .75; font-size: .82em; }
+html[lang="en"] .tab.priv .name::before { content: "private · "; }
+.tab .avatar .ic { width: 18px; height: 18px; }
+.tab .name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.tab .x {
+  flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+  color: var(--text-3);
+}
+.tab .x:hover { background: var(--surface-3); color: var(--text); }
+.tab .x .ic { width: 20px; height: 20px; }
+#newtab, #reopen {
+  flex: none; align-self: center; width: 40px; height: 40px; margin-left: 4px; border-radius: 12px;
+  display: grid; place-items: center; color: var(--text-2);
+}
+#newtab:hover { background: var(--surface-3); color: var(--text); }
+#reopen:hover { background: var(--surface-3); color: var(--text); }
+#hint { color: var(--text-3); font-size: 21px; white-space: nowrap; display: flex; gap: 10px; align-items: center; }
+#all { margin-left: auto; padding: 0 12px 0 16px; color: var(--text-3); }
+#all .ic { width: 22px; height: 22px; }
+#progress {
+  position: absolute; left: 0; bottom: -1px; height: 3px; width: 0; opacity: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 12px var(--accent); border-radius: 0 2px 2px 0;
+  transition: width .25s ease-out, opacity .5s;
+}
+</style></head><body>
+<!--#include icons.svg-->
+<div id="chrome">
+  <div id="tabrow"><div id="strip"></div></div>
+  <div id="bar">
+    <div class="group">
+      <button class="ib" id="back" disabled title="Voltar"><svg class="ic"><use href="#i-arrow-left"/></svg></button>
+      <button class="ib" id="forward" disabled title="Avançar"><svg class="ic"><use href="#i-arrow-right"/></svg></button>
+      <button class="ib" id="reload" title="Recarregar"><svg class="ic"><use id="reload-icon" href="#i-arrow-clockwise"/></svg></button>
+      <button class="ib" id="home" title="Início"><svg class="ic"><use href="#i-home"/></svg></button>
+    </div>
+    <form id="form" autocomplete="off" class="pretty">
+      <div id="pill"></div>
+      <div id="site"><svg class="ic s"><use id="site-icon" href="#i-search"/></svg></div>
+      <input id="address" type="text" enterkeyhint="go" spellcheck="false"
+             placeholder="Pesquisar ou escrever um endereço">
+      <div id="pretty"></div>
+      <div id="notice"><svg class="ic s"><use id="notice-icon" href="#i-phone"/></svg><span></span></div>
+      <div id="tools">
+        <button type="button" id="save" title="Guardar este ficheiro"><svg class="ic"><use href="#i-arrow-download"/></svg>Guardar</button>
+        <button type="button" id="zoom" title="Repor o zoom">100%</button>
+        <button type="button" class="ib" id="star" disabled title="Guardar nos favoritos"><svg class="ic"><use id="star-icon" href="#i-star"/></svg></button>
+      </div>
+    </form>
+    <div class="group">
+      <button class="ib" id="dl" title="Transferências"><svg class="ic"><use href="#i-arrow-download"/></svg></button>
+      <button class="ib" id="tabs" title="Separadores"><span id="tabs-n">1</span></button>
+      <button class="ib" id="ext" title="Extensões"><svg class="ic"><use href="#i-puzzle-piece"/></svg></button>
+      <button class="ib" id="menu" title="Menu"><svg class="ic"><use href="#i-more-vertical"/></svg></button>
+    </div>
+  </div>
+  <div id="favbar"><div id="favs"></div></div>
+  <div id="progress"></div>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+var state = { url: '', title: '', loading: false };
+var favorites = [];
+
+// The app's commands one at a time, 300 ms apart: a second location.href at
+// once would cancel the first (Sony's WebKit).
+const sendQueue = [];
+function send(command, argument) {
+  sendQueue.push('browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument)));
+  if (sendQueue.length === 1) sendPump();
+}
+function sendPump() {
+  location.href = sendQueue[0];
+  setTimeout(() => { sendQueue.shift(); if (sendQueue.length) sendPump(); }, 300);
+}
+
+// The browser's own pages (main.cpp: DATA_DIR/start.html, settings.html)
+// show no address.
+function internalPage(url) {
+  var m = /^file:.*\/(start|settings)\.html(\?[^#]*)?(#.*)?$/.exec(url || '');
+  return m ? m[1] : '';
+}
+
+function host(url) {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch (e) {
+    return url;
+  }
+}
+
+function favoriteIndex(url) {
+  for (var i = 0; i < favorites.length; i++)
+    if (favorites[i].url === url)
+      return i;
+  return -1;
+}
+
+// A colour of its own for each site, for its letter.
+function color(text) {
+  var h = 0;
+  for (var i = 0; i < text.length; i++)
+    h = (h * 31 + text.charCodeAt(i)) % 360;
+  return 'linear-gradient(135deg, hsl(' + h + ', 62%, 52%), hsl(' + (h + 40) % 360 + ', 62%, 40%))';
+}
+
+function icon(use, name) {
+  document.getElementById(use).setAttribute('href', '#i-' + name);
+}
+
+function renderStar() {
+  var on = favoriteIndex(state.url) >= 0;
+  icon('star-icon', on ? 'star-f' : 'star');
+  star.classList.toggle('on', on);
+  star.disabled = !/^https?:/.test(state.url) || !!pdfShown(state.url || '');  // the reader's address is not one to keep
+}
+
+// The PDF reader is served by the app to itself (BrowserPS5 RN, main.cpp
+// pdf_server()): its address says nothing to the user. The file it shows, or ''.
+function pdfShown(url) {
+  var m = /^http:\/\/127\.0\.0\.1:\d+\/pdfjs\/web\/viewer\.html\?file=([^#&]*)/.exec(url);
+  if (!m)
+    return '';
+  try {
+    var doc = decodeURIComponent(m[1]);
+    return doc.indexOf('/doc?p=') === 0 ? decodeURIComponent(doc.slice(7)) : doc;
+  } catch (e) {
+    return 'PDF';
+  }
+}
+
+function renderAddress() {
+  var url = state.url || '';
+  var page = internalPage(url);
+  var editing = form.classList.contains('editing');
+  var pdf = pdfShown(url);
+  site.className = '';
+  if (page === 'settings') {
+    icon('site-icon', 'settings');
+  } else if (pdf) {
+    icon('site-icon', 'document');
+  } else if (page || !url) {
+    icon('site-icon', 'search');
+  } else if (state.failed) {  // RN: the page of a site that did not load: its address has no padlock
+    icon('site-icon', 'globe');
+    site.className = 'insecure';
+  } else if (/^https:/.test(url)) {
+    icon('site-icon', 'lock-closed-f');
+    site.className = 'secure';
+  } else {
+    icon('site-icon', 'globe');
+    site.className = 'insecure';
+  }
+  if (!editing)
+    address.value = page ? '' : url;
+  // The site in full colour, the rest dimmer.
+  var m = /^(https?:\/\/)(www\.)?([^\/?#]+)(.*)$/.exec(url);
+  var pretty = !editing && !page && m;
+  form.classList.toggle('pretty', !!pretty);
+  pretty_.textContent = '';
+  if (pretty) {
+    var b = document.createElement('b');
+    var rest = document.createElement('span');
+    if (pdf) {  // the file's name in full colour, its folder dimmer, after it
+      var cut = pdf.lastIndexOf('/');
+      b.textContent = pdf.slice(cut + 1);
+      rest.textContent = cut > 0 ? '\u00a0\u00a0\u2014\u00a0\u00a0' + pdf.slice(0, cut) : '';  // spaces that stay
+    } else {
+      b.textContent = m[3];
+      rest.textContent = m[4] === '/' ? '' : m[4];
+    }
+    pretty_.append(b, rest);
+  }
+}
+var pretty_ = document.getElementById('pretty');
+
+function renderFavorites() {
+  var favbar = document.getElementById('favs');
+  favbar.textContent = '';
+  if (!favorites.length) {
+    var hint = document.createElement('span');
+    hint.id = 'hint';
+    hint.innerHTML = '<svg class="ic s"><use href="#i-star"/></svg>';
+    hint.append('Os favoritos aparecem aqui. Carrega na estrela do endereço para guardar uma página.');
+    favbar.appendChild(hint);
+  }
+  favorites.forEach(function (f) {
+    var b = document.createElement('button');
+    b.className = 'fav';
+    var name = host(f.url);
+    var dot = document.createElement('span');
+    dot.className = 'avatar';
+    dot.style.background = color(name);
+    dot.textContent = tabStripOn ? siteLetter(name) : (name[0] || '?').toUpperCase();
+    try { siteIcon(dot, new URL(f.url).origin); } catch (e) { }
+    var text = document.createElement('span');
+    text.textContent = f.title || name;
+    b.append(dot, text);
+    // With the strip (RN): the site's tab when open, else a tab of its own.
+    b.onclick = function () { send(tabStripOn ? 'fav' : 'go', f.url); };
+    favbar.appendChild(b);
+  });
+  var all = document.createElement('button');
+  all.id = 'all';
+  all.className = 'fav';
+  all.innerHTML = 'Todos os favoritos <svg class="ic"><use href="#i-chevron-right"/></svg>';
+  all.onclick = function () { send('start'); };
+  favbar.appendChild(all);
+}
+
+function changed() {
+  renderStar();
+  renderFavorites();
+  send('favorites-changed');
+}
+
+back.onclick = function () { send('back'); };
+forward.onclick = function () { send('forward'); };
+reload.onclick = function () { send(state.loading ? 'stop' : 'reload'); };
+home.onclick = function () { send('start'); };
+ext.onclick = function () { send('settings', 'extensoes'); };
+dl.onclick = function () { send('settings', 'transferencias'); };
+tabs.onclick = function () { send('tabs'); };
+menu.onclick = function () { send('menu'); };
+zoom.onclick = function () { send('zoom', '100'); };
+save.onclick = function () { send('savemedia'); };
+star.onclick = function () {
+  var i = favoriteIndex(state.url);
+  if (i >= 0)
+    favorites.splice(i, 1);
+  else
+    favorites.push({ url: state.url,
+                     title: (state.title || '').trim() || host(state.url) });
+  changed();
+};
+form.onsubmit = function (event) {
+  event.preventDefault();
+  send('go', address.value);
+  address.blur();
+};
+address.onfocus = function () {
+  form.classList.add('editing');
+  renderAddress();
+};
+address.onblur = function () {
+  form.classList.remove('editing');
+  renderAddress();
+};
+
+// From the app, whenever the page below changes.
+function update(s) {
+  state = s;
+  back.disabled = !s.canGoBack;
+  forward.disabled = !s.canGoForward;
+  icon('reload-icon', s.loading ? 'dismiss' : 'arrow-clockwise');
+  progress.style.width = (s.loading ? Math.max(6, s.progress * 100) : 100) + '%';
+  progress.style.opacity = s.loading ? 1 : 0;
+  var z = s.zoom || 100;
+  zoom.textContent = z + '%';
+  zoom.classList.toggle('on', z !== 100);
+  save.classList.toggle('on', !!s.media);
+  renderAddress();
+  renderStar();
+}
+
+// From the app: the theme (theme.css), and whether the menu is open.
+function setTheme(name) {
+  document.documentElement.dataset.theme = name;
+}
+function setMenuOpen(open) {
+  menu.classList.toggle('open', !!open);
+}
+
+// From the app: the downloads ({count, active, percent}), and whether the
+// favorites show under the address.
+function setDownloads(d) {
+  dl.classList.toggle('on', d.count > 0);
+  dl.classList.toggle('active', d.active > 0);
+  dl.classList.toggle('done', d.count > 0 && !d.active);
+  dl.style.setProperty('--p', d.active ? Math.max(3, d.percent) : 100);
+  dl.title = d.active ? 'A transferir: ' + d.percent + '%' : 'Transferências';
+}
+// From the app: how many tabs.
+var noticeTimer = 0;
+function notify(text, icon) {
+  var n = document.getElementById('notice');
+  n.querySelector('span').textContent = text;
+  document.getElementById('notice-icon').setAttribute('href', '#i-' + (icon || 'info'));
+  n.classList.add('on');
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(function () { n.classList.remove('on'); }, 3200);
+}
+function setTabs(n, list, current, closed) {
+  document.getElementById('tabs-n').textContent = n;
+  if (Array.isArray(list))
+    renderStrip(list, current, closed);
+}
+
+// BrowserPS5 RN (2026-11-10 22:20): the open tabs ({title, host} each, host ""
+// for the browser's own pages) and the one in front, from the app; a tab is
+// brought in front as it was, nothing loads again.
+var tabStripOn = false;
+function siteLetter(h) {
+  var parts = (h || '').split('.').filter(function (p) {
+    return p && !/^(www|web|m|mobile)$/.test(p);
+  });
+  return ((parts[0] || h || '?')[0] || '?').toUpperCase();
+}
+// BrowserPS5 RN (2026-11-11): the site's own icon in place of the letter, in the
+// favorites and the tabs: its /apple-touch-icon.png, else its /favicon.ico
+// (as the start page's tiles, start-rn.js). The letter stays until one is in
+// and where there is none. Kept by origin while the bar lives: the bar is
+// drawn again at every change, and a known icon is there at once.
+var siteIcons = {};  // by origin: the picture's address, '' (it has none), or the dots waiting for it
+function siteIconPut(dot, src, small) {
+  var img = document.createElement('img');
+  img.alt = '';
+  img.referrerPolicy = 'no-referrer';
+  img.src = src;
+  dot.textContent = '';
+  dot.classList.add('icon');
+  dot.classList.toggle('small', small);
+  dot.appendChild(img);
+}
+function siteIcon(dot, origin) {
+  if (!tabStripOn || !/^https:\/\/[^/]+$/.test(origin))
+    return;
+  var known = siteIcons[origin];
+  if (known === '')
+    return;
+  if (known && known.src)
+    return siteIconPut(dot, known.src, known.small);
+  if (known)
+    return void known.push(dot);
+  var waiting = siteIcons[origin] = [dot];
+  var tries = [origin + '/apple-touch-icon.png', origin + '/favicon.ico'];
+  var img = new Image();
+  img.referrerPolicy = 'no-referrer';
+  img.onload = function () {
+    if (img.naturalWidth < 16)
+      return img.onerror();
+    var found = siteIcons[origin] = {src: img.src, small: img.naturalWidth < 24};
+    waiting.forEach(function (d) {
+      if (d.isConnected)
+        siteIconPut(d, found.src, found.small);
+    });
+  };
+  img.onerror = function () {
+    if (tries.length)
+      img.src = tries.shift();
+    else
+      siteIcons[origin] = '';
+  };
+  img.src = tries.shift();
+}
+function renderStrip(list, current, closed) {
+  if (!tabStripOn) {
+    tabStripOn = true;
+    document.body.classList.add('strip');
+    renderFavorites();
+  }
+  var strip = document.getElementById('strip');
+  strip.textContent = '';
+  list.forEach(function (t, i) {
+    var b = document.createElement('button');
+    b.className = 'tab' + (i === current ? ' on' : '') + (t.n ? ' new' : '') + (t.p ? ' priv' : '');
+    b.title = t.title || t.host;
+    var dot = document.createElement('span');
+    dot.className = 'avatar';
+    if (t.host) {
+      dot.style.background = color(t.host);
+      dot.textContent = siteLetter(t.host);
+      if (!t.p)  // a private tab asks nothing of its site from here
+        siteIcon(dot, 'https://' + t.host);
+    } else {
+      dot.style.background = 'var(--surface-3)';
+      dot.innerHTML = '<svg class="ic"><use href="#i-home"/></svg>';
+    }
+    var name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.title || t.host || 'Início';
+    var x = document.createElement('span');
+    x.className = 'x';
+    x.title = 'Fechar';
+    x.innerHTML = '<svg class="ic"><use href="#i-dismiss"/></svg>';
+    x.onclick = function (event) {
+      event.stopPropagation();
+      send('tab-close', String(i));
+    };
+    b.append(dot, name, x);
+    b.onclick = function () {
+      if (i !== current)
+        send('tab', String(i));
+    };
+    strip.appendChild(b);
+  });
+  if (list.length < 6) {
+    var plus = document.createElement('button');
+    plus.id = 'newtab';
+    plus.title = 'Novo separador';
+    plus.innerHTML = '<svg class="ic"><use href="#i-add"/></svg>';
+    plus.onclick = function () { send('newtab'); };
+    strip.appendChild(plus);
+    // BrowserPS5 RN (2026-11-11): the tab closed last, again (closed: how
+    // many the app still keeps).
+    if (closed > 0) {
+      var again = document.createElement('button');
+      again.id = 'reopen';
+      again.title = 'Reabrir o separador fechado';
+      again.innerHTML = '<svg class="ic"><use href="#i-arrow-reset"/></svg>';
+      again.onclick = function () { send('reopen'); };
+      strip.appendChild(again);
+    }
+  }
+}
+function setFavbar(on) {
+  document.body.classList.toggle('nofav', !on);
+}
+
+// From the app: the saved favorites (a JSON string), at the start.
+function setFavorites(json) {
+  var list = [];
+  try {
+    list = JSON.parse(json);
+  } catch (e) {
+  }
+  favorites = Array.isArray(list) ? list.filter(function (f) {
+    return f && typeof f.url === 'string';
+  }) : [];
+  renderStar();
+  renderFavorites();
+}
+
+// From the app: a favorite taken away on the start page.
+function removeFavorite(url) {
+  var i = favoriteIndex(url);
+  if (i >= 0) {
+    favorites.splice(i, 1);
+    changed();
+  }
+}
+
+// From the app: "Apagar todos" on the start page or in the settings.
+function removeAllFavorites() {
+  if (favorites.length) {
+    favorites = [];
+    changed();
+  }
+}
+
+renderAddress();
+renderFavorites();
+</script></body></html>

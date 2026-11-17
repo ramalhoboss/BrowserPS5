@@ -1,0 +1,38 @@
+diff --git a/Source/WebCore/platform/graphics/texmap/TextureMapper.h b/Source/WebCore/platform/graphics/texmap/TextureMapper.h
+index fbe7a8f85..053053966 100644
+--- a/Source/WebCore/platform/graphics/texmap/TextureMapper.h
++++ b/Source/WebCore/platform/graphics/texmap/TextureMapper.h
+@@ -92,6 +92,23 @@ public:
+     // makes a surface the target for the following drawTexture calls.
+     void bindSurface(BitmapTexture* surface);
+     BitmapTexture* currentSurface();
++    // BrowserPS5 (2026-11-14): the video's hole (CoordinatedPlatformLayerBufferHolePunch) painted into an
++    // intermediate surface. TextureMapperLayer says, before a layer's contents are painted, where the
++    // current target is in the page (its offset), whether this is a backdrop's second painting of the
++    // scene, and the list that takes the holes of the surface being painted (0: the page itself).
++    void setHolePunchTarget(const IntSize& offset, bool isBackdrop, Vector<IntRect>* holes)
++    {
++        m_holePunchOffset = offset;
++        m_holePunchIsBackdrop = isBackdrop;
++        m_holePunchHoles = holes;
++    }
++    const IntSize& holePunchOffset() const { return m_holePunchOffset; }
++    bool holePunchIsBackdrop() const { return m_holePunchIsBackdrop; }
++    void noteHolePunch(const IntRect& rect)
++    {
++        if (m_holePunchHoles)
++            m_holePunchHoles->append(rect);
++    }
+     void beginClip(const TransformationMatrix&, const FloatRoundedRect&);
+     void beginClip(const TransformationMatrix&, const ClipPath&);
+     void beginClipWithoutApplying(const TransformationMatrix&, const FloatRect&);
+@@ -154,6 +171,9 @@ private:
+     std::optional<FloatSize> m_uvClampTexelSize;
+     TextureMapperGLData* m_data;
+     ClipStack m_clipStack;
++    IntSize m_holePunchOffset;
++    bool m_holePunchIsBackdrop { false };
++    Vector<IntRect>* m_holePunchHoles { nullptr };
+ #if ENABLE(DAMAGE_TRACKING)
+     std::optional<Damage> m_damage;
+ #endif

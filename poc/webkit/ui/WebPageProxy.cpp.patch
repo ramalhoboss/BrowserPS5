@@ -1,0 +1,35 @@
+diff --git a/Source/WebKit/UIProcess/WebPageProxy.cpp b/Source/WebKit/UIProcess/WebPageProxy.cpp
+index e61342b72..586de110b 100644
+--- a/Source/WebKit/UIProcess/WebPageProxy.cpp
++++ b/Source/WebKit/UIProcess/WebPageProxy.cpp
+@@ -12151,6 +12151,30 @@ void WebPageProxy::triggerBrowsingContextGroupSwitchForNavigation(WebCore::Navig
+     if (!processLoadingNavigation)
+         return completionHandler(NavigationResponseWithoutProcessSwap::CancelLoad);
+ 
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 (2026-11-10): with one WebProcess for every page
++    // (WKContextSetUsesSingleWebProcess) a Cross-Origin-Opener-Policy header
++    // no longer moves the page to a new WebProcess: the page stays where its
++    // service worker runs. WhatsApp Web and Telegram Web send one: the page
++    // went to a new payload WebProcess while its worker stayed in the old one,
++    // and the page's process stopped (Telegram, 17:25). The opener is cut
++    // above (decidePolicyForResponseShared) as for any COOP switch. A
++    // cross-origin isolated page (COOP with COEP) still gets its own process,
++    // except in BrowserPS5 RN (BROWSERPS5_ISOLATED_STAYS=1, set by that app,
++    // 2026-11-10 20:50): there it stays too. In its own process WhatsApp Web
++    // waited after login on its service worker, which runs in the title's
++    // process, with nothing running ("loading your chats"). It is then not
++    // cross-origin isolated (no SharedArrayBuffer), as in browsers without it.
++    static const bool isolatedStays = [] {
++        const char* value = getenv("BROWSERPS5_ISOLATED_STAYS");
++        return value && *value == '1';
++    }();
++    if ((browsingContextGroupSwitchDecision != BrowsingContextGroupSwitchDecision::NewIsolatedGroup || isolatedStays) && protect(m_configuration->processPool())->usesSingleWebProcess()) {
++        WTFLogAlways("BrowserPS5: COOP of %s: the page stays in WebProcess %d", response.url.string().utf8().data(), processLoadingNavigation->processID());
++        return completionHandler(NavigationResponseWithoutProcessSwap::ResumeLoad);
++    }
++#endif
++
+     Site responseSite { response.url };
+ 
+     // FIXME: Subframe loads that skip COEP enforcement, such as custom URL scheme handler loads, still get an isolated process.

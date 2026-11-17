@@ -1,0 +1,69 @@
+--- a/VideoFrameGStreamer.cpp
++++ b/VideoFrameGStreamer.cpp
+@@ -37,8 +37,12 @@
+ #include "VideoPixelFormat.h"
+ #include <JavaScriptCore/JSCInlines.h>
+ #include <JavaScriptCore/TypedArrayInlines.h>
++#if USE(SKIA)
+ #include <skia/core/SkData.h>
+ #include <skia/core/SkImage.h>
++#elif USE(CAIRO)
++#include <cairo.h> // BrowserPS5
++#endif
+ #include <wtf/glib/GMallocString.h>
+ 
+ #if USE(GBM)
+@@ -53,9 +57,11 @@
+ #include <gst/gl/gl.h>
+ #endif
+ 
++#if USE(SKIA)
+ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+ #include <skia/core/SkPixmap.h>
+ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
++#endif
+ 
+ GST_DEBUG_CATEGORY(webkit_video_frame_debug);
+ GST_DEBUG_CATEGORY_STATIC(GST_CAT_PERFORMANCE);
+@@ -178,6 +184,33 @@
+     size_t offsets[GST_VIDEO_MAX_PLANES] = { 0, };
+     int strides[GST_VIDEO_MAX_PLANES] = { 0, };
+ 
++#if USE(CAIRO)
++    // BrowserPS5: a Cairo image surface, wrapped as it is. ARGB32 and RGB24
++    // are 32-bit words, BGRA in memory on this little-endian machine.
++    cairo_surface_t* surface = image.platformImage().get();
++    if (cairo_surface_get_type(surface) != CAIRO_SURFACE_TYPE_IMAGE)
++        return nullptr;
++
++    GstVideoFormat format;
++    switch (cairo_image_surface_get_format(surface)) {
++    case CAIRO_FORMAT_ARGB32:
++        format = GST_VIDEO_FORMAT_BGRA;
++        break;
++    case CAIRO_FORMAT_RGB24:
++        format = GST_VIDEO_FORMAT_BGRx;
++        break;
++    default:
++        return nullptr;
++    }
++
++    cairo_surface_flush(surface);
++    int width = cairo_image_surface_get_width(surface);
++    int height = cairo_image_surface_get_height(surface);
++    strides[0] = cairo_image_surface_get_stride(surface);
++    size_t size = static_cast<size_t>(strides[0]) * height;
++    GRefPtr buffer = adoptGRef(gst_buffer_new_wrapped_full(GST_MEMORY_FLAG_READONLY, cairo_image_surface_get_data(surface), size, 0, size,
++        cairo_surface_reference(surface), reinterpret_cast<GDestroyNotify>(cairo_surface_destroy)));
++#else
+     auto platformImage = image.platformImage();
+     const auto& imageInfo = platformImage->imageInfo();
+     strides[0] = imageInfo.minRowBytes();
+@@ -223,6 +256,7 @@
+     default:
+         return nullptr;
+     }
++#endif // USE(CAIRO)
+ 
+     gst_buffer_add_video_meta_full(buffer.get(), GST_VIDEO_FRAME_FLAG_NONE, format, width, height, 1, offsets, strides);
+ 

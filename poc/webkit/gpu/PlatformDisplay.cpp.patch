@@ -1,0 +1,30 @@
+--- a/Source/WebCore/platform/graphics/PlatformDisplay.cpp
++++ b/Source/WebCore/platform/graphics/PlatformDisplay.cpp
+@@ -35,6 +35,10 @@
+ #include "PlatformDisplayWin.h"
+ #endif
+ 
++#if PLATFORM(PLAYSTATION) && !USE(WPE_RENDERER)
++#include "PlatformDisplaySurfaceless.h"
++#endif
++
+ #if USE(LIBEPOXY)
+ #include <epoxy/egl.h>
+ #else
+@@ -66,6 +70,16 @@
+ 
+ PlatformDisplay& PlatformDisplay::sharedDisplay()
+ {
++#if PLATFORM(PLAYSTATION) && !USE(WPE_RENDERER)
++    // BrowserPS5 (docs/03-video-e-gpu.md, G2): without Sony's WPE backend no
++    // one sets the display. The compositor makes it the first time it needs
++    // it, on the main thread (AcceleratedSurface's constructor), so a
++    // WebProcess that never composites never starts EGL.
++    if (!s_sharedDisplay) {
++        RELEASE_ASSERT(isMainThread());
++        s_sharedDisplay = PlatformDisplaySurfaceless::create().release();
++    }
++#endif
+     RELEASE_ASSERT(s_sharedDisplay);
+     return *s_sharedDisplay;
+ }

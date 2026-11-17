@@ -1,0 +1,16 @@
+--- a/PlatformEnablePlayStation.h
++++ b/PlatformEnablePlayStation.h
+@@ -39,6 +39,13 @@
+ #define ENABLE_LLINT_EMBEDDED_OPCODE_ID 0
+ #endif
+ 
++/* BrowserPS5 (docs/04-jit.md, J2): the JIT pool stays read+write+execute.
++   Switching its pages to read+write+execute only while JavaScriptCore
++   wrote code into them crashed the JIT threads (MPROTECT_RX_TO_RWX). */
++#if !defined(ENABLE_MPROTECT_RX_TO_RWX)
++#define ENABLE_MPROTECT_RX_TO_RWX 0
++#endif
++
+ #if !defined(ENABLE_OPENTYPE_MATH)
+ #define ENABLE_OPENTYPE_MATH 1
+ #endif

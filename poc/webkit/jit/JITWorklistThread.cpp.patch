@@ -1,0 +1,42 @@
+--- a/JITWorklistThread.cpp
++++ b/JITWorklistThread.cpp
+@@ -34,6 +34,11 @@
+ #include "VM.h"
+ #include <wtf/TZoneMallocInlines.h>
+ 
++#if PLATFORM(PLAYSTATION)
++#include <pthread.h>
++#include <stdlib.h>
++#endif
++
+ namespace JSC {
+ 
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(JITWorklistThread);
+@@ -173,6 +178,27 @@
+ 
+ void JITWorklistThread::threadDidStart()
+ {
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 (docs/04-jit.md, J2): payload threads are SCHED_FIFO 700, and a
++    // FIFO thread keeps its core until it blocks. With about 2 cores for the
++    // payloads, a long DFG compile at 700 can keep a core from the video
++    // decoder and the compositor (likely why YouTube got smooth ~2.7 s later
++    // with the JIT than without, 2026-11-04 20:23-20:38). The compiler
++    // threads run at BROWSERPS5_JIT_PRIORITY (750; 0: as created), like the
++    // Parallel workers (740): a larger number is a lower priority.
++    static const int priority = [] {
++        const char* value = getenv("BROWSERPS5_JIT_PRIORITY");
++        return value && *value ? atoi(value) : 750;
++    }();
++    if (priority > 0) {
++        int policy = 0;
++        struct sched_param param { };
++        if (!pthread_getschedparam(pthread_self(), &policy, &param)) {
++            param.sched_priority = priority;
++            pthread_setschedparam(pthread_self(), policy, &param);
++        }
++    }
++#endif
+     dataLogLnIf(Options::verboseCompilationQueue(), m_worklist, ": Thread started");
+ 
+ }

@@ -1,0 +1,118 @@
+--- a/GStreamerCommon.cpp
++++ b/GStreamerCommon.cpp
+@@ -489,7 +489,11 @@
+         int argc = parameters.size() + 1;
+         char** argv = g_new0(char*, argc + 1);
+         auto argvSpan = unsafeMakeSpan(argv, argc);
++#if USE(GLIB)
+         argvSpan[0] = gStrdup(FileSystem::currentExecutableName());
++#else
++        argvSpan[0] = g_strdup("WebProcess"); // BrowserPS5: the name is GLib's
++#endif
+         for (auto [arg, parameter] : zippedRange(argvSpan.subspan(1), parameters))
+             arg = gStrdup(parameter.utf8());
+ 
+@@ -532,6 +536,10 @@
+     return false;
+ }
+ 
++#if PLATFORM(PLAYSTATION)
++extern "C" gboolean browserps5_audio_sink_register(void);
++#endif
++
+ void registerWebKitGStreamerElements()
+ {
+     static std::once_flag onceFlag;
+@@ -576,6 +584,10 @@
+ #endif
+         // We don't want autoaudiosink to autoplug our sink.
+         gst_element_register(0, "webkitaudiosink", GST_RANK_NONE, WEBKIT_TYPE_AUDIO_SINK);
++#if PLATFORM(PLAYSTATION)
++        // BrowserPS5: but this one, the PS5's sound (poc/media/ps5audiosink).
++        browserps5_audio_sink_register();
++#endif
+ 
+         // Prevent decodebin2 from auto-plugging hlsdemux if it was disabled. UAs should be able
+         // to fallback to MSE when this happens.
+@@ -1117,10 +1129,35 @@
+ 
+     GRefPtr bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(pipeline)));
+     g_signal_handler_disconnect(bus.get(), handler);
++#if USE(GLIB_EVENT_LOOP)
+     gst_bus_remove_signal_watch(bus.get());
++#else
++    gst_bus_set_sync_handler(bus.get(), nullptr, nullptr, nullptr);
++#endif
+     g_object_set_qdata(G_OBJECT(pipeline), customMessageHandlerQuark(), nullptr);
+ }
+ 
++#if !USE(GLIB_EVENT_LOOP)
++// BrowserPS5: a signal watch is a GSource, and without GLib's event loop
++// nothing dispatches it. The same two signals, the GStreamer way: sync-message
++// here, on the thread that posts, and message on the main thread, through
++// RunLoop. The message is ours once the handler says GST_BUS_DROP.
++static GstBusSyncReply postBusMessageToMainThread(GstBus* bus, GstMessage* message, gpointer)
++{
++    // BrowserPS5: when it was posted (GStreamer's messages carry no time), so
++    // that a handler on the main thread can tell a message that waited there
++    // from one posted after what it did (MediaPlayerPrivateGStreamer.cpp.patch:
++    // the ASYNC_DONE of a preroll, after a seek).
++    if (!GST_CLOCK_TIME_IS_VALID(GST_MESSAGE_TIMESTAMP(message)))
++        GST_MESSAGE_TIMESTAMP(message) = gst_util_get_timestamp();
++    gst_bus_sync_signal_handler(bus, message, nullptr);
++    RunLoop::mainSingleton().dispatch([bus = GRefPtr<GstBus>(bus), message = adoptGRef(message)] {
++        gst_bus_async_signal_func(bus.get(), message.get(), nullptr);
++    });
++    return GST_BUS_DROP;
++}
++#endif
++
+ struct MessageBusData {
+     GThreadSafeWeakPtr<GstElement> pipeline;
+     Function<void(GstMessage*)> handler;
+@@ -1151,7 +1188,11 @@
+ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMessage*)>&& customHandler, AsynchronousPipelineDumping asynchronousPipelineDumping)
+ {
+     GRefPtr bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(pipeline)));
++#if USE(GLIB_EVENT_LOOP)
+     gst_bus_add_signal_watch_full(bus.get(), RunLoopSourcePriority::RunLoopDispatcher);
++#else
++    gst_bus_set_sync_handler(bus.get(), postBusMessageToMainThread, nullptr, nullptr);
++#endif
+ 
+     auto data = createMessageBusData();
+     data->pipeline.reset(pipeline);
+@@ -1244,10 +1285,12 @@
+             GST_DEBUG("Set media.role as %s on %" GST_PTR_FORMAT, role->utf8(), GST_ELEMENT_CAST(object));
+ IGNORE_WARNINGS_END
+         }
++#if USE(GLIB) // BrowserPS5: the application name is GLib's
+         if (g_object_class_find_property(objectClass, "client-name")) {
+             auto& clientName = getApplicationName();
+             g_object_set(object, "client-name", clientName.ascii().data(), nullptr);
+         }
++#endif
+     }), role.isolatedCopy().releaseImpl().leakRef(), static_cast<GClosureNotify>([](gpointer userData, GClosure*) {
+         if (auto* roleImpl = reinterpret_cast<StringImpl*>(userData))
+             roleImpl->deref();
+@@ -1303,6 +1346,20 @@
+     if (result == GST_STATE_CHANGE_FAILURE)
+         return false;
+ 
++#if !USE(GLIB_EVENT_LOOP)
++    // BrowserPS5 (2026-11-11): the bus's messages go to the main thread through
++    // RunLoop and are dropped from the bus (postBusMessageToMainThread()): there
++    // is nothing to pop here, and this is the main thread, the one they wait
++    // for. Web Audio's start (AudioDestinationGStreamer::startRendering) stood
++    // here for 37 s with its sound already playing. The state itself is waited
++    // for, five seconds at most.
++    UNUSED_PARAM(messageHandler);
++    if (result == GST_STATE_CHANGE_ASYNC) {
++        result = gst_element_get_state(pipeline, &currentState, nullptr, 5 * GST_SECOND);
++        return result != GST_STATE_CHANGE_FAILURE && currentState == targetState;
++    }
++    return true;
++#endif
+     if (result == GST_STATE_CHANGE_ASYNC) {
+         while (GRefPtr message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), GST_CLOCK_TIME_NONE, GST_MESSAGE_STATE_CHANGED))) {
+             if (!messageHandler(message.get()))

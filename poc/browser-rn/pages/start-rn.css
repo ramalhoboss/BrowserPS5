@@ -1,0 +1,323 @@
+/* ---- BrowserPS5 RN (2026-11-11): the start page as the PS5's home screen ----
+   Put at the end of start.html's style by ../build-rn.sh (v1's page stays as
+   it is). The favorites are the row of square tiles the home screen has for
+   the games: the one under the cursor grows inside a white rim, and under the
+   row its name and address show in large type, with a light in the site's
+   colour behind (start-rn.js). The clock goes to the top right, small, as the
+   system's; the search is a slim pill; the sites visited lately are cards. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .55;
+  background: radial-gradient(1250px 720px at 24% -8%, var(--rn-site, #2a5fd0), transparent 66%);
+}
+main { max-width: none; padding: 30px 96px 80px; }
+#hello { align-items: center; margin-bottom: 26px; }
+#greet {
+  font-size: 30px; font-weight: 500; letter-spacing: 0; color: var(--text);
+  background: none; -webkit-background-clip: border-box; -webkit-text-fill-color: currentColor;
+}
+#date { font-size: 20px; margin-top: 2px; letter-spacing: 0; text-transform: none; color: var(--text-2); }
+#date::after { display: none; }
+#clock {
+  font-size: 40px; font-weight: 400; letter-spacing: 0; color: var(--text); text-shadow: none;
+  background: none; -webkit-background-clip: border-box; -webkit-text-fill-color: currentColor;
+}
+#search { height: 66px; max-width: 780px; margin-bottom: 38px; }
+#search input { font-size: 24px; padding: 0 236px 0 70px; border-radius: 33px; background: rgba(255, 255, 255, .08); border-color: transparent; box-shadow: none; }
+#search input:hover { border-color: rgba(255, 255, 255, .5); }
+#search input:focus { border-color: #fff; box-shadow: var(--glow); }
+#search > .ic { left: 26px; top: 18px; width: 30px; height: 30px; color: var(--text-2); filter: none; }
+#engine { height: 46px; top: 10px; right: 10px; max-width: 216px; padding: 0 14px 0 20px; font-size: 19px; border-radius: 23px; background: rgba(255, 255, 255, .1); border-color: transparent; }
+#engines { margin: -18px 0 34px; }
+h2 { font-size: 19px; letter-spacing: .14em; margin-bottom: 18px; color: var(--text-2); }
+h2::after { display: none; }
+
+/* The row of tiles. */
+#grid { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 0; padding: 12px 0 6px 12px; }
+.tile, .tile:hover, .tile:focus {
+  width: 146px; height: 146px; padding: 0; border-radius: 26px; border: 0; background: none;
+  overflow: visible; align-items: center; justify-content: center; box-shadow: none;
+}
+.tile { transform: none; transition: transform .18s cubic-bezier(.2, .8, .2, 1); transform-origin: 50% 55%; }
+.tile::before, .tile::after { display: none; }
+.tile .avatar, .tile:hover .avatar, .tile:focus .avatar {
+  width: 146px; height: 146px; border-radius: 26px; font-size: 62px; margin: 0; transform: none;
+  box-shadow: 0 12px 26px rgba(0, 4, 20, .5); overflow: hidden;
+}
+.tile .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: #fff; }
+.tile .avatar img.small { inset: 29%; width: 42%; height: 42%; object-fit: contain; border-radius: 10px; background: none; image-rendering: auto; }
+.tile .name, .tile .host { display: none; }
+.tile:hover, .tile:focus { transform: scale(1.17); z-index: 2; }
+.tile:hover .avatar, .tile:focus .avatar { box-shadow: 0 0 0 4px #fff, 0 0 36px rgba(130, 180, 255, .7), 0 22px 40px rgba(0, 4, 20, .6); }
+.tile .remove { top: -12px; right: -12px; width: 44px; height: 44px; opacity: 0; background: var(--surface-3); color: var(--text); }
+.tile:hover .remove, .tile:focus .remove { opacity: .92; }
+body.editing .tile:not(.add) { border: 0; }
+body.editing .tile:not(.add) .avatar { box-shadow: 0 0 0 3px var(--bad); }
+body.editing .tile .remove { top: 41px; right: 41px; opacity: 1; }
+.tile.add, .tile.add:hover { border: 2px dashed var(--line-2); border-radius: 26px; background: rgba(255, 255, 255, .04); padding: 12px; gap: 0; }
+.tile.add .ic { width: 40px; height: 40px; margin-bottom: 6px; }
+.tile.add .host { display: block; font-size: 13px; line-height: 1.25; color: var(--text-3); }
+
+/* Under the row: the tile under the cursor, in large type. */
+#hub { min-height: 132px; margin: 30px 0 30px 12px; opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s; }
+#hub.on { opacity: 1; transform: none; }
+#hub .t { font-size: 54px; font-weight: 300; letter-spacing: -.5px; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 1300px; }
+#hub .u { font-size: 23px; color: var(--text-2); margin-top: 6px; display: flex; align-items: center; gap: 14px; }
+#hub .u kbd { font-size: 17px; }
+
+/* The sites visited lately: cards. */
+#recent { gap: 16px; padding-left: 12px; }
+.chip, .chip:hover, .chip:focus {
+  width: 318px; max-width: 318px; height: 92px; padding: 0 20px 0 16px; border-radius: 20px; gap: 16px; font-size: 21px;
+  background: rgba(255, 255, 255, .07); border: 2px solid transparent; box-shadow: none; transform: none;
+}
+.chip:hover, .chip:focus { border-color: #fff; background: rgba(255, 255, 255, .14); color: var(--text); box-shadow: 0 0 26px rgba(130, 180, 255, .45); }
+.chip .avatar { width: 56px; height: 56px; border-radius: 16px; font-size: 26px; flex: none; }
+.chip span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#recent-box h2 { margin-top: 6px; }
+#hints { padding-left: 12px; }
+
+/* The console's own services (start-rn.js, data.services): tiles that are
+   not favorites, so not there while the favorites are edited. */
+body.editing .tile.service { display: none; }
+.tile.service .host { opacity: .8; }
+
+/* 2026-11-14: "your game" (start-rn.js): the game open or played last, lit by its icon's colour (--g-rgb), and
+   one press to what a player looks for about it. */
+#games-box { margin: 10px 0 36px 12px; max-width: 1560px; }
+#games-box h2 { margin-bottom: 14px; }
+.g-card { display: flex; gap: 30px; align-items: center; padding: 24px 28px; border-radius: 30px;
+          background: linear-gradient(115deg, rgba(var(--g-rgb, 42, 95, 208), .38), rgba(var(--g-rgb, 42, 95, 208), .10) 55%, rgba(255, 255, 255, .04));
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), 0 24px 60px rgba(0, 4, 20, .35); }
+.g-card.pictured { background-size: cover; background-position: 50% 30%; }
+.g-cover { flex: 0 0 auto; width: 172px; height: 172px; border-radius: 28px; overflow: hidden; display: block; text-decoration: none;
+           background: rgba(var(--g-rgb, 42, 95, 208), .55); box-shadow: 0 18px 40px rgba(0, 4, 20, .5); transition: transform .18s; }
+.g-cover:hover, .g-cover:focus { transform: scale(1.06); box-shadow: 0 0 0 4px #fff, 0 0 36px rgba(var(--g-rgb, 130, 180, 255), .8); outline: none; }
+.g-pic { display: grid; place-items: center; width: 100%; height: 100%; font-size: 68px; font-weight: 300; color: #fff; }
+.g-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.g-info { min-width: 0; flex: 1; }
+.g-state { font-size: 18px; color: var(--text-2); display: flex; gap: 10px; align-items: center; text-transform: uppercase; letter-spacing: 1.2px; }
+.g-state .g-cup { margin-left: 8px; padding: 3px 14px 3px 10px; border-radius: 15px; background: rgba(255, 255, 255, .12); letter-spacing: .4px;
+                  display: inline-flex; align-items: center; gap: 7px; color: #ffd76a; }
+.g-state .g-cup svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.g-state .g-cup span { color: var(--text); }
+.g-state .dot { width: 10px; height: 10px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 12px #3ddc84; }
+.g-name { font-size: 42px; font-weight: 300; letter-spacing: -.3px; line-height: 1.15; margin: 4px 0 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.g-links { display: flex; flex-wrap: wrap; gap: 12px; }
+.g-chip { display: inline-flex; align-items: center; height: 48px; padding: 0 22px; border-radius: 24px; background: rgba(255, 255, 255, .09);
+        color: var(--text); font-size: 20px; text-decoration: none; transition: transform .15s, background .15s, color .15s; }
+.g-chip:hover, .g-chip:focus { background: #fff; color: #10131c; transform: scale(1.08); outline: none; }
+.g-others { display: flex; gap: 14px; margin: 18px 0 0 6px; align-items: center; }
+.g-others .lbl { font-size: 17px; color: var(--text-3); margin-right: 6px; }
+.g-other { width: 66px; height: 66px; border-radius: 15px; overflow: hidden; display: block; text-decoration: none; background: rgba(255, 255, 255, .08);
+           transition: transform .15s, box-shadow .15s; }
+.g-other .g-pic { font-size: 26px; }
+.g-other:hover, .g-other:focus, .g-other.on { transform: scale(1.12); box-shadow: 0 0 0 3px #fff; outline: none; }
+body.editing #games-box { display: none; }
+
+/* 2026-11-14: "for players" (start-rn.js): a row of shortcuts under the game. */
+#players-box { margin: 0 0 36px 12px; max-width: 1560px; }
+#players-box h2 { margin-bottom: 14px; }
+.p-links { display: flex; flex-wrap: wrap; gap: 12px; }
+body.editing #players-box { display: none; }
+
+/* 2026-11-15: the game's cheats panel (start-rn.js, cheatsPanel()): etaHEN's cheat files for it, over the page. */
+:is(#cheats-panel, #patches-panel) { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(4, 6, 14, .72); }
+:is(#cheats-panel, #patches-panel) .c-card { width: min(1100px, 86vw); max-height: 82vh; overflow: auto; padding: 34px 38px; border-radius: 30px;
+                        background: linear-gradient(140deg, rgba(var(--g-rgb, 42, 95, 208), .34), rgba(22, 26, 40, 0) 50%), #161a28;
+                        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10), 0 40px 90px rgba(0, 0, 0, .6); }
+:is(#cheats-panel, #patches-panel) h3 { font-size: 38px; font-weight: 300; margin: 0 0 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+:is(#cheats-panel, #patches-panel) h4 { font-size: 18px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); margin: 0 0 12px; }
+:is(#cheats-panel, #patches-panel) .c-list { display: flex; flex-direction: column; gap: 10px; font-size: 21px; color: var(--text-2); min-height: 60px; }
+:is(#cheats-panel, #patches-panel) .c-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 12px 10px 20px;
+                       border-radius: 20px; background: rgba(255, 255, 255, .06); color: var(--text); }
+:is(#cheats-panel, #patches-panel) .c-what b { margin-left: 14px; padding: 3px 12px; border-radius: 13px; background: #3ddc84; color: #06220f; font-size: 16px; font-weight: 600; }
+:is(#cheats-panel, #patches-panel) .c-how { font-size: 18px; line-height: 1.45; color: var(--text-3); margin: 18px 0 22px; }
+:is(#cheats-panel, #patches-panel) .c-foot { display: flex; gap: 12px; justify-content: space-between; }
+/* 2026-11-15: the game's patches panel (patchesPanel()): the same card, a switch a patch. */
+#patches-panel .c-what { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#patches-panel .p-name { font-size: 23px; }
+#patches-panel .p-note { font-size: 17px; line-height: 1.35; color: var(--text-3); }
+#patches-panel .p-other .c-what { opacity: .55; }
+/* (2026-11-16) etaHEN's patches plugin not found: a box over the switches */
+#patches-panel .c-how.p-warn { color: #f5b041; margin: 4px 0 10px; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid rgba(245, 176, 65, .45); background: rgba(245, 176, 65, .10); }
+#patches-panel .p-warn[hidden] { display: none; }
+#patches-panel .p-warn b { display: block; font-size: 21px; margin-bottom: 4px; }
+#patches-panel .p-warn p { margin: 0 0 6px; }
+#patches-panel .p-warn .p-steps { margin: 0 0 10px; padding-left: 26px; }
+#patches-panel .p-warn .p-steps li { margin: 3px 0; }
+#patches-panel .p-warn .g-chip { display: inline-flex; }
+#patches-panel .p-warn .g-chip[hidden], #patches-panel .p-warn .p-more[hidden] { display: none; }
+#patches-panel .p-warn .p-more { margin-top: 8px; }
+/* a switch pressed with no plugin: the box says it again */
+#patches-panel .p-warn.p-flash { animation: p-flash 1.2s ease-out; }
+@keyframes p-flash { 0%, 40% { background: rgba(245, 176, 65, .32); } 100% { background: rgba(245, 176, 65, .10); } }
+#patches-panel .p-switch { flex: none; min-width: 150px; justify-content: center; }
+#patches-panel .p-switch.on { background: #3ddc84; color: #06220f; }
+#patches-panel .p-switch.p-no { opacity: .4; }
+/* 2026-11-15: the game's own captures in its page (start-rn.js showShots(), shotView()). */
+#game-hub .h-shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 8px 0 4px; }
+#game-hub .h-shot { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; background: rgba(255, 255, 255, .07);
+                    transition: transform .12s; }
+#game-hub .h-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#game-hub .h-shot span { position: absolute; left: 10px; bottom: 8px; padding: 2px 9px; border-radius: 10px; background: rgba(0, 0, 0, .62); font-size: 15px; color: #fff; }
+#game-hub .h-shot.v::before { content: ''; position: absolute; left: 50%; top: 50%; margin: -22px 0 0 -14px; border-style: solid; border-width: 22px 0 22px 36px;
+                              border-color: transparent transparent transparent rgba(255, 255, 255, .9); }
+#game-hub .h-shot:hover, #game-hub .h-shot:focus { outline: 3px solid #fff; transform: scale(1.03); }
+#game-hub .h-more { align-self: center; justify-self: start; }
+#game-hub .h-hdr { font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--text-3); font-weight: 400; }
+#shot-view { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(0, 0, 0, .93); }
+#shot-view img, #shot-view video { max-width: 94vw; max-height: 82vh; border-radius: 14px; background: #000; }
+#shot-view .s-bar { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; gap: 14px; align-items: center; justify-content: center; }
+#shot-view .s-when { font-size: 18px; color: var(--text-2); min-width: 240px; text-align: center; }
+#shot-view .s-off { opacity: .35; pointer-events: none; }
+/* 2026-11-16: the box to paste a Discord webhook (bps5HookAsk()) */
+#shot-view .s-hook { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, 92vw); box-sizing: border-box;
+  padding: 26px 30px; border-radius: 18px; background: #1d1f24; box-shadow: 0 18px 60px rgba(0, 0, 0, .6);
+  display: flex; flex-direction: column; gap: 12px; }
+#shot-view .s-hook b { font-size: 24px; }
+#shot-view .s-hook p { margin: 0; font-size: 17px; line-height: 1.45; color: var(--text-2); }
+#shot-view .s-hook input { font: inherit; font-size: 18px; padding: 12px 14px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, .18);
+  background: rgba(0, 0, 0, .35); color: inherit; min-width: 0; }
+#shot-view .s-hook input:focus { border-color: #3b82f6; outline: none; }
+#shot-view .s-hook-row { display: flex; gap: 12px; flex-wrap: wrap; }
+#shot-view .s-hook-row button { font: inherit; cursor: pointer; }
+
+/* 2026-11-15: the game hub (start-rn.js, gameHub()): a page for the game over the start page. */
+#game-hub { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(4, 6, 14, .78); }
+#game-hub .h-card { width: min(1500px, 92vw); height: 86vh; overflow: auto; padding: 40px 46px; border-radius: 32px; background-color: #10131c;
+                    background-size: 100% auto; background-repeat: no-repeat; background-position: 50% 0;
+                    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10), 0 40px 90px rgba(0, 0, 0, .6); }
+#game-hub .h-head { display: flex; gap: 32px; align-items: center; margin-bottom: 30px; }
+#game-hub .h-cover { flex: 0 0 auto; width: 200px; height: 200px; border-radius: 30px; overflow: hidden; display: block;
+                     background: rgba(var(--g-rgb, 42, 95, 208), .55); box-shadow: 0 18px 40px rgba(0, 4, 20, .6); }
+#game-hub .h-info { min-width: 0; flex: 1; }
+#game-hub .h-name { font-size: 50px; font-weight: 300; letter-spacing: -.4px; line-height: 1.12; margin: 6px 0 18px; overflow: hidden;
+                    white-space: nowrap; text-overflow: ellipsis; }
+#game-hub .h-play { background: #fff; color: #10131c; font-weight: 600; padding: 0 30px; }
+#game-hub .h-close { margin-left: auto; }
+#game-hub h3 { font-size: 18px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); margin: 0 0 6px; }
+#game-hub h4 { font-size: 22px; font-weight: 400; color: var(--text); margin: 22px 0 10px; }
+#game-hub .t-list { display: flex; flex-direction: column; gap: 8px; }
+#game-hub .t-none { font-size: 21px; color: var(--text-2); padding: 14px 0; }
+#game-hub .t-row { display: flex; align-items: center; gap: 18px; padding: 12px 14px 12px 18px; border-radius: 20px; background: rgba(255, 255, 255, .06); }
+#game-hub .t-row.have { opacity: .55; }
+#game-hub .t-g { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: #b9773e; box-shadow: 0 0 0 3px rgba(255, 255, 255, .12); }
+#game-hub .t-g.g1 { background: #c9d2dc; }
+#game-hub .t-g.g2 { background: #f1c84b; }
+#game-hub .t-g.g3 { background: linear-gradient(135deg, #bfe9ff, #7fa8ff); }
+#game-hub .t-w { min-width: 0; flex: 1; }
+#game-hub .t-n { font-size: 22px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#game-hub .t-d { font-size: 17px; color: var(--text-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* 2026-11-16: "Your games", every game of the console (start-rn.js, gameLibrary()); a game's page opens over it. */
+.g-others .g-lib { margin-left: 10px; }
+#game-lib { position: fixed; inset: 0; z-index: 38; display: grid; place-items: center; background: rgba(4, 6, 14, .78); }
+#game-lib .l-card { width: min(1500px, 92vw); height: 86vh; display: flex; flex-direction: column; padding: 36px 46px 0; border-radius: 32px;
+                    background: #10131c; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10), 0 40px 90px rgba(0, 0, 0, .6); }
+#game-lib .l-title { font-size: 40px; font-weight: 300; margin: 0 0 18px; }
+#game-lib .l-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 22px; }
+#game-lib .l-tools .g-chip.on { background: rgba(255, 255, 255, .28); }
+#game-lib .l-tools .g-chip.on:focus { background: #fff; }
+#game-lib .l-gap { width: 18px; }
+#game-lib .l-find { height: 48px; width: 300px; padding: 0 20px; border-radius: 24px; border: 0; background: rgba(255, 255, 255, .09); color: var(--text);
+                    font: inherit; font-size: 20px; outline: none; }
+#game-lib .l-find:focus { box-shadow: 0 0 0 3px #fff; }
+#game-lib .l-close { margin-left: auto; }
+#game-lib .l-grid { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 26px 22px;
+                    align-content: start; padding: 8px 8px 36px; }
+#game-lib .l-game { position: relative; display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: var(--text); }
+#game-lib .l-game .g-pic { aspect-ratio: 1; height: auto; border-radius: 22px; overflow: hidden; background: rgba(255, 255, 255, .08); font-size: 60px;
+                           transition: transform .15s, box-shadow .15s; }
+#game-lib .l-game .g-pic { position: relative; }
+#game-lib .l-game .g-pic img { position: absolute; inset: 0; opacity: 0; transition: opacity .2s; }
+#game-lib .l-game .g-pic.in img { opacity: 1; }
+#game-lib .l-game:hover .g-pic, #game-lib .l-game:focus .g-pic { transform: scale(1.06); box-shadow: 0 0 0 4px #fff; }
+#game-lib .l-game:focus { outline: none; }
+#game-lib .l-name { font-size: 18px; line-height: 1.25; max-height: 2.5em; overflow: hidden; color: var(--text-2); }
+#game-lib .l-game:focus .l-name { color: var(--text); }
+#game-lib .l-open { position: absolute; top: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 12px #3ddc84; }
+#game-lib .t-none { font-size: 21px; color: var(--text-2); padding: 14px 0; }
+#game-lib .l-sum { font-size: 19px; color: var(--text-3); margin-left: 22px; letter-spacing: 0; text-transform: none; }
+#game-lib .l-bar { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, .55); overflow: hidden; z-index: 1; }
+#game-lib .l-bar span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4aa3ff, #7fa8ff); }
+#game-lib .l-bar.done span { background: linear-gradient(135deg, #bfe9ff, #7fa8ff); box-shadow: 0 0 10px #bfe9ff; }
+#game-lib .l-pct { font-size: 15px; color: var(--text-3); margin-top: -4px; }
+
+/* 2026-11-16: "Homebrew", the scene's tools and their newest versions (start-rn.js, the players' row). */
+#hb-panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(4, 6, 14, .78); }
+#hb-panel .hb-card { width: min(1300px, 90vw); max-height: 86vh; overflow: auto; padding: 36px 42px; border-radius: 32px;
+                     background: linear-gradient(150deg, rgba(126, 87, 255, .24), rgba(22, 26, 40, 0) 55%), #141826;
+                     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10), 0 40px 90px rgba(0, 0, 0, .6); }
+#hb-panel .hb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+#hb-panel h3 { font-size: 40px; font-weight: 300; margin: 0; }
+#hb-panel .hb-right { display: flex; align-items: center; gap: 12px; }
+#hb-panel .hb-when { font-size: 17px; color: var(--text-3); margin-right: 6px; }
+#hb-panel .hb-how { font-size: 18px; color: var(--text-2); margin-bottom: 22px; }
+#hb-panel .hb-body { display: flex; flex-direction: column; gap: 14px; }
+#hb-panel .hb-none { font-size: 21px; color: var(--text-2); padding: 14px 0; }
+#hb-panel .hb-item { padding: 20px 24px; border-radius: 24px; background: rgba(255, 255, 255, .06); }
+#hb-panel .hb-top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+#hb-panel .hb-name { font-size: 30px; font-weight: 400; }
+#hb-panel .hb-tag { font-size: 22px; color: #b9a6ff; font-weight: 600; }
+#hb-panel .hb-date { font-size: 18px; color: var(--text-3); }
+#hb-panel .hb-new { font-size: 15px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #10131c; background: #7fe3a8;
+                    padding: 3px 10px; border-radius: 10px; }
+#hb-panel .hb-what { font-size: 19px; color: var(--text-2); margin: 6px 0 14px; }
+#hb-panel .hb-on { font-size: 16px; color: #7fe3a8; padding: 3px 12px; border-radius: 10px; background: rgba(127, 227, 168, .12); }
+#hb-panel .hb-go { background: #7fe3a8; color: #10131c; font-weight: 600; }
+#hb-panel .hb-use { font-size: 17px; color: var(--text-2); margin-top: 12px; }
+#hb-panel .hb-links { display: flex; gap: 12px; flex-wrap: wrap; }
+#hb-panel .hb-notes { white-space: pre-line; font-size: 17px; line-height: 1.45; color: var(--text-2); margin-top: 14px; padding: 14px 18px;
+                      border-radius: 16px; background: rgba(0, 0, 0, .25); max-height: 320px; overflow: auto; }
+#hb-panel .hb-files { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+#hb-panel .hb-fl { font-size: 15px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); margin-right: 4px; }
+#hb-panel .hb-file { font-size: 17px; color: var(--text); text-decoration: none; padding: 6px 14px; border-radius: 14px; background: rgba(255, 255, 255, .08); }
+#hb-panel .hb-file.elf { background: rgba(127, 227, 168, .16); color: #b8f5cf; }
+#hb-panel .hb-file:hover, #hb-panel .hb-file:focus { background: #fff; color: #10131c; outline: none; }
+
+/* 2026-11-15: the console health panel (start-rn.js, bps5Health()). */
+#health-panel { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(4, 6, 14, .78); }
+#health-panel .hl-card { width: min(1300px, 90vw); max-height: 86vh; overflow: auto; padding: 36px 42px; border-radius: 32px;
+                         background: linear-gradient(150deg, rgba(42, 95, 208, .26), rgba(22, 26, 40, 0) 55%), #141826;
+                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10), 0 40px 90px rgba(0, 0, 0, .6); }
+#health-panel .hl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+#health-panel h3 { font-size: 40px; font-weight: 300; margin: 0; }
+#health-panel h4 { font-size: 18px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); margin: 28px 0 12px; }
+#health-panel .hl-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+#health-panel .hl-tile { padding: 20px 24px; border-radius: 24px; background: rgba(255, 255, 255, .06); min-height: 132px; }
+#health-panel .hl-l { font-size: 17px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-2); }
+#health-panel .hl-v { font-size: 46px; font-weight: 300; line-height: 1.15; margin: 6px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#health-panel .hl-n { font-size: 17px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#health-panel .hl-tile.cool .hl-v { color: #7fe3a8; }
+#health-panel .hl-tile.warm .hl-v { color: #ffd76a; }
+#health-panel .hl-tile.hot .hl-v { color: #ff8a7a; }
+#health-panel .hl-disks { display: flex; flex-direction: column; gap: 12px; }
+#health-panel .hl-disk { display: grid; grid-template-columns: 180px 1fr 330px; gap: 18px; align-items: center; font-size: 19px; }
+#health-panel .hl-p { color: var(--text); }
+#health-panel .hl-s { color: var(--text-2); text-align: right; }
+#health-panel .hl-bar { height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .10); overflow: hidden; }
+#health-panel .hl-bar span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #4aa3ff, #7fe3a8); }
+
+/* 2026-11-15: the game's picture behind the start page; the hub's notes and trophies' sum; the network test. */
+#game-bg { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .17; background-size: cover; background-position: 50% 20%;
+           -webkit-mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, .55) 45%, transparent 92%);
+           mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, .55) 45%, transparent 92%); }
+#game-hub h3 { display: flex; align-items: center; gap: 16px; margin-top: 26px; }
+#game-hub .h-kept { font-size: 15px; letter-spacing: 0; text-transform: none; color: #7fe3a8; font-weight: 400; }
+#game-hub .h-notes { display: block; width: 100%; box-sizing: border-box; margin: 4px 0 6px; padding: 14px 18px; border-radius: 18px; border: 0;
+                     background: rgba(255, 255, 255, .07); color: var(--text); font: inherit; font-size: 20px; line-height: 1.4; resize: none; }
+#game-hub .h-notes:focus { outline: none; box-shadow: 0 0 0 3px #fff; }
+#game-hub .h-pins { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 6px; }
+#game-hub .h-pin-row { display: flex; align-items: center; gap: 12px; }
+#game-hub .h-pin { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 12px 18px; border-radius: 16px;
+                   background: rgba(255, 255, 255, .07); color: var(--text); text-decoration: none; }
+#game-hub .h-pin b { font-size: 20px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#game-hub .h-pin span { font-size: 15px; color: var(--text-3); }
+#game-hub .h-pin:focus { outline: none; box-shadow: 0 0 0 3px #fff; background: rgba(255, 255, 255, .14); }
+#game-hub .h-pins-none { font-size: 17px; color: var(--text-3); padding: 4px 2px; }
+#game-hub .h-sum { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; letter-spacing: .4px; text-transform: none; color: var(--text); font-weight: 400; }
+#game-hub .h-sum .h-pct { padding: 2px 12px; border-radius: 13px; background: rgba(255, 255, 255, .12); color: #ffd76a; }
+#game-hub .h-sum .t-g { width: 13px; height: 13px; margin-left: 8px; }
+#health-panel .hl-right { display: flex; align-items: center; gap: 14px; }
+#health-panel .hl-result { font-size: 19px; color: var(--text-2); }

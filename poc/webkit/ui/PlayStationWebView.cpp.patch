@@ -1,0 +1,46 @@
+--- a/Source/WebKit/UIProcess/playstation/PlayStationWebView.cpp
++++ b/Source/WebKit/UIProcess/playstation/PlayStationWebView.cpp
+@@ -94,7 +94,14 @@
+ 
+ void PlayStationWebView::setViewSize(WebCore::IntSize viewSize)
+ {
++    if (m_viewSize == viewSize)
++        return;
+     m_viewSize = viewSize;
++    // BrowserPS5 (2026-11-09): the page is told, as GTK's and WPE's views do.
++    // Without it a page kept the size it was made with: the bar's hiding for
++    // a site's full screen left the page 928 rows high in a 1080 screen.
++    if (RefPtr drawingArea = m_page ? m_page->drawingArea() : nullptr)
++        drawingArea->setSize(viewSize);
+ }
+ 
+ void PlayStationWebView::setViewState(OptionSet<WebCore::ActivityState> flags)
+@@ -139,16 +146,24 @@
+ 
+ void PlayStationWebView::enterFullScreen(CompletionHandler<void(bool)>&& completionHandler)
+ {
+-    if (m_client && !isFullScreen())
+-        m_client->enterFullScreen(*this, WTF::move(completionHandler));
+-    else
+-        completionHandler(false);
++    if (!m_client || isFullScreen())
++        return completionHandler(false);
++    // BrowserPS5 (2026-11-09): nothing calls willEnterFullScreen() in this
++    // port, so the view never counted itself in full screen: the exit never
++    // reached the app (its bar stayed hidden) and requestExitFullScreen()
++    // did nothing. It counts once the app took the full screen.
++    m_client->enterFullScreen(*this, [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)] (bool success) mutable {
++        if (success)
++            m_isFullScreen = true;
++        completionHandler(success);
++    });
+ }
+ 
+ void PlayStationWebView::exitFullScreen(CompletionHandler<void()>&& completionHandler)
+ {
+     if (m_client && isFullScreen())
+         m_client->exitFullScreen(*this);
++    m_isFullScreen = false;
+     completionHandler();
+ }
+ 

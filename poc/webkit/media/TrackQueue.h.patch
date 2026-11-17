@@ -1,0 +1,23 @@
+--- a/Source/WebCore/platform/graphics/gstreamer/mse/TrackQueue.h
++++ b/Source/WebCore/platform/graphics/gstreamer/mse/TrackQueue.h
+@@ -73,8 +73,20 @@
+     // high water level is reached, then it becomes false until the queue drains down to the low water level
+     // and the cycle repeats. This way we avoid stalls and minimize context switches.
+ 
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5: the WebProcess has ~2 cores while the title is in front, and
++    // its main thread is often busy for longer than 200 ms (a page scrolled
++    // under a playing video: YouTube's scroll handlers, layout, painting).
++    // With 0.1-0.2 s here the pipeline ran dry and the video stopped while
++    // scrolling (TV test 2026-11-05 12:30). 2 s ahead, refilled at 1.5 s,
++    // covers those stalls; a quality switch that re-appends frames already
++    // here costs a flush, as upstream says, a little more often.
++    static const GstClockTime s_durationEnqueuedHighWaterLevel = 2000 * GST_MSECOND;
++    static const GstClockTime s_durationEnqueuedLowWaterLevel = 1500 * GST_MSECOND;
++#else
+     static const GstClockTime s_durationEnqueuedHighWaterLevel = 200 * GST_MSECOND;
+     static const GstClockTime s_durationEnqueuedLowWaterLevel = 100 * GST_MSECOND;
++#endif
+ 
+     GstClockTime durationEnqueued() const;
+     void checkLowLevel();

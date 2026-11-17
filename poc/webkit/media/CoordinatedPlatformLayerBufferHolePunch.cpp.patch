@@ -1,0 +1,25 @@
+diff --git a/Source/WebCore/platform/graphics/coordinated/CoordinatedPlatformLayerBufferHolePunch.cpp b/Source/WebCore/platform/graphics/coordinated/CoordinatedPlatformLayerBufferHolePunch.cpp
+index 30f09fc8c..d4131ad08 100644
+--- a/Source/WebCore/platform/graphics/coordinated/CoordinatedPlatformLayerBufferHolePunch.cpp
++++ b/Source/WebCore/platform/graphics/coordinated/CoordinatedPlatformLayerBufferHolePunch.cpp
+@@ -85,10 +85,18 @@ void CoordinatedPlatformLayerBufferHolePunch::setHolePunchVideoRectangle(const I
+ #if USE(TEXTURE_MAPPER)
+ void CoordinatedPlatformLayerBufferHolePunch::paintToTextureMapper(TextureMapper& textureMapper, const FloatRect& targetRect, const TransformationMatrix& modelViewMatrix, float)
+ {
++    // BrowserPS5 (2026-11-14): the place in the page, not in the target. Painted into an intermediate
++    // surface, the matrix has the surface's offset in it: the sink (and with it the title that shows the
++    // video) was told a place moved by that much, every time an element with a backdrop-filter was over
++    // the video (subtitles, the seek bar's label) or one with a filter, a mask or an opacity around it.
++    // A backdrop paints the scene a second time for its picture: the place is the first time's.
++    auto place = enclosingIntRect(modelViewMatrix.mapRect(targetRect));
++    place.move(-textureMapper.holePunchOffset());
+ #if USE(GSTREAMER)
+-    if (m_videoSink && m_quirksManager)
+-        setHolePunchVideoRectangle(enclosingIntRect(modelViewMatrix.mapRect(targetRect)));
++    if (m_videoSink && m_quirksManager && !textureMapper.holePunchIsBackdrop())
++        setHolePunchVideoRectangle(place);
+ #endif
++    textureMapper.noteHolePunch(place);
+     textureMapper.drawSolidColor(targetRect, modelViewMatrix, Color::transparentBlack, false);
+ }
+ #endif

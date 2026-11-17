@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The page of favorites, opened by ⌂ and "Todos os favoritos" in the bar. The
+app writes it to DATA_DIR/favorites.html with the list in place of the
+mark in the script below (a JSON string, escaped for it) whenever the favorites
+change, and opens it as a file (main.cpp, FAVORITES_URL), so that back and
+forward find it again. Each tile is a link; its ✕ asks the app, with a
+navigation to browserps5:remove?<url> that the app takes only from this page,
+to take it out (the bar keeps the list). -->
+<html><head><meta charset="utf-8"><title>Favoritos</title><style>
+:root {
+  --bg: #1b1f24; --fg: #e8eaed; --tile: #2b3138; --hover: #3a424b;
+  --accent: #4c8dff; --dim: #8a929b;
+}
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body { font: 28px "DejaVu Sans", sans-serif; }
+main { padding: 56px 96px 96px; }
+h1 { margin: 0 0 40px; font-size: 44px; font-weight: normal; }
+#grid { display: grid; grid-template-columns: repeat(auto-fill, 320px); gap: 32px; }
+.tile {
+  position: relative; display: flex; flex-direction: column; gap: 14px;
+  box-sizing: border-box; height: 240px; padding: 32px 28px;
+  border-radius: 20px; background: var(--tile); color: inherit;
+  text-decoration: none; outline: none;
+}
+.tile:hover, .tile:focus { background: var(--hover); box-shadow: inset 0 0 0 4px var(--accent); }
+.letter {
+  width: 84px; height: 84px; border-radius: 42px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44px; font-weight: bold; color: #fff;
+}
+.name, .host { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.host { color: var(--dim); font-size: 22px; }
+.remove {
+  position: absolute; top: 14px; right: 14px; width: 52px; height: 52px;
+  border: 0; border-radius: 26px; background: transparent; color: var(--dim);
+  font: 28px "DejaVu Sans";
+}
+.remove:hover { background: #5a2a2a; color: #fff; }
+#empty { color: var(--dim); max-width: 1200px; line-height: 1.5; }
+</style></head><body>
+<main>
+  <h1>Favoritos</h1>
+  <div id="grid"></div>
+  <p id="empty" hidden>Ainda não há favoritos. Abre uma página e carrega em
+    &#x2606; na barra, ao lado do endereço, para a guardar aqui.</p>
+</main>
+<script>
+var list = [];
+try {
+  list = JSON.parse("@FAVORITES@");
+} catch (e) {
+}
+if (!Array.isArray(list))
+  list = [];
+
+function host(url) {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch (e) {
+    return url;
+  }
+}
+
+function color(text) {
+  var h = 0;
+  for (var i = 0; i < text.length; i++)
+    h = (h * 31 + text.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ', 45%, 42%)';
+}
+
+function show() {
+  var grid = document.getElementById('grid');
+  grid.textContent = '';
+  document.getElementById('empty').hidden = list.length > 0;
+  list.forEach(function (f, i) {
+    if (!f || typeof f.url !== 'string' || !/^https?:/.test(f.url))
+      return;
+    var name = host(f.url);
+    var a = document.createElement('a');
+    a.className = 'tile';
+    a.href = f.url;
+    var letter = document.createElement('div');
+    letter.className = 'letter';
+    letter.style.background = color(name);
+    letter.textContent = (name[0] || '?').toUpperCase();
+    var title = document.createElement('div');
+    title.className = 'name';
+    title.textContent = f.title || name;
+    var where = document.createElement('div');
+    where.className = 'host';
+    where.textContent = name;
+    var remove = document.createElement('button');
+    remove.className = 'remove';
+    remove.title = 'Tirar dos favoritos';
+    remove.innerHTML = '&#x2715;';
+    remove.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      list.splice(list.indexOf(f), 1);
+      show();
+      location.href = 'browserps5:remove?' + encodeURIComponent(f.url);
+    };
+    a.append(letter, title, where, remove);
+    grid.appendChild(a);
+  });
+}
+
+show();
+</script></body></html>

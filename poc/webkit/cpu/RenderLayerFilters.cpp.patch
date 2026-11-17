@@ -1,0 +1,91 @@
+--- a/RenderLayerFilters.cpp
++++ b/RenderLayerFilters.cpp
+@@ -46,10 +46,72 @@
+ #include <wtf/NeverDestroyed.h>
+ #include <wtf/TZoneMallocInlines.h>
+ 
++#if PLATFORM(PLAYSTATION)
++#include "ElementInlines.h"
++#include "HTMLNames.h"
++#include <stdlib.h>
++#include <wtf/MonotonicTime.h>
++#include <wtf/text/StringBuilder.h>
++#include <wtf/text/StringConcatenateNumbers.h>
++#endif
++
+ namespace WebCore {
+ 
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderLayerFilters);
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5: with BROWSERPS5_FILTER_LOG=1 (env.txt), once a second, how many
++// CSS filters were drawn in software, the time that took and the last
++// element, to see what kept the WebProcess's two cores busy while a YouTube
++// video stood still (docs/03-video-e-gpu.md, 2026-11-04 17:37).
++static bool browserps5LayerFilterLogOn()
++{
++    static const bool on = [] {
++        const char* value = getenv("BROWSERPS5_FILTER_LOG");
++        return value && *value && *value != '0';
++    }();
++    return on;
++}
++
++static void browserps5LayerFilterLog(RenderLayer* layer, const LayoutRect& rect, double ms)
++{
++    static MonotonicTime windowStart = MonotonicTime::now();
++    static unsigned count;
++    static double totalMs;
++    static double longestMs;
++    static NeverDestroyed<UTF8CString> last;
++
++    count++;
++    totalMs += ms;
++    longestMs = std::max(longestMs, ms);
++    StringBuilder what;
++    if (layer) {
++        if (RefPtr element = layer->renderer().element()) {
++            what.append(element->tagName());
++            auto& id = element->getAttribute(HTMLNames::idAttr);
++            if (!id.isEmpty())
++                what.append('#', id);
++            auto& classes = element->getAttribute(HTMLNames::classAttr);
++            if (!classes.isEmpty())
++                what.append(" class=\""_s, classes, '"');
++        } else
++            what.append(layer->renderer().renderName());
++    }
++    auto size = snappedIntRect(rect).size();
++    what.append(' ', size.width(), 'x', size.height());
++    last.get() = what.toString().utf8();
++
++    auto now = MonotonicTime::now();
++    if (now - windowStart < 1_s)
++        return;
++    WTFLogAlways("BrowserPS5: %u CSS filter(s) drawn in software in %.0f ms, taking %.1f ms (%.1f ms the longest); the last: %s",
++        count, (now - windowStart).milliseconds(), totalMs, longestMs, reinterpret_cast<const char*>(last.get().data()));
++    windowStart = now;
++    count = 0;
++    totalMs = longestMs = 0;
++}
++#endif
++
+ Ref<RenderLayerFilters> RenderLayerFilters::create(RenderLayer& layer, FloatSize scale)
+ {
+     return adoptRef(*new RenderLayerFilters(layer, scale));
+@@ -295,7 +357,15 @@
+     }
+ #endif
+ 
++#if PLATFORM(PLAYSTATION)
++    const bool log = browserps5LayerFilterLogOn();
++    const auto start = log ? MonotonicTime::now() : MonotonicTime();
++#endif
+     m_targetSwitcher->endClipAndDrawSourceImage(destinationContext, colorSpace);
++#if PLATFORM(PLAYSTATION)
++    if (log)
++        browserps5LayerFilterLog(m_layer.get(), m_repaintRect, (MonotonicTime::now() - start).milliseconds());
++#endif
+ 
+     LOG_WITH_STREAM(Filters, stream << "RenderLayerFilters " << this << " applyFilterEffect done\n");
+ }

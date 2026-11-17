@@ -1,0 +1,75 @@
+BrowserPS5: zink on the PS5 without a DRM device, from a payload.
+
+Applied after pacbrew-repo's Mesa 26.2.0 patches (build.sh).
+
+1. EGL's surfaceless platform starts zink without a DRM device. Upstream
+   only does that for swrast, after LIBGL_ALWAYS_SOFTWARE, and zink then
+   insists on a CPU Vulkan device (choose_pdev), so on a console with no
+   DRM device and RADV as its Vulkan driver zink was never tried.
+2. Mesa's threads ask for 2 MiB of stack on the PS5: zink's threads compile
+   shaders with RADV's ACO, whose own threads PS5_Vulkan's platform gives
+   2 MiB (PS5_THREAD_STACK_BYTES); with no attributes a thread gets the
+   system's default.
+3. zink keeps its descriptors in descriptor sets on the PS5 (the "lazy"
+   mode), not in descriptor buffers: through the GPU broker a draw read
+   nothing from those (2026-11-04, probe.c: a uniform and a sampled texture
+   came out zero; with ZINK_DESCRIPTORS=lazy all 8 probes passed, and
+   ZINK_DEBUG=sync,flushsync, noshobj or GALLIUM_THREAD=0 changed nothing).
+
+--- a/src/c11/impl/threads_posix.c
++++ b/src/c11/impl/threads_posix.c
+@@ -252,7 +252,23 @@
+     if (!pack) return thrd_nomem;
+     pack->func = func;
+     pack->arg = arg;
++#ifdef __PROSPERO__
++    /* The stack the main thread has, for every Mesa thread on the PS5: zink's
++     * threads compile shaders with the Vulkan driver (RADV's ACO), whose own
++     * threads PS5_Vulkan's platform gives 2 MiB (PS5_THREAD_STACK_BYTES). */
++    pthread_attr_t attr;
++    int created;
++    if (pthread_attr_init(&attr) != 0) {
++        free(pack);
++        return thrd_error;
++    }
++    pthread_attr_setstacksize(&attr, (size_t)2 << 20);
++    created = pthread_create(thr, &attr, impl_thrd_routine, pack);
++    pthread_attr_destroy(&attr);
++    if (created != 0) {
++#else
+     if (pthread_create(thr, NULL, impl_thrd_routine, pack) != 0) {
++#endif
+         free(pack);
+         return thrd_error;
+     }
+--- a/src/egl/drivers/dri2/platform_surfaceless.c
++++ b/src/egl/drivers/dri2/platform_surfaceless.c
+@@ -389,7 +389,10 @@
+     */
+    driver_loaded = surfaceless_probe_device(disp, disp->Options.ForceSoftware,
+                                             disp->Options.Zink);
+-   if (!driver_loaded && disp->Options.ForceSoftware) {
++   /* zink needs no DRM device either (the PS5 has none): asked for and with
++    * no device found, it starts without one, through kopper, as swrast does.
++    */
++   if (!driver_loaded && (disp->Options.ForceSoftware || disp->Options.Zink)) {
+       _eglLog(_EGL_DEBUG, "Falling back to surfaceless swrast without DRM.");
+       driver_loaded = surfaceless_probe_device_sw(disp);
+    }
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -3793,7 +3793,14 @@
+          zink_descriptor_mode = ZINK_DESCRIPTOR_MODE_LAZY;
+ 	 break;
+       default:
++#ifdef __PROSPERO__
++         /* Through the PS5's GPU broker, draws read nothing from descriptor
++          * buffers: a uniform and a sampled texture came out zero, and every
++          * probe passed with descriptor sets (poc/gl_zink/probe.c). */
++         zink_descriptor_mode = ZINK_DESCRIPTOR_MODE_LAZY;
++#else
+          zink_descriptor_mode = can_db ? ZINK_DESCRIPTOR_MODE_DB : ZINK_DESCRIPTOR_MODE_LAZY;
++#endif
+       }
+    }
+    if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {

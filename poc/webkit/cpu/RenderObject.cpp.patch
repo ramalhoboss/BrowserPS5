@@ -1,0 +1,54 @@
+--- a/RenderObject.cpp
++++ b/RenderObject.cpp
+@@ -26,6 +26,8 @@
+ 
+ #include "config.h"
+ #include "RenderObject.h"
++#include <pthread.h>
++#include <wtf/MonotonicTime.h>
+ 
+ #include "AXObjectCache.h"
+ #include "AXUtilities.h"
+@@ -577,9 +579,42 @@ void RenderObject::scheduleLayout(RenderElement* layoutRoot)
+         protect(layoutRoot->view().frameView().layoutContext())->scheduleSubtreeLayout(*layoutRoot);
+ }
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5 RN (2026-11-11): BROWSERPS5_PAINT_STATS=1, who asks for a
++// layout once the page has been there for 14 s (a scroll that lays the
++// page's grid out again at every step): the renderer and the page thread's
++// stack (crash-report.c), a few times a run.
++extern "C" void browserps5_dump_thread(pthread_t) __attribute__((weak));
++
++static void browserPS5NoteLayoutAsked(const RenderObject& renderer)
++{
++    static const bool enabled = [] {
++        const char* value = getenv("BROWSERPS5_PAINT_STATS");
++        return value && *value == '1';
++    }();
++    if (!enabled)
++        return;
++    static MonotonicTime first = MonotonicTime::now();
++    static unsigned calls;
++    static unsigned dumps;
++    if (MonotonicTime::now() - first < 14_s)
++        return;
++    ++calls;
++    if (calls % 25 != 5 || dumps >= 14)
++        return;
++    ++dumps;
++    WTFLogAlways("BrowserPS5 layout: asked (call %u) by %s", calls, renderer.debugDescription().utf8().data());
++    if (browserps5_dump_thread)
++        browserps5_dump_thread(pthread_self());
++}
++#endif
++
+ RenderElement* RenderObject::markContainingBlocksForLayout(RenderElement* layoutRoot)
+ {
+     ASSERT(!isSetNeedsLayoutForbidden());
++#if PLATFORM(PLAYSTATION)
++    browserPS5NoteLayoutAsked(*this);
++#endif
+     if (is<RenderView>(*this))
+         return downcast<RenderElement>(this);
+ 

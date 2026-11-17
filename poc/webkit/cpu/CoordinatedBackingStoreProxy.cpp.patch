@@ -1,0 +1,101 @@
+--- a/CoordinatedBackingStoreProxy.cpp
++++ b/CoordinatedBackingStoreProxy.cpp
+@@ -34,6 +34,13 @@
+ #include <wtf/SystemTracing.h>
+ #include <wtf/TZoneMallocInlines.h>
+ #include <wtf/text/StringToIntegerConversion.h>
++#if PLATFORM(PLAYSTATION)
++#include <wtf/HashMap.h>
++#include <wtf/MonotonicTime.h>
++#include <wtf/text/CString.h>
++#include <wtf/text/StringBuilder.h>
++#include <wtf/text/StringHash.h>
++#endif
+ 
+ #if USE(SKIA)
+ #include "SkiaRecordingResult.h"
+@@ -43,6 +50,59 @@ namespace WebCore {
+ 
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(CoordinatedBackingStoreProxy);
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5 RN (2026-11-11): BROWSERPS5_PAINT_STATS=1 (web-env.txt, env.txt)
++// writes once a second what the page thread painted into the layers' tiles:
++// how many tiles were made, and for the layers that took the most pixels
++// their name, the tiles painted and the pixels. A scroll of Wikipedia's
++// article ran at 29 frames a second with the page thread painting in every
++// stack, against 59 with the side columns and the headers not shown.
++static void browserPS5PaintStats(const String& layerName, unsigned tilesPainted, uint64_t pixels, unsigned tilesCreated)
++{
++    static const bool enabled = [] {
++        const char* value = getenv("BROWSERPS5_PAINT_STATS");
++        return value && *value == '1';
++    }();
++    if (!enabled)
++        return;
++
++    struct Entry {
++        unsigned updates { 0 };
++        unsigned tiles { 0 };
++        uint64_t pixels { 0 };
++    };
++    static NeverDestroyed<HashMap<String, Entry>> byLayer;
++    static unsigned created;
++    static MonotonicTime last = MonotonicTime::now();
++
++    created += tilesCreated;
++    if (tilesPainted) {
++        auto& entry = byLayer.get().add(layerName.isEmpty() ? String("(no name)"_s) : layerName, Entry { }).iterator->value;
++        entry.updates++;
++        entry.tiles += tilesPainted;
++        entry.pixels += pixels;
++    }
++    auto now = MonotonicTime::now();
++    if (now - last < 1_s)
++        return;
++    last = now;
++
++    Vector<std::pair<String, Entry>> entries;
++    uint64_t total = 0;
++    for (auto& item : byLayer.get()) {
++        entries.append({ item.key, item.value });
++        total += item.value.pixels;
++    }
++    std::ranges::sort(entries, [](auto& a, auto& b) { return a.second.pixels > b.second.pixels; });
++    StringBuilder text;
++    for (size_t i = 0; i < entries.size() && i < 6; ++i)
++        text.append(" | "_s, entries[i].first.left(48), ": "_s, entries[i].second.updates, " updates, "_s, entries[i].second.tiles, " tiles, "_s, entries[i].second.pixels / 1000, " kpx"_s);
++    WTFLogAlways("BrowserPS5 paint: %u tiles made, %zu layers painted, %llu kpx in all%s", created, entries.size(), static_cast<unsigned long long>(total / 1000), text.toString().utf8().data());
++    byLayer.get().clear();
++    created = 0;
++}
++#endif
++
+ static uint32_t generateTileID()
+ {
+     static uint32_t id = 0;
+@@ -170,6 +230,9 @@ OptionSet<CoordinatedBackingStoreProxy::UpdateResult> CoordinatedBackingStorePro
+ 
+     IntRect tileDirtyRectUnion;
+     unsigned dirtyTilesCount = 0;
++#if PLATFORM(PLAYSTATION)
++    uint64_t dirtyPixels = 0;
++#endif
+     for (auto& tile : m_tiles.values()) {
+ #if USE(SKIA)
+         tile.activeBuffers.removeAllMatching([&](auto& buffer) {
+@@ -181,8 +244,14 @@ OptionSet<CoordinatedBackingStoreProxy::UpdateResult> CoordinatedBackingStorePro
+         if (tile.isDirty()) {
+             tileDirtyRectUnion.unite(tile.dirtyRect);
+             ++dirtyTilesCount;
++#if PLATFORM(PLAYSTATION)
++            dirtyPixels += static_cast<uint64_t>(tile.dirtyRect.width()) * tile.dirtyRect.height();
++#endif
+         }
+     }
++#if PLATFORM(PLAYSTATION)
++    browserPS5PaintStats(layer.owner()->name(), dirtyTilesCount, dirtyPixels, tilesToCreate.size());
++#endif
+ 
+     Vector<Update::TileUpdate> tilesToUpdate;
+     if (dirtyTilesCount) {

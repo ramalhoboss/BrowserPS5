@@ -1,0 +1,221 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The browser's menu (⋮ in the bar), a page of its own drawn by WebKit in a
+panel of MENU_WIDTH x MENU_HEIGHT over the top right of the page (main.cpp;
+the app gives it its rounded corners and its shadow). The app calls
+show(state) each time it opens, with the theme, the zoom and the switches;
+the commands go to the app as navigations to browserps5:<command>?<argument>,
+as the bar's do, and most close the menu. Circle closes it too. -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+html, body { height: 100%; background: var(--surface); }
+body { font-size: 24px; }
+#menu { padding: 14px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+#quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; padding: 0 2px 6px; }
+.tile {
+  height: 104px; border-radius: 18px; background: var(--surface-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; font-size: 18px; color: var(--text-2); transition: background .12s, color .12s;
+}
+.tile .ic { color: var(--accent); }
+/* BrowserPS5 RN only (its theme-rn.css shows them): find in the page, the
+   reading mode, the translation, the page's QR code for the phone and a
+   private tab (2026-11-11). */
+.tile[data-rn] { display: none; }
+.row[data-rn] { display: none; }
+#qr {
+  display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: 5; padding: 26px 30px;
+  background: var(--surface); flex-direction: column; align-items: center; gap: 18px; text-align: center;
+}
+#qr.on { display: flex; }
+#qr h3 { font-size: 26px; font-weight: 600; color: var(--text); margin: 8px 0 0; }
+#qr p { font-size: 19px; color: var(--text-2); margin: 0; }
+#qr .code { width: 400px; height: 400px; padding: 18px; border-radius: 22px; background: #fff; }
+#qr .code svg { width: 100%; height: 100%; display: block; }
+#qr .url { font-size: 18px; color: var(--text-3); max-width: 480px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#qr button { height: 58px; padding: 0 34px; border-radius: 29px; background: var(--surface-3); color: var(--text); font-size: 22px; }
+#qr button:hover { background: var(--surface-4); }
+.tile:hover { background: var(--surface-3); color: var(--text); }
+.row {
+  height: 62px; display: flex; align-items: center; gap: 16px; padding: 0 12px 0 18px;
+  border-radius: 14px;
+}
+.row .label { flex: 1; color: var(--text); }
+.row > .ic { color: var(--text-2); width: 28px; height: 28px; }
+button.row { width: 100%; text-align: left; transition: background .12s; }
+button.row:hover { background: var(--surface-3); }
+button.row:hover > .ic { color: var(--text); }
+.hint { color: var(--text-3); font-size: 20px; }
+.zoom { display: flex; align-items: center; gap: 4px; background: var(--surface-2); border-radius: 26px; padding: 3px; }
+.zoom .ib { width: 46px; height: 46px; }
+.zoom .ic { width: 24px; height: 24px; }
+#zoom { width: 92px; text-align: center; font-weight: 600; font-size: 22px; }
+#themes { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 10px 12px 60px; }  /* 10 in one row */
+.swatch {
+  width: 36px; height: 36px; border-radius: 50%; position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); transition: transform .12s;
+}
+.swatch:hover { transform: scale(1.15); }
+.swatch.on::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%;
+  border: 3px solid var(--text);
+}
+.sep { height: 1px; background: var(--line); margin: 6px 10px; }
+#theme-name { color: var(--text-3); font-size: 20px; padding-right: 8px; }
+.danger > .ic, .danger .label { color: var(--bad); }
+</style></head><body>
+<!--#include icons.svg-->
+<div id="menu">
+  <div id="quick">
+    <button class="tile" data-cmd="start"><svg class="ic"><use href="#i-home"/></svg>Início</button>
+    <button class="tile" data-cmd="settings" data-arg="favoritos"><svg class="ic"><use href="#i-star"/></svg>Favoritos</button>
+    <button class="tile" data-cmd="settings" data-arg="historico"><svg class="ic"><use href="#i-history"/></svg>Histórico</button>
+    <button class="tile" data-cmd="settings" data-arg="extensoes"><svg class="ic"><use href="#i-puzzle-piece"/></svg>Extensões</button>
+    <button class="tile" data-cmd="settings" data-arg="telemovel"><svg class="ic"><use href="#i-phone"/></svg>Telemóvel</button>
+    <button class="tile" data-rn data-cmd="find"><svg class="ic"><use href="#i-search"/></svg>Procurar</button>
+    <button class="tile" data-rn data-cmd="reader"><svg class="ic"><use href="#i-document"/></svg>Leitura</button>
+    <button class="tile" data-rn data-cmd="translate"><svg class="ic"><use href="#i-globe"/></svg>Traduzir</button>
+    <button class="tile" data-rn id="qr-tile"><svg class="ic"><use href="#i-phone-arrow-right"/></svg>Código QR</button>
+    <button class="tile" data-rn data-cmd="newprivate"><svg class="ic"><use href="#i-lock-closed"/></svg>Privado</button>
+  </div>
+  <div class="row">
+    <svg class="ic"><use href="#i-zoom-in"/></svg>
+    <span class="label">Zoom</span>
+    <div class="zoom">
+      <button class="ib" data-cmd="zoom" data-arg="-" data-keep title="Mais pequeno"><svg class="ic"><use href="#i-zoom-out"/></svg></button>
+      <span id="zoom">100%</span>
+      <button class="ib" data-cmd="zoom" data-arg="+" data-keep title="Maior"><svg class="ic"><use href="#i-zoom-in"/></svg></button>
+    </div>
+  </div>
+  <div class="row">
+    <svg class="ic"><use href="#i-color"/></svg>
+    <span class="label">Tema</span>
+    <span id="theme-name"></span>
+  </div>
+  <div id="themes"></div>
+  <div class="sep"></div>
+  <button class="row" data-cmd="fullscreen"><svg class="ic"><use href="#i-full-screen-maximize"/></svg><span class="label" id="full-label">Ecrã inteiro</span></button>
+  <button class="row" data-cmd="sidecard"><svg class="ic"><use href="#i-games"/></svg><span class="label">Abrir ao lado do jogo</span></button>
+  <button class="row" data-rn data-cmd="padkeys"><svg class="ic"><use href="#i-games"/></svg><span class="label">Comando como teclado</span></button>
+  <button class="row" data-rn data-cmd="gamepin"><svg class="ic"><use href="#i-games"/></svg><span class="label">Guardar no jogo</span></button>
+  <button class="row" id="fav" data-cmd="favorite"><svg class="ic"><use id="fav-icon" href="#i-star"/></svg><span class="label" id="fav-label">Adicionar aos favoritos</span></button>
+  <button class="row" id="desktop" data-cmd="toggle" data-arg="desktop" data-keep><svg class="ic"><use href="#i-desktop"/></svg><span class="label">Versão para computador</span><span class="switch"></span></button>
+  <button class="row" id="dark_sites" data-cmd="toggle" data-arg="dark_sites" data-keep><svg class="ic"><use href="#i-weather-moon"/></svg><span class="label">Modo escuro nos sites</span><span class="switch"></span></button>
+  <button class="row" id="adblock" data-cmd="toggle" data-arg="adblock" data-keep><svg class="ic"><use href="#i-shield-checkmark"/></svg><span class="label">Bloquear anúncios</span><span class="switch"></span></button>
+  <div class="sep"></div>
+  <button class="row" data-cmd="settings" data-arg="privacidade"><svg class="ic"><use href="#i-delete"/></svg><span class="label">Limpar dados de navegação</span><svg class="ic s hint"><use href="#i-chevron-right"/></svg></button>
+  <button class="row" data-cmd="settings"><svg class="ic"><use href="#i-settings"/></svg><span class="label">Definições</span><svg class="ic s hint"><use href="#i-chevron-right"/></svg></button>
+  <button class="row danger" data-cmd="quit"><svg class="ic"><use href="#i-power"/></svg><span class="label">Sair do BrowserPS5</span></button>
+</div>
+<div id="qr">
+  <h3>Abrir no telemóvel</h3>
+  <p>Aponta a câmara do telemóvel a este código</p>
+  <div class="code" id="qr-code"></div>
+  <div class="url" id="qr-url" translate="no"></div>
+  <button id="qr-close">Fechar</button>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+<!--#include qr.js-->
+</script>
+<script>
+'use strict';
+// The themes of theme.css, in the order shown, with the colour of each dot.
+const THEMES = [
+  ['meia-noite', 'Meia-noite', '#5b8cff', '#141823'],
+  ['grafite', 'Grafite', '#2fd1c5', '#202125'],
+  ['oled', 'OLED', '#7aa7ff', '#000000'],
+  ['claro', 'Claro', '#1a6dff', '#ffffff'],
+  ['oceano', 'Oceano', '#27c3ff', '#0c1c28'],
+  ['ametista', 'Ametista', '#b07cff', '#181126'],
+  ['rubi', 'Rubi', '#ff4d6d', '#1e0f14'],
+  ['floresta', 'Floresta', '#3ddc84', '#0f1d16'],
+  ['champanhe', 'Champanhe', '#e0bb6e', '#1a1610'],
+  ['neon', 'Néon', '#00e5ff', '#0d1020'],
+];
+let state = {theme: 'meia-noite', zoom: 100, desktop: true, dark_sites: false,
+             adblock: false, favorite: false, canFavorite: false, fullscreen: false};
+
+function send(command, argument) {
+  location.href = 'browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument));
+}
+
+const themes = document.getElementById('themes');
+for (const [id, name, accent, bg] of THEMES) {
+  const b = document.createElement('button');
+  b.className = 'swatch';
+  b.title = name;
+  b.dataset.theme = id;
+  // a 1.5 px soft step: a hard stop at 50% draws the diagonal as a staircase
+  b.style.background = 'linear-gradient(135deg, ' + accent + ' 48.5%, ' + bg + ' 51.5%)';
+  b.onclick = () => {
+    setTheme(id);
+    send('set', 'theme=' + id);
+  };
+  themes.appendChild(b);
+}
+
+document.querySelectorAll('[data-cmd]').forEach(b => {
+  b.onclick = () => {
+    const keep = b.hasAttribute('data-keep');
+    if (b.dataset.cmd === 'toggle') {
+      const key = b.dataset.arg;
+      state[key] = !state[key];
+      render();
+      send('set', key + '=' + (state[key] ? 1 : 0));
+      return;
+    }
+    send(keep ? b.dataset.cmd : 'menu-do', keep ? b.dataset.arg
+         : b.dataset.cmd + (b.dataset.arg ? '?' + b.dataset.arg : ''));
+  };
+});
+
+function render() {
+  document.getElementById('zoom').textContent = state.zoom + '%';
+  for (const id of ['desktop', 'dark_sites', 'adblock'])
+    document.getElementById(id).classList.toggle('on', !!state[id]);
+  const fav = document.getElementById('fav');
+  fav.disabled = !state.canFavorite;
+  fav.style.opacity = state.canFavorite ? 1 : .4;
+  document.getElementById('fav-icon').setAttribute('href', state.favorite ? '#i-star-f' : '#i-star');
+  document.getElementById('fav-label').textContent =
+    state.favorite ? 'Tirar dos favoritos' : 'Adicionar aos favoritos';
+  document.getElementById('full-label').textContent =
+    state.fullscreen ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+  document.querySelectorAll('.swatch').forEach(s =>
+    s.classList.toggle('on', s.dataset.theme === state.theme));
+  const t = THEMES.find(t => t[0] === state.theme);
+  document.getElementById('theme-name').textContent = t ? t[1] : '';
+}
+
+// From the app.
+function setTheme(name) {
+  document.documentElement.dataset.theme = name;
+  state.theme = name;
+  render();
+}
+function show(s) {
+  Object.assign(state, s);
+  document.documentElement.dataset.theme = state.theme;
+  document.getElementById('qr').classList.remove('on');
+  render();
+}
+// RN: the page's address as a QR code, over the menu (state.url, from the app).
+document.getElementById('qr-tile').onclick = () => {
+  if (!/^https?:/.test(state.url || ''))
+    return;
+  document.getElementById('qr-code').innerHTML = QR.svg(state.url);
+  document.getElementById('qr-url').textContent = state.url;
+  document.getElementById('qr').classList.add('on');
+};
+document.getElementById('qr-close').onclick = () => document.getElementById('qr').classList.remove('on');
+function setZoom(z) {
+  state.zoom = z;
+  render();
+}
+render();
+</script></body></html>

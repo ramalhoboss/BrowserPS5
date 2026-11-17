@@ -1,0 +1,35 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedDisplayRefreshMonitorPlayStation.cpp
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedDisplayRefreshMonitorPlayStation.cpp
+@@ -76,6 +76,32 @@
+     m_displayRefreshTimer.startOneShot(0_s);
+ }
+ 
++// BrowserPS5 (2026-11-09): a page hidden mid-frame (the PS button) could
++// lose the refresh its WebCore clients waited for: the RenderingUpdateScheduler
++// stayed "scheduled" and never asked again, so the page ran no more rendering
++// updates once shown (no requestAnimationFrame, no fullscreenchange: YouTube
++// kept its full-screen player after the full screen ended). When the page is
++// shown, one refresh goes to the clients still waiting; the others ignore it.
++void ThreadedDisplayRefreshMonitor::refreshAfterResume()
++{
++    if (!m_client)
++        return;
++    bool wasScheduled = false;
++    bool wasDone = false;
++    WebCore::DisplayUpdate displayUpdate;
++    {
++        Locker locker { lock() };
++        wasScheduled = isScheduled();
++        wasDone = isPreviousFrameDone();
++        setIsScheduled(false);
++        setIsPreviousFrameDone(false);
++        m_displayUpdate = m_displayUpdate.nextUpdate();
++        displayUpdate = m_displayUpdate;
++    }
++    WTFLogAlways("BrowserPS5: paint: a refresh after the resume (the monitor was scheduled %d, its last frame done %d)", wasScheduled, wasDone);
++    displayDidRefresh(displayUpdate);
++}
++
+ void ThreadedDisplayRefreshMonitor::invalidate()
+ {
+     m_displayRefreshTimer.stop();

@@ -1,0 +1,51 @@
+--- a/Source/WTF/wtf/CurrentTime.cpp
++++ b/Source/WTF/wtf/CurrentTime.cpp
+@@ -32,6 +32,7 @@
+  */
+ 
+ #include "config.h"
++#include <stdlib.h> // BrowserPS5: getenv, atof
+ #include <wtf/ApproximateTime.h>
+ #include <wtf/ContinuousApproximateTime.h>
+ #include <wtf/ContinuousTime.h>
+@@ -227,6 +228,40 @@
+ 
+ #endif
+ 
++// BrowserPS5 (2026-11-11, poc/webkit/runtime): the network's time for the
++// pages' Date. A console that never asks the network for the time keeps the
++// clock it was given by hand (the test console's was 23 minutes ahead one day, 33 s
++// behind another), and what a page does with the time (a login's token, a
++// signature) is then wrong. The title asks a time server before the
++// WebProcess starts (browser/title/web_host.cpp, clock_from_network()) and
++// says the difference here; BROWSERPS5_CLOCK_OFFSET_MS says it otherwise.
++// ONLY JavaScript's Date takes it (wtf/DateMath.h, jsCurrentTime()). The first
++// version (18:28 to 21:05 the same day) moved WallTime::now() itself, and
++// every wait with a deadline in the process then ended that much late: timers
++// two seconds late, one animation frame a second. WallTime is the console's
++// clock again, as the system's own waits need it.
++static double s_browserps5ClockOffset; // milliseconds
++static bool s_browserps5ClockOffsetKnown;
++
++extern "C" WTF_EXPORT_PRIVATE void browserps5_clock_offset_ms(double);
++extern "C" WTF_EXPORT_PRIVATE double browserps5_clock_offset_now_ms(void);
++
++extern "C" void browserps5_clock_offset_ms(double milliseconds)
++{
++    s_browserps5ClockOffset = milliseconds;
++    s_browserps5ClockOffsetKnown = true;
++}
++
++extern "C" double browserps5_clock_offset_now_ms(void)
++{
++    if (!s_browserps5ClockOffsetKnown) [[unlikely]] {
++        const char* milliseconds = getenv("BROWSERPS5_CLOCK_OFFSET_MS");
++        s_browserps5ClockOffset = milliseconds ? atof(milliseconds) : 0;
++        s_browserps5ClockOffsetKnown = true;
++    }
++    return s_browserps5ClockOffset;
++}
++
+ WallTime WallTime::now()
+ {
+     return fromRawSeconds(currentTime());

@@ -1,0 +1,140 @@
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedCompositorPlayStation.cpp
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/ThreadedCompositorPlayStation.cpp
+@@ -145,17 +145,27 @@
+     m_displayRefreshMonitor->invalidate();
+ #endif
+     m_compositingRunLoop->performTaskSync([this, protectedThis = Ref { *this }] {
+-        if (!m_context || !m_context->makeContextCurrent())
+-            return;
+-
+-        // Update the scene at this point ensures the layers state are correctly propagated.
+-        updateSceneState();
++        if (m_context && m_context->makeContextCurrent()) {
++            // Update the scene at this point ensures the layers state are correctly propagated.
++            updateSceneState();
+ 
+-        m_sceneState->invalidateCommittedLayers();
+-        m_textureMapper = nullptr;
+-        m_surface->willDestroyGLContext();
+-        m_context = nullptr;
++            m_sceneState->invalidateCommittedLayers();
++            m_textureMapper = nullptr;
++            m_surface->willDestroyGLContext();
++            m_context = nullptr;
++        }
+ 
++        // BrowserPS5: the timers of the compositing thread are stopped here,
++        // on that thread, whatever happened above. A frame that was still
++        // being drawn when stopUpdates() ran above can schedule the next one
++        // (a page with a running animation does that after every frame), and
++        // the CompositingRunLoop destroyed below on the main thread would
++        // then have an active timer of another thread: a RELEASE_ASSERT in
++        // RunLoop::TimerBase::~TimerBase(), as with the AcceleratedSurface's
++        // frame-done timer (2026-11-05, docs/06-teclado-e-favoritos.md).
++        // The display timer could be left running the same way when the
++        // context could not be made current.
++        m_compositingRunLoop->stopUpdates();
+ #if !HAVE(DISPLAY_LINK)
+         m_display.updateTimer = nullptr;
+ #endif
+@@ -172,10 +182,12 @@
+     ASSERT(RunLoop::isMain());
+     m_surface->visibilityDidChange(false);
+ 
+-    if (++m_suspendedCount > 1)
+-        return;
+-
+-    m_compositingRunLoop->suspend();
++    // BrowserPS5 (2026-11-09): the run loop is suspended before the count
++    // shows it (renderLayerTree() reads the count on the compositing thread):
++    // see renderLayerTree().
++    if (!m_suspendedCount)
++        m_compositingRunLoop->suspend();
++    ++m_suspendedCount;
+ }
+ 
+ void ThreadedCompositor::resume()
+@@ -188,6 +200,12 @@
+         return;
+ 
+     m_compositingRunLoop->resume();
++#if !HAVE(DISPLAY_LINK)
++    // BrowserPS5 (2026-11-09): see ThreadedDisplayRefreshMonitor::refreshAfterResume().
++    RunLoop::mainSingleton().dispatch([monitor = m_displayRefreshMonitor] {
++        monitor->refreshAfterResume();
++    });
++#endif
+ }
+ 
+ bool ThreadedCompositor::isActive() const
+@@ -309,8 +327,18 @@
+     ASSERT(m_sceneState);
+     ASSERT(m_compositingRunLoop->isCurrent());
+ 
+-    if (m_suspendedCount > 0)
++    if (m_suspendedCount > 0) {
++        // BrowserPS5 (2026-11-09): the update had started (InProgress) when
++        // the page was hidden; returning left it InProgress for good, so no
++        // update ran again after the page was shown: the page drew nothing
++        // more, its fullscreenchange never came (YouTube kept its full-screen
++        // player after the PS button) and the LayerTreeHost waited forever.
++        // It goes back to Scheduled, for resume() to start it.
++        m_compositingRunLoop->scheduleUpdate();
++        Locker stateLocker { m_compositingRunLoop->stateLock() };
++        m_compositingRunLoop->updateCompleted(stateLocker);
+         return;
++    }
+ 
+     if (!m_context || !m_context->makeContextCurrent())
+         return;
+@@ -329,7 +357,10 @@
+ 
+ #if !HAVE(DISPLAY_LINK)
+         // Client has to be notified upon finishing this scene update.
+-        m_attributes.clientRendersNextFrame = m_sceneState->layersDidChange();
++        // BrowserPS5: requestComposition() sets it too, and only
++        // sceneUpdateFinished() clears it (see there).
++        if (m_sceneState->layersDidChange())
++            m_attributes.clientRendersNextFrame = true;
+ #endif
+     }
+ 
+@@ -377,6 +408,14 @@
+ {
+     ASSERT(RunLoop::isMain());
+     uint32_t compositionRequestID = ++m_compositionRequestID;
++#if !HAVE(DISPLAY_LINK)
++    {
++        // BrowserPS5: the LayerTreeHost now waits for the renderer
++        // (commitSceneState()) until it is told the update is done.
++        Locker locker { m_attributes.lock };
++        m_attributes.clientRendersNextFrame = true;
++    }
++#endif
+     scheduleUpdate();
+     return compositionRequestID;
+ }
+@@ -439,9 +478,21 @@
+     //  - a DisplayRefreshMonitor callback was requested from the Web engine
+     bool shouldDispatchDisplayRefreshCallback = m_displayRefreshMonitor->requiresDisplayRefreshCallback(m_display.displayUpdate);
+ 
+-    if (!shouldDispatchDisplayRefreshCallback) {
++    // BrowserPS5 (docs/04-jit.md, "A barra de loading parada"): after
++    // LayerTreeHost::commitSceneState() the LayerTreeHost waits for the
++    // renderer, and only the DisplayRefreshMonitor callback
++    // (renderNextFrame()) ends the wait. clientRendersNextFrame was only
++    // layersDidChange(), which CoordinatedSceneState::flush() has already
++    // cleared on the main thread before the commit: an update that no
++    // requestAnimationFrame()/rendering update had asked a callback for left
++    // the LayerTreeHost waiting for good, and the page never drew again (the
++    // loading bar stopped at 30-50% on 2026-11-04, its last refresh request
++    // at 10 s never answered). Now a requested composition always tells the
++    // client, once.
++    {
+         Locker locker { m_attributes.lock };
+-        shouldDispatchDisplayRefreshCallback |= m_attributes.clientRendersNextFrame;
++        if (std::exchange(m_attributes.clientRendersNextFrame, false))
++            shouldDispatchDisplayRefreshCallback = true;
+     }
+ 
+     Locker stateLocker { m_compositingRunLoop->stateLock() };

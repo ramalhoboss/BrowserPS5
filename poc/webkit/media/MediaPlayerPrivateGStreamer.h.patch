@@ -1,0 +1,10 @@
+--- a/MediaPlayerPrivateGStreamer.h
++++ b/MediaPlayerPrivateGStreamer.h
+@@ -430,6 +430,7 @@
+     std::optional<MediaTimePromise::AutoRejectProducer> m_seekPromise;
+     bool m_isSeekPending { false };
+     SeekTarget m_seekTarget;
++    GstClockTime m_seekSentTime { GST_CLOCK_TIME_NONE }; // BrowserPS5: when doSeek() sent it
+     GRefPtr<GstElement> m_source { nullptr };
+     bool m_areVolumeAndMuteInitialized { false };
+ 

@@ -1,0 +1,22 @@
+--- a/Source/WebCore/platform/network/curl/CurlContext.h
++++ b/Source/WebCore/platform/network/curl/CurlContext.h
+@@ -270,6 +270,11 @@
+ 
+     void enableConnectionOnly();
+ 
++    // BrowserPS5 (poc/webkit/security): CurlContext.cpp, "connections to this console".
++    void setConnectionsToThisConsoleAllowed(bool allowed) { m_connectionsToThisConsoleAllowed = allowed; }
++    bool connectionsToThisConsoleAllowed() const { return m_connectionsToThisConsoleAllowed; }
++    bool isConnectedToThisConsole();
++
+     void enableAcceptEncoding();
+     void enableAllowedProtocols();
+     void enableAltSvc();
+@@ -337,6 +342,7 @@
+ 
+     CURL* m_handle { nullptr };
+     char m_errorBuffer[CURL_ERROR_SIZE] { };
++    bool m_connectionsToThisConsoleAllowed { false }; // BrowserPS5
+ 
+     URL m_url;
+     CurlSList m_localhostAlias;

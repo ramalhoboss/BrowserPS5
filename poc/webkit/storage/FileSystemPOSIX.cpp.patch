@@ -1,0 +1,22 @@
+diff --git a/Source/WTF/wtf/posix/FileSystemPOSIX.cpp b/Source/WTF/wtf/posix/FileSystemPOSIX.cpp
+index 381686c26..d41092091 100644
+--- a/Source/WTF/wtf/posix/FileSystemPOSIX.cpp
++++ b/Source/WTF/wtf/posix/FileSystemPOSIX.cpp
+@@ -170,8 +170,17 @@ static const char* temporaryFileDirectory()
+     if (auto* tmpDir = getenv("TMPDIR"))
+         return tmpDir;
+ 
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 (2026-11-10): WebKit's processes start with no environment
++    // and the PS5 has no /tmp, so every temporary file failed: IndexedDB
++    // could not take a Blob ("Error preparing Blob/File data to be stored in
++    // object store"), and WhatsApp Web stopped at "database error". The
++    // browser's data folder has one (the app makes it at start).
++    return "/user/homebrew/browserps5/data/tmp";
++#else
+     return "/tmp";
+ #endif
++#endif
+ }
+ 
+ std::pair<String, FileHandle> openTemporaryFile(StringView prefix, StringView suffix, const String& temporaryDirectory)

@@ -1,0 +1,220 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+The tabs' switcher (the touch pad, L2's radial menu or the bar's button), a
+page of its own drawn by WebKit over the whole screen (main.cpp, SWITCHER).
+A carousel of cards in 3D, one per tab with its last picture (a BMP the app
+writes next to this page's base URL, TABS_DIR) and a last one for a new tab
+while there is room. The app says what to show (show(state)), which card is
+chosen (select(i)) and does the rest: the D-pad or the stick choose, cross
+opens, triangle closes the tab, R1 makes a new one, circle goes back.
+hide() empties it, so the next opening never shows the last one's frame.
+docs/07, "Separadores". -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+html, body { width: 1920px; height: 1080px; }
+body {
+  position: relative; font-size: 22px;
+  background:
+    radial-gradient(1400px 700px at 50% 112%, var(--accent-soft), transparent 60%),
+    var(--hero, none), var(--bg);
+}
+body.hidden #all { visibility: hidden; }
+#all { position: absolute; inset: 0; }
+
+header {
+  position: absolute; left: 96px; right: 96px; top: 64px;
+  display: flex; align-items: baseline; gap: 22px;
+}
+h1 { margin: 0; font-size: 50px; font-weight: 700; letter-spacing: -.01em; }
+#count { color: var(--text-3); font-size: 24px; }
+
+#stage {
+  position: absolute; left: 0; right: 0; top: 250px; height: 640px;
+  perspective: 1900px; perspective-origin: 50% 40%;
+}
+.card {
+  position: absolute; left: 580px; top: 40px; width: 760px;
+  transform-style: preserve-3d;
+  transition: transform .34s cubic-bezier(.2, .8, .2, 1), opacity .24s;
+}
+body.instant .card { transition: none; }
+.shot {
+  width: 760px; height: 368px; border-radius: 22px; overflow: hidden; position: relative;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line-2), 0 30px 60px rgba(0, 0, 0, .5);
+  -webkit-box-reflect: below 14px linear-gradient(transparent 76%, rgba(255, 255, 255, .08));
+  transition: box-shadow .2s;
+}
+.shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.empty {
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: center;
+  gap: 14px; color: var(--text-3);
+  background: radial-gradient(circle at 50% 40%, var(--surface-3), var(--surface-2) 70%);
+}
+.empty .letter {
+  width: 120px; height: 120px; border-radius: 30px; display: grid; place-items: center;
+  font-size: 60px; font-weight: 700; color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.info { padding: 22px 8px 0; display: flex; align-items: center; gap: 14px; }
+.info .text { flex: 1; min-width: 0; }
+.title {
+  font-size: 27px; font-weight: 600; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.host { font-size: 19px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge {
+  font-size: 16px; font-weight: 600; color: var(--accent); background: var(--accent-soft);
+  padding: 5px 12px; border-radius: 99px; display: none; flex: none;
+}
+.card.current .badge { display: block; }
+.card.on .shot {
+  box-shadow: 0 0 0 3px var(--accent), 0 0 70px var(--accent-soft), 0 30px 60px rgba(0, 0, 0, .5);
+}
+.info { transition: opacity .2s; }
+.card:not(.on) .info { opacity: 0; }
+
+.card.new .shot {
+  background: transparent; box-shadow: none; border: 3px dashed var(--line-2);
+  display: grid; place-items: center; align-content: center; gap: 16px; color: var(--text-2);
+  -webkit-box-reflect: none;
+}
+.card.new.on .shot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 70px var(--accent-soft); }
+.card.new .ic { width: 92px; height: 92px; }
+.card.new .shot div { font-size: 30px; font-weight: 600; }
+
+footer {
+  position: absolute; left: 0; right: 0; bottom: 70px;
+  display: flex; justify-content: center; gap: 18px;
+}
+.key {
+  display: flex; align-items: center; gap: 12px; padding: 12px 22px 12px 14px;
+  border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 21px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.glyph {
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-4); color: var(--text); font-size: 20px; font-weight: 700;
+}
+.glyph.wide { width: auto; padding: 0 10px; border-radius: 12px; font-size: 17px; }
+</style></head><body class="hidden">
+<!--#include icons.svg-->
+<div id="all">
+  <header><h1>Separadores</h1><div id="count"></div></header>
+  <div id="stage"></div>
+  <footer>
+    <div class="key"><span class="glyph">✕</span>Abrir</div>
+    <div class="key"><span class="glyph">△</span>Fechar separador</div>
+    <div class="key"><span class="glyph wide">R1</span>Novo separador</div>
+    <div class="key"><span class="glyph">○</span>Voltar</div>
+  </footer>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+let state = {theme: 'meia-noite', tabs: [], current: 0, sel: 0, max: 6};
+const SPACING = 640, DEPTH = 320, TURN = 34;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'ic');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', '#i-' + name);
+  svg.appendChild(use);
+  return svg;
+}
+
+function build() {
+  const stage = document.getElementById('stage');
+  stage.textContent = '';
+  state.tabs.forEach((tab, i) => {
+    const card = el('div', 'card' + (i === state.current ? ' current' : ''));
+    const shot = el('div', 'shot');
+    if (tab.picture) {
+      const img = el('img');
+      img.src = tab.picture;
+      img.onerror = () => { img.remove(); shot.appendChild(empty(tab)); };
+      shot.appendChild(img);
+    } else {
+      shot.appendChild(empty(tab));
+    }
+    card.appendChild(shot);
+    const info = el('div', 'info');
+    const text = el('div', 'text');
+    text.appendChild(el('div', 'title', tab.title || tab.host));
+    text.appendChild(el('div', 'host', tab.host));
+    info.appendChild(text);
+    info.appendChild(el('div', 'badge', 'Atual'));
+    card.appendChild(info);
+    stage.appendChild(card);
+  });
+  if (state.tabs.length < state.max) {
+    const card = el('div', 'card new');
+    const shot = el('div', 'shot');
+    shot.appendChild(icon('add'));
+    shot.appendChild(el('div', '', 'Novo separador'));
+    card.appendChild(shot);
+    const info = el('div', 'info');
+    const text = el('div', 'text');
+    text.appendChild(el('div', 'title', 'Página de início'));
+    text.appendChild(el('div', 'host', 'R1 em qualquer altura'));
+    info.appendChild(text);
+    card.appendChild(info);
+    stage.appendChild(card);
+  }
+}
+function empty(tab) {
+  const e = el('div', 'empty');
+  e.appendChild(el('div', 'letter', (tab.title || tab.host || '?').trim().charAt(0).toUpperCase()));
+  e.appendChild(el('div', '', 'Sem imagem ainda'));
+  return e;
+}
+
+function place() {
+  const cards = document.querySelectorAll('.card');
+  cards.forEach((card, k) => {
+    const o = k - state.sel, a = Math.abs(o);
+    card.style.transform = 'translateX(' + (o * SPACING) + 'px) translateZ(' + (-a * DEPTH) +
+      'px) rotateY(' + (-Math.sign(o) * Math.min(a, 2) * TURN) + 'deg)';
+    card.style.opacity = a > 3 ? 0 : 1 - a * .2;
+    card.style.zIndex = 100 - a;
+    card.classList.toggle('on', o === 0);
+  });
+  const n = state.tabs.length;
+  document.getElementById('count').textContent = state.sel < n
+    ? state.sel + 1 + ' de ' + n + (n >= state.max ? ' (o máximo)' : '')
+    : n + ' abertos';
+}
+
+// From the app.
+function setTheme(name) {
+  document.documentElement.dataset.theme = name;
+  state.theme = name;
+}
+function show(s) {
+  Object.assign(state, s);
+  document.documentElement.dataset.theme = state.theme;
+  document.body.classList.add('instant');
+  build();
+  place();
+  void document.body.offsetWidth;
+  document.body.classList.remove('instant');
+  document.body.classList.remove('hidden');
+}
+function select(i) {
+  state.sel = i;
+  place();
+}
+function hide() {
+  document.body.classList.add('hidden');
+}
+</script></body></html>

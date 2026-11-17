@@ -1,0 +1,95 @@
+--- a/MediaPlayerPrivateGStreamer.cpp
++++ b/MediaPlayerPrivateGStreamer.cpp
+@@ -653,6 +653,9 @@
+     auto seekStart = toGstClockTime(startTime);
+     auto seekStop = toGstClockTime(endTime);
+     GRefPtr event = adoptGRef(gst_event_new_seek(rate, GST_FORMAT_TIME, seekFlags, GST_SEEK_TYPE_SET, seekStart, GST_SEEK_TYPE_SET, seekStop));
++    // BrowserPS5: when the seek went, to tell its ASYNC_DONE from an older one
++    // (GST_MESSAGE_ASYNC_DONE in handleMessage()).
++    m_seekSentTime = gst_util_get_timestamp();
+ 
+     GST_DEBUG_OBJECT(pipeline(), "[Seek] Performing actual seek to %" GST_TIMEP_FORMAT " (endTime: %" GST_TIMEP_FORMAT ") at rate %f", &seekStart, &seekStop, rate);
+ 
+@@ -2338,6 +2341,19 @@
+         if (!messageSourceIsPlaybin || m_isDelayingLoad)
+             break;
+ 
++        // BrowserPS5: a bin posts the STATE_CHANGED that ends a preroll, then
++        // its ASYNC_DONE. When that STATE_CHANGED commits a pending seek
++        // (updateStates()), the ASYNC_DONE after it is the preroll's, not the
++        // seek's: taken for the seek's, it finished the seek before the flush
++        // had, and a page that seeks back to 0 on 'ended' saw the end again,
++        // over and over (docs/03-video-e-gpu.md, V2). The messages carry the
++        // time they were posted (GStreamerCommon.cpp.patch).
++        if (m_isSeeking && GST_CLOCK_TIME_IS_VALID(m_seekSentTime) && GST_CLOCK_TIME_IS_VALID(GST_MESSAGE_TIMESTAMP(message))
++            && GST_MESSAGE_TIMESTAMP(message) < m_seekSentTime) {
++            GST_DEBUG_OBJECT(pipeline(), "[Seek] Ignoring an ASYNC_DONE posted before the seek");
++            break;
++        }
++
+         // The MediaPlayerPrivateGStreamer superclass now processes what it needs by calling updateStates() in handleMessage() for
+         // GST_MESSAGE_STATE_CHANGED. However, subclasses still need to override asyncStateChangeDone() to do their own stuff.
+         didPreroll();
+@@ -2948,7 +2964,7 @@
+     if (mediaDiskCachePath.isEmpty())
+         mediaDiskCachePath = gBuildFilename(G_DIR_SEPARATOR_S, "var", "tmp");
+ #else
+-    auto mediaDiskCachePath = gBuildFilename(G_DIR_SEPARATOR_S, "var", "tmp");
++    auto mediaDiskCachePath = gBuildFilename(G_DIR_SEPARATOR_S, "user", "homebrew", "browserps5", "data"); // BrowserPS5: /var/tmp is not writable
+ #endif
+ 
+     auto newDownloadTemplate = gBuildFilename(G_DIR_SEPARATOR_S, mediaDiskCachePath, "WebKit-Media-XXXXXX");
+@@ -3854,7 +3870,15 @@
+         // platform. This also helps with processing metrics gathering. When using the default value
+         // the decoder introduces artificial processing latency reflecting the maximum number of threads.
+         g_object_set(decoder, "max-threads", 2, nullptr);
+-    } else {
++    }
++    // BrowserPS5: the still-frame events are dropped for avdec_* too. Their
++    // drain ends in avcodec_flush_buffers(), which throws the reference
++    // frames away, so the next buffer, in the middle of a group of pictures
++    // when the page appends the rest, could not be decoded: VP9 stopped with
++    // "Not all references are available" (YouTube gave up on it) and H.264
++    // drew on grey (docs/03-video-e-gpu.md, V3). Without them the last frame
++    // before a stall waits for the next buffer.
++    {
+         // WebKitMediaSrc is emitting still-frame events to work around stalls caused by avdec_* decoders.
+         // It does so regardless of the decoder we are actually using (see details in the comment there).
+         // For any other decoder, we need to attach a probe dropping these events.
+@@ -4615,6 +4639,36 @@
+     if (isHolePunchRenderingEnabled()) {
+         m_videoSink = createHolePunchVideoSink();
+         installVideoSinkStatsProbe(m_videoSink);
++        // BrowserPS5: the video's size from the sink's caps. With the hole
++        // punch every video was 1280x720 (the caps are the compressed
++        // video's, which the raw-video size code does not read), and a
++        // vertical video in a vertical box got a small 16:9 hole
++        // (poc/media/ps5audiosink/ps5videosink.c, docs/08-4k.md).
++        if (m_videoSink) {
++            GRefPtr pad = adoptGRef(gst_element_get_static_pad(m_videoSink.get(), "sink"));
++            if (pad) {
++                g_signal_connect(pad.get(), "notify::caps", G_CALLBACK((+[](GstPad* videoSinkPad, GParamSpec*, MediaPlayerPrivateGStreamer* player) {
++                    GRefPtr<GstCaps> caps = adoptGRef(gst_pad_get_current_caps(videoSinkPad));
++                    if (!caps || gst_caps_is_empty(caps.get()))
++                        return;
++                    const GstStructure* structure = gst_caps_get_structure(caps.get(), 0);
++                    int width = 0, height = 0, parN = 1, parD = 1;
++                    if (!gst_structure_get_int(structure, "width", &width) || !gst_structure_get_int(structure, "height", &height) || width <= 0 || height <= 0)
++                        return;
++                    if (gst_structure_get_fraction(structure, "pixel-aspect-ratio", &parN, &parD) && parN > 0 && parD > 0 && parN != parD)
++                        width = static_cast<int>(static_cast<int64_t>(width) * parN / parD);
++                    RunLoop::mainSingleton().dispatch([weakThis = ThreadSafeWeakPtr { *player }, size = FloatSize(width, height)] {
++                        RefPtr self = weakThis.get();
++                        if (!self || self->m_videoSize == size)
++                            return;
++                        GST_DEBUG_OBJECT(self->pipeline(), "Hole punch video size: %.0fx%.0f", size.width(), size.height());
++                        self->m_videoSize = size;
++                        if (RefPtr mediaPlayer = self->m_player.get())
++                            mediaPlayer->sizeChanged();
++                    });
++                })), this);
++            }
++        }
+         // Do not check the m_videoSink value. The nullptr case will trigger auto-plugging in playbin.
+         pushNextHolePunchBuffer();
+         return m_videoSink.get();

@@ -1,0 +1,55 @@
+--- a/RenderLayerCompositor.cpp
++++ b/RenderLayerCompositor.cpp
+@@ -4017,8 +4017,29 @@ bool RenderLayerCompositor::requiresCompositingForFilters(RenderLayerModelObject
+         return true;
+ #endif
+ 
+-    if (!(m_compositingTriggers & ChromeClient::FilterTrigger))
++    if (!(m_compositingTriggers & ChromeClient::FilterTrigger)) {
++#if PLATFORM(PLAYSTATION)
++        // BrowserPS5: WebKit2 leaves filters out of the compositing triggers,
++        // so a still element with a CSS blur is drawn in software, and again
++        // whenever anything that overlaps it is repainted. YouTube's blurred
++        // picture behind the player (ytd-thumbnail
++        // .player-container-background-image, 15 px) was blurred ~10 times a
++        // second at 70-170 ms each on the main thread, and the page sent ~2
++        // frames a second for its first 25 s (2026-11-04 17:51). An element
++        // whose filter moves pixels (blur, drop-shadow) gets its own layer
++        // here, and the compositor applies the filter on the GPU.
++        // BROWSERPS5_COMPOSITE_FILTERS=0 (env.txt) turns this off.
++        static const bool compositeFilters = [] {
++            const char* value = getenv("BROWSERPS5_COMPOSITE_FILTERS");
++            return !value || !*value || *value != '0';
++        }();
++        if (compositeFilters && renderer.hasFilter()) {
++            auto& filter = renderer.style().filter();
++            return filter.hasFilterThatMovesPixels() && !filter.hasReferenceFilter();
++        }
++#endif
+         return false;
++    }
+ 
+     return renderer.hasFilter();
+ }
+@@ -4290,6 +4311,21 @@ bool RenderLayerCompositor::isAsyncScrollableStickyLayer(const RenderLayer& laye
+ #if PLATFORM(IOS_FAMILY)
+     // iOS WK1 has fixed/sticky support in the main frame via WebFixedPositionContent.
+     return isMainFrameCompositor();
++#elif PLATFORM(PLAYSTATION)
++    // BrowserPS5 RN (2026-11-11): there is no scrolling coordinator here
++    // (ASYNC_SCROLLING is off), so a sticky element stayed in its parent's
++    // backing and was painted again, with what is under it, at every step of
++    // a scroll. Wikipedia's article with its sticky contents at the left
++    // scrolled at 29 frames a second against 54 in the old skin with none,
++    // the page thread painting in 8 stacks of 8 (results/rn-feel-*-scroll*).
++    // As a fixed element it gets a layer of its own in the main frame; the
++    // page thread moves it at each scroll (updateCompositingLayers(OnScroll)).
++    // BROWSERPS5_COMPOSITE_STICKY=0 (env.txt, web-env.txt) turns this off.
++    static const bool compositeSticky = [] {
++        const char* value = getenv("BROWSERPS5_COMPOSITE_STICKY");
++        return !value || !*value || *value != '0';
++    }();
++    return compositeSticky && isMainFrameCompositor();
+ #else
+     return false;
+ #endif

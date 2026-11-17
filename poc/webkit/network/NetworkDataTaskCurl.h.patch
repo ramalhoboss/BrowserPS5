@@ -1,0 +1,12 @@
+--- a/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.h
++++ b/Source/WebKit/NetworkProcess/curl/NetworkDataTaskCurl.h
+@@ -113,6 +113,9 @@
+ 
+     bool m_allowOverwriteDownload { false };
+     FileSystem::FileHandle m_downloadDestinationFile;
++    uint64_t m_browserps5DownloadBytes { 0 }; // BrowserPS5: a download's bytes so far (NetworkDataTaskCurl.cpp)
++    Vector<uint8_t> m_browserps5DownloadBuffer; // BrowserPS5: and those not written yet (a MiB at a time)
++    bool m_browserps5DownloadPart { false }; // BrowserPS5: a part of a download in several: written into that download's file
+ 
+     bool m_blockingCookies { false };
+ 

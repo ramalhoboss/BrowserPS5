@@ -1,0 +1,147 @@
+diff --git a/Source/WebKit/UIProcess/WebProcessPool.cpp b/Source/WebKit/UIProcess/WebProcessPool.cpp
+index 0fd612a57..75d28b366 100644
+--- a/Source/WebKit/UIProcess/WebProcessPool.cpp
++++ b/Source/WebKit/UIProcess/WebProcessPool.cpp
+@@ -720,6 +720,22 @@ static EnhancedSecurity defaultEnhancedSecurity(const WebProcessPool& processPoo
+     return EnhancedSecurity::EnabledPolicy;
+ }
+ 
++#if PLATFORM(PLAYSTATION)
++// BrowserPS5 (2026-11-10): a WebProcess runs the workers of one site at a
++// time (WebProcess::establishRemoteWorkerContextConnectionToNetworkProcess:
++// SWContextManager::setConnection stops the one there). With every page in one
++// WebProcess, YouTube's service worker took the place of Telegram's, whose page
++// was still a client: the network process asked for Telegram's again, then for
++// YouTube's, in a loop (17:42). So each process keeps the domain it runs
++// workers for, and a worker of another domain goes to another process.
++static HashMap<WebCore::ProcessIdentifier, WebCore::RegistrableDomain>& playStationWorkerDomains(RemoteWorkerType workerType)
++{
++    static NeverDestroyed<HashMap<WebCore::ProcessIdentifier, WebCore::RegistrableDomain>> serviceWorkerDomains;
++    static NeverDestroyed<HashMap<WebCore::ProcessIdentifier, WebCore::RegistrableDomain>> sharedWorkerDomains;
++    return workerType == RemoteWorkerType::SharedWorker ? sharedWorkerDomains.get() : serviceWorkerDomains.get();
++}
++#endif
++
+ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWorkerType workerType, Site&& site, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier, PAL::SessionID sessionID, WebCore::CrossOriginEmbedderPolicyValue workerCrossOriginEmbedderPolicy, CompletionHandler<void(WebCore::ProcessIdentifier)>&& completionHandler)
+ {
+     RefPtr websiteDataStore = WebsiteDataStore::existingDataStoreForSessionID(sessionID);
+@@ -745,6 +761,19 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
+         RELEASE_ASSERT(!process.isInProcessCache());
+     };
+ 
++#if PLATFORM(PLAYSTATION)
++    // The domain whose workers of this type the process runs now (an empty
++    // one if it runs some it has no note of), or none.
++    auto runningWorkerDomain = [&](WebProcessProxy& process) -> std::optional<WebCore::RegistrableDomain> {
++        bool running = workerType == RemoteWorkerType::SharedWorker ? process.isRunningSharedWorkers() : process.isRunningServiceWorkers();
++        if (!running)
++            return std::nullopt;
++        auto& domains = playStationWorkerDomains(workerType);
++        auto it = domains.find(process.coreProcessIdentifier());
++        return it == domains.end() ? WebCore::RegistrableDomain { } : it->value;
++    };
++#endif
++
+     if (serviceWorkerPageIdentifier) {
+         ASSERT(workerType == RemoteWorkerType::ServiceWorker);
+         // This is a service worker for a service worker page so we need to make sure we use use the page's WebProcess for the service worker.
+@@ -752,10 +781,48 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
+             useProcessForRemoteWorkers(*process);
+     }
+ 
++#if PLATFORM(PLAYSTATION)
++    // A process that already runs this domain's workers takes the new ones.
++    if (!remoteWorkerProcessProxy) {
++        for (Ref process : processPool->m_processes) {
++            if (process->state() == WebProcessProxy::State::Terminated || process->isInProcessCache() || process->websiteDataStore() != websiteDataStore)
++                continue;
++            if (auto domain = runningWorkerDomain(process); domain && *domain == site.domain()) {
++                useProcessForRemoteWorkers(process);
++                break;
++            }
++        }
++    }
++#endif
++
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 RN (2026-11-10 22:20): BROWSERPS5_SW_TITLE_DOMAIN (e.g.
++    // whatsapp.com) keeps the page's WebProcess (the title's) for that
++    // domain's workers only. A WebProcess runs one domain's workers; with
++    // Telegram's there, WhatsApp Web's went to a payload WebProcess that was
++    // stopped after 8 s and the browser froze. The other domains' workers go
++    // to payload WebProcesses (Telegram's ran there fine).
++    static const char* titleWorkerDomain = getenv("BROWSERPS5_SW_TITLE_DOMAIN");
++    const bool titleKeptForAnother = titleWorkerDomain && *titleWorkerDomain
++        && site.domain().string() != String::fromUTF8(titleWorkerDomain);
++#endif
+     // Prioritize the requesting WebProcess for running the service worker.
+     if (!remoteWorkerProcessProxy && !s_useSeparateServiceWorkerProcess && requestingProcess && requestingProcess->state() != WebProcessProxy::State::Terminated) {
++#if PLATFORM(PLAYSTATION)
++        // BrowserPS5 (2026-11-10): the worker runs in the process of the page
++        // that asked for it, unless that process runs another domain's
++        // workers (see playStationWorkerDomains). Its site is never the
++        // worker's here (one WebProcess serves every site:
++        // WKContextSetUsesSingleWebProcess, no process swap).
++        if (!titleKeptForAnother && requestingProcess->websiteDataStore() == websiteDataStore && !requestingProcess->isInProcessCache()) {
++            auto domain = runningWorkerDomain(*requestingProcess);
++            if (!domain || *domain == site.domain())
++                useProcessForRemoteWorkers(*requestingProcess);
++        }
++#else
+         if (requestingProcess->websiteDataStore() == websiteDataStore && requestingProcess->site() == site && requestingProcess->crossOriginMode() == crossOriginMode && !requestingProcess->isInProcessCache())
+             useProcessForRemoteWorkers(*requestingProcess);
++#endif
+     }
+ 
+     if (!remoteWorkerProcessProxy && !s_useSeparateServiceWorkerProcess) {
+@@ -772,6 +839,12 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
+                 continue;
+             if (process->isInProcessCache())
+                 continue;
++#if PLATFORM(PLAYSTATION)
++            if (auto domain = runningWorkerDomain(process); domain && *domain != site.domain())
++                continue;
++            if (titleKeptForAnother) // only the payload WebProcess of its own (found above)
++                continue;
++#endif
+ 
+             useProcessForRemoteWorkers(process);
+ 
+@@ -780,6 +853,12 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
+         }
+     }
+ 
++#if PLATFORM(PLAYSTATION)
++    WTFLogAlways("BrowserPS5: %s worker for %s: %s (pid %d)", workerType == RemoteWorkerType::ServiceWorker ? "service" : "shared",
++        site.toString().utf8().data(), remoteWorkerProcessProxy ? (remoteWorkerProcessProxy == requestingProcess ? "in the page's WebProcess" : "in another existing WebProcess") : "a NEW WebProcess",
++        remoteWorkerProcessProxy ? remoteWorkerProcessProxy->processID() : 0);
++#endif
++
+     struct WebPreferencesStoreRef {
+         RefPtr<WebPreferences> webPreferences;
+         RefPtr<WebProcessPool> processPool;
+@@ -806,6 +885,10 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
+         processPool->m_processes.append(WTF::move(newProcessProxy));
+     }
+ 
++#if PLATFORM(PLAYSTATION)
++    playStationWorkerDomains(workerType).set(remoteWorkerProcessProxy->coreProcessIdentifier(), site.domain());
++#endif
++
+     auto aggregator = CallbackAggregator::create([completionHandler = WTF::move(completionHandler), remoteProcessIdentifier = remoteWorkerProcessProxy->coreProcessIdentifier()]() mutable {
+         completionHandler(remoteProcessIdentifier);
+     });
+@@ -1424,8 +1507,13 @@ Ref<WebProcessProxy> WebProcessPool::processForSite(WebsiteDataStore& websiteDat
+         for (Ref process : m_processes) {
+             if (process->isPrewarmed() || process->isDummyProcessProxy() || process->isPrintProcess())
+                 continue;
++#if !PLATFORM(PLAYSTATION)
++            // BrowserPS5 (2026-11-10): a new page joins the one WebProcess
++            // even when it runs service workers, so a page and its worker
++            // never sit in two processes (see WebPageProxy.cpp's COOP note).
+             if (process->isRunningServiceWorkers())
+                 continue;
++#endif
+             if (process->crossOriginMode() != CrossOriginMode::Shared)
+                 continue;
+             if (mustMatchDataStore && process->websiteDataStore() != &websiteDataStore)

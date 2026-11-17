@@ -1,0 +1,779 @@
+<!doctype html>
+<!-- Copyright (C) 2026 BrowserPS5 contributors. GPL-3.0-or-later.
+
+BrowserPS5 RN's keyboard (2026-11-11), in place of ../../browser/keyboard.html
+in RN's builds (build-rn.sh copies pages/ over the browser's): the functions
+and the behaviour of the PS5's own keyboard, which cannot open over this
+title (it took the console down on 2026-11-04 and on 2026-11-11). Our own drawing and code; nothing of the system's.
+
+What it does as the system's:
+  - a board in the middle of the screen (1180 px; main.cpp draws only that
+    rectangle of the pane: KEYS_BOARD_WIDTH, KEYS_BOARD_RADIUS), the text on
+    top, a row of suggestions under it, four rows of ten keys and the row of
+    the function keys, each with its button on it;
+  - the buttons (main.cpp keys_input()): cross types the highlighted key,
+    held on a letter it opens that letter's accents (the D-pad chooses,
+    cross takes, circle closes them); square deletes, and goes on deleting
+    while held; triangle is the space; L2 the shift (again: capitals locked;
+    again: off); L3 the symbols; R3 the accents' page; L1 and R1 move the
+    caret; R2 confirms; circle closes;
+  - the D-pad goes round: past the last key of a row to its first, past the
+    last row to the suggestions and the first row;
+  - suggestions: for the address, the favorites' and well-known sites; for an
+    e-mail, the usual domains after the @; for text, the words typed before
+    in this run and common ones that start as the word being typed. None for
+    a password, and nothing typed there is kept.
+
+The app's side is the browser's keyboard's: kb.open({kind, enter, text,
+logins, favs}), then browserps5:done?<text>, browserps5:cancel or
+browserps5:login?<index> (see ../../browser/keyboard.html). -->
+<html data-theme="meia-noite"><head><meta charset="utf-8"><style>
+<!--#include theme.css-->
+:root { --height: 440px; }
+html, body {
+  height: var(--height); overflow: hidden; background: transparent;
+  font-size: 27px; -webkit-user-select: none; user-select: none;
+}
+#board {
+  position: relative; width: 1180px; height: var(--height); margin: 0 auto; padding: 13px 18px 13px;
+  display: flex; flex-direction: column; gap: 7px;
+  border-radius: 28px 28px 0 0; border: 1px solid rgba(255, 255, 255, .16); border-bottom: 0;
+  background: linear-gradient(180deg, #1a2542 0%, #0d152b 46%, #080e1f 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10);
+}
+/* The text. */
+#field {
+  flex: none; height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 8px 0 20px;
+  border-radius: 16px; background: rgba(0, 0, 0, .42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .62), 0 0 20px rgba(120, 175, 255, .22);
+}
+#label { flex: none; font-size: 14px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text-3); }
+#preview { flex: 1; min-width: 0; height: 100%; overflow: hidden; display: flex; align-items: center; }
+#line { white-space: pre; position: relative; color: #fff; }
+#caret { display: inline-block; width: 3px; height: 34px; margin: 0 -1px; vertical-align: middle; background: #fff; border-radius: 2px; }
+/* The caret blinks from a timer (blink()), not a CSS animation: a CSS one
+   makes the compositor draw every 16 ms while the keyboard is open. */
+#caret.off { visibility: hidden; }
+#placeholder { color: var(--text-3); }
+#close {
+  flex: none; height: 40px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
+  color: var(--text-3); font-size: 15px; background: rgba(255, 255, 255, .06);
+}
+/* The suggestions (and, with none, what the buttons do). */
+#sugg { flex: none; height: 40px; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+#hint { color: var(--text-3); font-size: 15px; letter-spacing: .2px; white-space: nowrap; padding-left: 4px; }
+#hint b { color: var(--text-2); font-weight: 600; }
+.chip {
+  flex: none; height: 38px; max-width: 340px; padding: 0 18px; border-radius: 19px; display: block; line-height: 38px;
+  font-size: 20px; color: #fff; background: rgba(255, 255, 255, .09); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.chip.login { background: linear-gradient(180deg, #5b97ff, #3b74e6); font-weight: 600; }
+/* The keys. */
+.row { flex: 1; display: flex; gap: 7px; min-height: 0; }
+.key {
+  flex: 1 1 0; min-width: 0; position: relative; display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; color: #fff; white-space: nowrap; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .125) 0%, rgba(255, 255, 255, .07) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .055);
+}
+.key.fn { background: rgba(255, 255, 255, .045); color: var(--text-2); font-size: 20px; }
+.key.enter { background: linear-gradient(180deg, #5b97ff 0%, #3b74e6 100%); color: #fff; font-size: 21px; font-weight: 600; }
+/* The button that does the same as the key. */
+.pad {
+  position: absolute; left: 6px; top: 5px; min-width: 22px; height: 17px; padding: 0 5px; border-radius: 6px;
+  font-size: 11px; line-height: 17px; font-weight: 700; text-align: center; letter-spacing: .2px;
+  background: rgba(255, 255, 255, .15); color: rgba(255, 255, 255, .82);
+}
+/* The shift: one letter (a dot), locked (a bar). */
+.key.shift.s1::after, .key.shift.s2::after {
+  content: ""; position: absolute; right: 9px; top: 9px; width: 8px; height: 8px; border-radius: 4px; background: #7fb0ff;
+}
+.key.shift.s2::after { width: 22px; }
+.key.on { color: #fff; background: rgba(110, 165, 255, .32); }
+/* The highlighted one: white, as the system's. */
+.key.hl, .chip.hl, #close.hl, .v.hl {
+  background: #fff; color: #0a1124;
+  box-shadow: 0 0 0 2px #fff, 0 0 22px rgba(140, 185, 255, .8);
+}
+.key.hl { transform: scale(1.045); z-index: 2; }
+.hl .pad { background: rgba(10, 17, 36, .15); color: rgba(10, 17, 36, .8); }
+.key.down, .chip.down, .v.down { background: #7fb0ff; color: #0a1124; }
+/* A letter's accents, over it. */
+#pop {
+  position: absolute; display: none; height: 64px; padding: 6px; gap: 6px; border-radius: 16px; z-index: 5;
+  background: #22315a; box-shadow: 0 12px 30px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(255, 255, 255, .22);
+}
+#pop.on { display: flex; }
+.v {
+  width: 54px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  color: #fff; background: rgba(255, 255, 255, .09);
+}
+</style></head><body>
+<div id="board">
+  <div id="field">
+    <div id="label"></div>
+    <div id="preview" translate="no"><span id="line"></span></div>
+    <div id="close"><span class="pad" style="position:static">○</span><span>fechar</span></div>
+  </div>
+  <div id="sugg"></div>
+  <div id="pop"></div>
+</div>
+<script>
+<!--#include lang.js-->
+</script>
+<script>
+'use strict';
+
+const tr = (text) => (typeof T === 'function' ? T(text) : text);
+
+// Each layer: four rows of ten keys that type themselves.
+const layers = {
+  abc: ['1234567890', 'qwertyuiop', "asdfghjkl'", 'zxcvbnm,.?'],
+  sym: ['1234567890', '!@#$%&*()=', '-_/\\:;"\'+~', '[]{}<>|^€£'],
+  acc: ['1234567890', 'áàâãéèêíìî', 'óòôõöúùûüç', 'ñäëïÿªº«»°'],
+};
+
+// Held, a key offers these too (the first is the one a short press types).
+const variants = {
+  a: 'áàâãäª', e: 'éèêë€', i: 'íìîï', o: 'óòôõöº', u: 'úùûü', c: 'ç', n: 'ñ', y: 'ÿ', s: 'ß$',
+  '0': '°', '1': '¹', '2': '²', '3': '³', '?': '¿', '!': '¡', "'": '"`´', ',': ';', '.': ':…', '-': '_–—', '/': '\\',
+};
+
+// The bottom row's own keys for each kind of field.
+const extras = {
+  bar: ['/', '.com', '.pt'], url: ['/', '.com', '.pt'], email: ['@', '.com'],
+  search: ['@'], text: ['@'], password: ['@'], tel: ['+'], number: ['.'],
+  textarea: ['@', {k: 'newline', t: '↵'}], edit: ['@', {k: 'newline', t: '↵'}],
+};
+const labels = {
+  bar: 'Endereço ou pesquisa', url: 'Endereço', email: 'E-mail',
+  search: 'Pesquisa', text: 'Texto', password: 'Palavra-passe',
+  tel: 'Telefone', number: 'Número', textarea: 'Texto', edit: 'Texto',
+};
+const enterLabels = {
+  go: 'Ir', search: 'Pesquisar', send: 'Enviar', next: 'Seguinte',
+  done: 'OK', enter: 'OK', previous: 'OK', '': 'OK',
+};
+
+// The suggestions' words: those typed before in this run come first.
+const COMMON = ('que não para com uma por mais como mas foi ele das tem seu sua ser quando muito nos já está eu ' +
+  'também só pelo pela até isso ela entre era depois sem mesmo aos ter seus quem nas esse eles estão você tinha ' +
+  'foram essa nem meu minha numa qual será nós tenho lhe este esta isto aquilo estou estamos obrigado obrigada olá ' +
+  'bom boa dia tarde noite hoje amanhã ontem agora sempre nunca aqui ali sim talvez porque onde quanto casa trabalho ' +
+  'jogo jogos vídeo vídeos música filme filmes notícias tempo futebol porto lisboa portugal brasil playstation ' +
+  'youtube whatsapp telegram google the and you that was for are with they this have from not what all were when ' +
+  'your can there which how their will other about many then them these some would make like time more see could ' +
+  'people than first been who now find long down day get come made good new game games video music movie news').split(' ');
+// 2026-11-14: the common words of the browser's other languages (LANG, lang.js: the tables of lang-more.js). In
+// one of them the suggestions are its words and then COMMON's English ones (from "youtube" on); in Portuguese
+// and in English, COMMON as it is.
+const COMMON_MORE = {
+  es: 'que de no la el en y a los se del las un por con una su para es al lo como más pero sus le ya o este sí porque esta entre cuando muy sin sobre también me hasta hay donde quien desde todo nos durante todos uno les ni contra otros ese eso ante ellos esto antes algunos qué unos yo otro otras otra él tanto esa estos mucho nada muchos cual poco ella estar estas algo nosotros gracias hola bueno buena día tarde noche hoy mañana ayer ahora siempre nunca aquí allí quizás casa trabajo juego juegos vídeo vídeos música película películas noticias tiempo fútbol españa méxico argentina playstation',
+  fr: "de la le et les des en un du une que est pour qui dans par plus pas au sur ne se ce il sont ou avec son aux cette ont ses mais comme on tout nous sa aussi leur bien peut ces deux même ainsi être fait très sans elle vous après je où encore entre donc dont leurs depuis autres toujours alors moins tous avant merci bonjour bonsoir oui non aujourd'hui demain hier maintenant jamais ici peut-être pourquoi maison travail jeu jeux vidéo vidéos musique film films actualités temps football france belgique canada playstation",
+  de: 'der die und in den von zu das mit sich des auf für ist im dem nicht ein eine als auch es an werden aus er hat dass sie nach wird bei einer um am sind noch wie einem über einen so zum war haben nur oder aber vor zur bis mehr durch man sein wurde hatte kann gegen vom können schon wenn habe seine ihre dann unter wir soll ich eines jahr zwei diese dieser wieder keine uhr will zwischen immer was danke hallo guten morgen abend heute gestern jetzt nie hier vielleicht warum haus arbeit spiel spiele video videos musik film filme nachrichten wetter fußball deutschland österreich schweiz playstation',
+  it: 'di e il la che in un a per è una del non le si da con i al lo dei ha come della più ma gli alla anche o sono nel se ci questo mi suo dal nella alle tra era loro ai sua essere lui delle quando molto solo ancora stato dopo senza due tutti perché così fare cui noi tempo anni grazie ciao buongiorno buonasera sì no oggi domani ieri adesso sempre mai qui forse casa lavoro gioco giochi video musica film notizie meteo calcio italia playstation',
+  nl: "de van het een en in is dat op te zijn voor met niet aan er die om ook als bij maar door naar dan ze uit of wordt nog over heeft hij tot wat je werd zo kan meer na deze al geen dit wel worden zich hebben was haar hun moet veel onder wij we mijn zou ik dank hallo goedemorgen goedenavond ja nee vandaag morgen gisteren nu altijd nooit hier misschien waarom huis werk spel spellen video video's muziek film films nieuws weer voetbal nederland belgië playstation",
+};
+function commonWords() {
+  const more = typeof LANG === 'string' && Object.prototype.hasOwnProperty.call(COMMON_MORE, LANG) ? COMMON_MORE[LANG] : null;
+  return more ? more.split(' ').concat(COMMON.slice(COMMON.indexOf('youtube'))) : COMMON;
+}
+const SITES = ['youtube.com', 'google.com', 'web.whatsapp.com', 'web.telegram.org', 'x.com', 'wikipedia.org',
+  'facebook.com', 'instagram.com', 'twitch.tv', 'reddit.com', 'github.com', 'publico.pt', 'sapo.pt'];
+const MAILS = ['gmail.com', 'hotmail.com', 'outlook.com', 'sapo.pt', 'icloud.com', 'yahoo.com'];
+const learned = new Map();  // word -> times typed (this run; never a password's)
+
+const s = {
+  open: false, kind: 'text', enter: '', chars: [], caret: 0,
+  layer: 'abc', shift: 0,   // 0 off, 1 the next letter, 2 locked
+  reveal: false,            // a password shown as it is
+  hl: null,                 // the highlighted element (a key, a chip, a variant, the close button)
+  logins: [],               // "Entrar como ...": user names (kb.open)
+  sites: [],                // the favorites' hosts (kb.open)
+  pop: null,                // the key whose accents are open
+};
+
+const board = document.getElementById('board');
+const line = document.getElementById('line');
+const preview = document.getElementById('preview');
+const label = document.getElementById('label');
+const sugg = document.getElementById('sugg');
+const pop = document.getElementById('pop');
+const closeButton = document.getElementById('close');
+
+function send(command, argument) {
+  location.href = 'browserps5:' + command +
+    (argument === undefined ? '' : '?' + encodeURIComponent(argument));
+}
+
+function upper() {
+  return s.shift && s.layer !== 'sym';
+}
+
+function keyText(key) {
+  if (typeof key !== 'string')
+    return key.t;
+  return upper() ? key.toUpperCase() : key;
+}
+
+// The function keys, each with the button that does the same.
+function bottomRow() {
+  const row = [
+    {k: 'shift', t: '⇧', pad: 'L2', w: 1.25},
+    s.layer === 'sym' ? {k: 'abc', t: 'abc', pad: 'L3', w: 1.25} : {k: 'sym', t: '@#:', pad: 'L3', w: 1.25},
+    s.layer === 'acc' ? {k: 'abc', t: 'abc', pad: 'R3', w: 1.15} : {k: 'acc', t: 'áé', pad: 'R3', w: 1.15},
+  ];
+  for (const e of extras[s.kind] || extras.text)
+    row.push(typeof e === 'string' ? e : Object.assign({w: 1}, e));
+  if (s.kind === 'password')
+    row.push({k: 'reveal', t: s.reveal ? 'ocultar' : 'mostrar', w: 1.5});
+  row.push({k: 'space', t: 'espaço', pad: '△', w: 3},
+           {k: 'left', t: '◀', pad: 'L1', w: 1}, {k: 'right', t: '▶', pad: 'R1', w: 1},
+           {k: 'bksp', t: '⌫', pad: '□', w: 1.3},
+           {k: 'enter', t: enterLabels[s.enter] || 'OK', pad: 'R2', w: 2});
+  return row;
+}
+
+function wire(e) {
+  e.addEventListener('mousedown', mouseDown);
+  e.addEventListener('mouseup', mouseUp);
+  e.addEventListener('mouseleave', mouseLeave);
+  e.addEventListener('mouseenter', () => { if (!s.pop || e.classList.contains('v')) highlight(e); });
+}
+
+function makeKey(key) {
+  const e = document.createElement('div');
+  e.className = 'key';
+  if (typeof key === 'string') {
+    e.textContent = keyText(key);
+    if (key.length > 1) {
+      e.classList.add('fn');
+      e.style.flexGrow = 1.25;
+    }
+  } else {
+    e.classList.add(key.k === 'enter' ? 'enter' : 'fn');
+    e.style.flexGrow = key.w || 1;
+    if (key.pad) {
+      const pad = document.createElement('span');
+      pad.className = 'pad';
+      pad.textContent = key.pad;
+      e.appendChild(pad);
+    }
+    e.appendChild(document.createTextNode(key.k === 'space' ? tr(key.t) : key.k === 'reveal' ? tr(key.t) : key.k === 'enter' ? tr(key.t) : key.t));
+    if (key.k === 'shift')
+      e.classList.add('shift', 's' + s.shift);
+    if (key.k === 'abc')
+      e.classList.add('on');
+  }
+  e.key = key;
+  wire(e);
+  return e;
+}
+
+// The rows the D-pad walks: the suggestions (when there are any), the keys.
+function navRows() {
+  const rows = [];
+  const chips = Array.from(sugg.querySelectorAll('.chip'));
+  if (chips.length)
+    rows.push(chips);
+  for (const row of board.querySelectorAll('.row'))
+    rows.push(Array.from(row.children));
+  return rows;
+}
+
+function place(e) {
+  const rows = navRows();
+  for (let r = 0; r < rows.length; r++) {
+    const c = rows[r].indexOf(e);
+    if (c >= 0)
+      return [r - (sugg.querySelector('.chip') ? 1 : 0), c];
+  }
+  return [1, 0];
+}
+
+// Draws the keys again (a layer, the shift or the kind changed), keeping
+// the highlight at the same place.
+function build() {
+  const at = s.hl && s.hl.classList.contains('key') ? place(s.hl) : [1, 0];
+  closePop();
+  for (const old of board.querySelectorAll('.row'))
+    old.remove();
+  const all = layers[s.layer].map((keys) => Array.from(keys)).concat([bottomRow()]);
+  for (const keys of all) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    for (const key of keys)
+      row.appendChild(makeKey(key));
+    board.insertBefore(row, pop);
+  }
+  const rows = Array.from(board.querySelectorAll('.row'));
+  const row = rows[Math.max(0, Math.min(at[0], rows.length - 1))];
+  highlight(row.children[Math.min(at[1], row.children.length - 1)]);
+}
+
+function highlight(e) {
+  if (s.hl)
+    s.hl.classList.remove('hl');
+  s.hl = e;
+  if (e)
+    e.classList.add('hl');
+}
+
+// The word (or, for an address, the whole text) the suggestions complete.
+function token() {
+  const before = s.chars.slice(0, s.caret).join('');
+  if (s.kind === 'bar' || s.kind === 'url' || s.kind === 'email')
+    return before;
+  return before.slice(before.search(/[^\s]*$/));
+}
+
+function suggestions() {
+  if (s.kind === 'password' || s.kind === 'number' || s.kind === 'tel')
+    return [];
+  const t = token().toLowerCase();
+  const out = [];
+  const add = (text) => {
+    if (out.length < 6 && out.indexOf(text) < 0 && text.toLowerCase() !== t)
+      out.push(text);
+  };
+  if (s.kind === 'email') {
+    const at = t.indexOf('@');
+    if (at > 0)
+      for (const m of MAILS)
+        if (m.startsWith(t.slice(at + 1)))
+          add(t.slice(0, at + 1) + m);
+    return out;
+  }
+  if (s.kind === 'bar' || s.kind === 'url') {
+    if (/\s/.test(t))
+      return out;  // a search, not an address
+    // A site whose name starts with what is typed first; then one with a
+    // part that does ("wi": wikipedia.org, then en.wikipedia.org).
+    const all = s.sites.concat(SITES);
+    for (const site of all)
+      if (!t || site.startsWith(t))
+        add(site);
+    for (const site of all)
+      if (t && site.split('.').some((part, i, parts) => i && i < parts.length - 1 && parts.slice(i).join('.').startsWith(t)))
+        add(site);
+    return out;
+  }
+  if (!t)
+    return out;
+  const typed = Array.from(learned.keys()).sort((a, b) => learned.get(b) - learned.get(a));
+  for (const word of typed.concat(commonWords()))
+    if (word.toLowerCase().startsWith(t))
+      add(word);
+  return out;
+}
+
+// The row under the text: the saved logins, the suggestions, or what the
+// buttons do when there is nothing to offer.
+function showSuggestions() {
+  const was = s.hl && s.hl.classList.contains('chip') ? s.hl.textContent : null;
+  sugg.textContent = '';
+  s.logins.forEach((name, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip login';
+    chip.textContent = tr('Entrar como') + ' ' + name;
+    chip.key = {k: 'login', i};
+    wire(chip);
+    sugg.appendChild(chip);
+  });
+  for (const text of suggestions()) {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = text;
+    chip.key = {k: 'sugg', t: text};
+    wire(chip);
+    sugg.appendChild(chip);
+  }
+  if (!sugg.firstChild) {
+    const hint = document.createElement('div');
+    hint.id = 'hint';
+    hint.innerHTML = '<b>✕</b> ' + tr('escrever') + ' · <b>✕</b> ' + tr('premido: acentos') +
+      ' · <b>□</b> ' + tr('apagar') + ' · <b>△</b> ' + tr('espaço') + ' · <b>L1 R1</b> ' + tr('mover o cursor') +
+      ' · <b>R2</b> ' + tr('confirmar');
+    sugg.appendChild(hint);
+  }
+  if (was !== null) {  // the highlight was on a chip: on the one with the same text, or back on the keys
+    const same = Array.from(sugg.querySelectorAll('.chip')).find((c) => c.textContent === was);
+    highlight(same || board.querySelector('.row .key'));
+  }
+}
+
+// What is typed, with the caret, scrolled so that the caret shows.
+function render() {
+  document.body.classList.toggle('closed', !s.open);
+  label.textContent = tr(labels[s.kind] || labels.text);
+  line.textContent = '';
+  // One line: a new line shows as ↵.
+  const shown = s.kind === 'password' && !s.reveal
+    ? s.chars.map(() => '•') : s.chars.map((c) => (c === '\n' ? '↵' : c));
+  if (!s.chars.length) {
+    const p = document.createElement('span');
+    p.id = 'placeholder';
+    p.textContent = s.kind === 'bar' ? tr('Pesquisar ou escrever um endereço') : '';
+    line.append(caretElement(), p);
+  } else {
+    line.append(document.createTextNode(shown.slice(0, s.caret).join('')),
+                caretElement(),
+                document.createTextNode(shown.slice(s.caret).join('')));
+  }
+  const caret = document.getElementById('caret');
+  const shift = Math.max(0, caret.offsetLeft - preview.clientWidth + 40);
+  line.style.left = -shift + 'px';
+  showSuggestions();
+  blink();
+}
+
+let blinkTimer = 0;
+function blink() {
+  clearInterval(blinkTimer);
+  blinkTimer = 0;
+  if (s.open) {
+    blinkTimer = setInterval(() => {
+      const caret = document.getElementById('caret');
+      if (caret)
+        caret.classList.toggle('off');
+    }, 530);
+  }
+}
+
+function caretElement() {
+  const c = document.createElement('span');
+  c.id = 'caret';
+  return c;
+}
+
+function insert(text) {
+  const add = Array.from(text);
+  s.chars.splice(s.caret, 0, ...add);
+  s.caret += add.length;
+  if (s.shift === 1) {
+    s.shift = 0;
+    build();
+  }
+  render();
+}
+
+function backspace() {
+  if (s.pop) {
+    closePop();
+    return;
+  }
+  if (s.caret > 0) {
+    s.chars.splice(s.caret - 1, 1);
+    s.caret--;
+    render();
+  }
+}
+
+function caret(by) {
+  s.caret = Math.max(0, Math.min(s.chars.length, s.caret + by));
+  render();
+}
+
+function setLayer(name) {
+  s.layer = s.layer === name ? 'abc' : name;
+  s.shift = 0;
+  build();
+}
+
+// A suggestion taken: in place of the word being typed (the whole text for
+// an address or an e-mail), with a space after a word.
+function take(text) {
+  const whole = s.kind === 'bar' || s.kind === 'url' || s.kind === 'email';
+  const before = s.chars.slice(0, s.caret).join('');
+  const start = whole ? 0 : before.search(/[^\s]*$/);
+  const put = Array.from(whole ? text : text + ' ');
+  s.chars.splice(Array.from(before.slice(0, start)).length, s.caret - Array.from(before.slice(0, start)).length, ...put);
+  s.caret = Array.from(before.slice(0, start)).length + put.length;
+  render();
+  highlight(board.querySelector('.row .key.enter') || s.hl);
+}
+
+// A key pressed.
+function press(key) {
+  if (typeof key === 'string') {
+    insert(keyText(key));
+    return;
+  }
+  switch (key.k) {
+  case 'bksp': backspace(); break;
+  case 'space': insert(' '); break;
+  case 'newline': insert('\n'); break;
+  case 'left': caret(-1); break;
+  case 'right': caret(1); break;
+  case 'shift': s.shift = (s.shift + 1) % 3; build(); break;
+  case 'sym': case 'acc': setLayer(key.k); break;
+  case 'abc': s.layer = 'abc'; s.shift = 0; build(); break;
+  case 'reveal': s.reveal = !s.reveal; build(); render(); break;
+  case 'close': kb.cancel(); break;
+  case 'enter': kb.done(); break;
+  case 'sugg': take(key.t); break;
+  case 'variant': closePop(); insert(key.t); break;
+  case 'login': {
+    const i = key.i;
+    reset();
+    send('login', String(i));
+    break;
+  }
+  default: insert(key.t);
+  }
+}
+
+// A letter's accents, over it: the letter itself first, highlighted.
+function variantsOf(e) {
+  const key = e && e.key;
+  if (typeof key !== 'string' || key.length !== 1 || !e.classList.contains('key'))
+    return '';
+  const list = variants[key.toLowerCase()] || '';
+  return list && upper() ? list.toUpperCase() : list;
+}
+
+function openPop(e) {
+  const list = variantsOf(e);
+  if (!list)
+    return false;
+  pop.textContent = '';
+  for (const ch of [keyText(e.key)].concat(Array.from(list))) {
+    const v = document.createElement('div');
+    v.className = 'v';
+    v.textContent = ch;
+    v.key = {k: 'variant', t: ch};
+    wire(v);
+    pop.appendChild(v);
+  }
+  pop.classList.add('on');
+  const b = board.getBoundingClientRect(), r = e.getBoundingClientRect();
+  const width = pop.offsetWidth;
+  let left = r.left - b.left + r.width / 2 - 33;
+  left = Math.max(8, Math.min(left, b.width - width - 8));
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(4, r.top - b.top - 70) + 'px';
+  s.pop = e;
+  highlight(pop.children[Math.min(1, pop.children.length - 1)]);
+  return true;
+}
+
+function closePop() {
+  if (!s.pop)
+    return;
+  const back = s.pop;
+  s.pop = null;
+  pop.classList.remove('on');
+  pop.textContent = '';
+  highlight(back.isConnected ? back : board.querySelector('.row .key'));
+}
+
+// A press, from the app (cross with the D-pad's highlight) or the cursor.
+// A letter with accents is typed when the press ends, unless it lasted
+// HOLD_MS: then its accents open and stay open. The other keys act at once;
+// held, the delete key and the caret's go on.
+const HOLD_MS = 420;
+let holdTimer = 0, repeatTimer = 0, pending = null;
+
+function pressStart(e) {
+  if (!e)
+    return;
+  pressEnd(false);
+  highlight(e);
+  e.classList.add('down');
+  setTimeout(() => e.classList.remove('down'), 130);
+  if (!s.pop && variantsOf(e)) {
+    pending = e;
+    holdTimer = setTimeout(() => {
+      holdTimer = 0;
+      if (pending === e) {
+        pending = null;
+        openPop(e);
+      }
+    }, HOLD_MS);
+    return;
+  }
+  press(e.key);
+  const k = e.key && e.key.k;
+  if (k === 'bksp' || k === 'left' || k === 'right') {
+    const again = () => { press(e.key); repeatTimer = setTimeout(again, 70); };
+    repeatTimer = setTimeout(again, 450);
+  }
+}
+
+// type: the press ended on its key (not: the cursor left it).
+function pressEnd(type) {
+  clearTimeout(holdTimer);
+  clearTimeout(repeatTimer);
+  holdTimer = repeatTimer = 0;
+  const e = pending;
+  pending = null;
+  if (e && type)
+    press(e.key);
+}
+
+function mouseDown(event) {
+  event.preventDefault();
+  pressStart(event.currentTarget);
+}
+function mouseUp() {
+  pressEnd(true);
+}
+function mouseLeave() {
+  pressEnd(false);
+}
+closeButton.key = {k: 'close'};
+wire(closeButton);
+
+// The D-pad: the next key in the row (dx), going round, or the key of the
+// next row whose middle is nearest (dy), going round too. With a letter's
+// accents open it walks them, and up or down closes them.
+function move(dx, dy) {
+  if (s.pop) {
+    if (dy) {
+      closePop();
+      return;
+    }
+    const all = Array.from(pop.children);
+    const i = Math.max(0, all.indexOf(s.hl));
+    highlight(all[(i + (dx > 0 ? 1 : -1) + all.length) % all.length]);
+    return;
+  }
+  pressEnd(false);
+  const rows = navRows();
+  let r = -1, c = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const at = rows[i].indexOf(s.hl);
+    if (at >= 0) {
+      r = i;
+      c = at;
+    }
+  }
+  if (r < 0) {
+    highlight(board.querySelector('.row .key'));
+    return;
+  }
+  if (dx) {
+    const n = rows[r].length;
+    highlight(rows[r][(c + (dx > 0 ? 1 : -1) + n) % n]);
+    return;
+  }
+  if (dy) {
+    const box = s.hl.getBoundingClientRect();
+    const middle = box.left + box.width / 2;
+    r = (r + (dy > 0 ? 1 : -1) + rows.length) % rows.length;
+    let best = null, bestDistance = 1e9;
+    for (const e of rows[r]) {
+      const b = e.getBoundingClientRect();
+      const d = Math.abs(b.left + b.width / 2 - middle);
+      if (d < bestDistance) {
+        best = e;
+        bestDistance = d;
+      }
+    }
+    highlight(best);
+  }
+}
+
+// The words of what was typed, for this run's suggestions.
+function learn() {
+  if (s.kind !== 'text' && s.kind !== 'search' && s.kind !== 'textarea' && s.kind !== 'edit')
+    return;
+  for (const word of s.chars.join('').split(/[^\p{L}]+/u))
+    if (word.length >= 3 && word.length <= 24)
+      learned.set(word.toLowerCase(), (learned.get(word.toLowerCase()) || 0) + 1);
+  if (learned.size > 400)
+    for (const word of Array.from(learned.keys()).slice(0, 100))
+      learned.delete(word);
+}
+
+function reset() {
+  pressEnd(false);
+  closePop();
+  s.open = false;
+  s.logins = [];
+  s.chars = [];
+  s.caret = 0;
+  s.reveal = false;
+  render();
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (e) {
+    return '';
+  }
+}
+
+// What the app calls.
+window.kb = {
+  // kind: bar, text, search, url, email, tel, password, number, textarea or
+  // edit; enter: the field's enterkeyhint (go, search, send, next, done or
+  // ''); text: what the field has; logins: user names saved for the page;
+  // favs and recent: the favorites and the sites opened lately ({url}), for
+  // the address's suggestions.
+  open(o) {
+    pressEnd(false);
+    closePop();
+    s.open = true;
+    s.kind = labels[o.kind] ? o.kind : 'text';
+    s.enter = o.kind === 'bar' ? 'go' : (o.enter || '');
+    s.chars = Array.from(o.text || '');
+    s.caret = s.chars.length;
+    s.layer = s.kind === 'number' || s.kind === 'tel' ? 'sym' : 'abc';
+    s.shift = 0;
+    s.reveal = false;
+    s.hl = null;
+    s.logins = Array.isArray(o.logins) ? o.logins.slice(0, 3).map(String) : [];
+    s.sites = (Array.isArray(o.favs) ? o.favs : []).concat(Array.isArray(o.recent) ? o.recent : [])
+      .map((f) => hostOf(f && f.url)).filter(Boolean)
+      .filter((h, i, all) => all.indexOf(h) === i).slice(0, 48);
+    build();
+    render();
+    const login = sugg.querySelector('.chip.login');
+    if (login)
+      highlight(login);  // "Entrar como ...": one press, as before
+  },
+  move,
+  // Cross going down and coming back up, with the highlight (not the cursor).
+  down() { pressStart(s.hl); },
+  up() { pressEnd(true); },
+  // One press with no way to hold it (an app that sends no "up").
+  pressHighlighted() {
+    if (s.hl) {
+      pressStart(s.hl);
+      pressEnd(true);
+    }
+  },
+  backspace,
+  space() { if (s.pop) closePop(); insert(' '); },
+  shift() { press({k: 'shift'}); },
+  layer(name) { setLayer(name === 'acc' ? 'acc' : 'sym'); },
+  caret(by) { if (s.pop) closePop(); caret(by < 0 ? -1 : 1); },
+  // Circle: a letter's accents close first, then the keyboard.
+  back() {
+    if (s.pop)
+      closePop();
+    else
+      kb.cancel();
+  },
+  done() {
+    const text = s.chars.join('');
+    learn();
+    reset();
+    send('done', text);
+  },
+  cancel() {
+    reset();
+    send('cancel');
+  },
+};
+
+// From the app: the theme (theme.css).
+window.setTheme = (name) => { document.documentElement.dataset.theme = name; };
+document.addEventListener('langchange', () => { if (s.open) { build(); render(); } });
+
+build();
+render();
+</script></body></html>

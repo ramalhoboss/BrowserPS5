@@ -1,0 +1,12 @@
+--- a/GStreamerVideoFrameConverter.cpp
++++ b/GStreamerVideoFrameConverter.cpp
+@@ -193,7 +193,9 @@
+     RunLoop::mainSingleton().dispatch([this] {
+         if (!m_releaseUnusedPipelinesTimer) {
+             m_releaseUnusedPipelinesTimer = makeUnique<RunLoop::Timer>(RunLoop::mainSingleton(), "GStreamerVideoFrameConverter::ReleaseUnusedPipelinesTimer"_s, this, &GStreamerVideoFrameConverter::releaseUnusedPipelinesTimerFired);
++#if USE(GLIB_EVENT_LOOP) // BrowserPS5: RunLoopGeneric's timers have no priority
+             m_releaseUnusedPipelinesTimer->setPriority(RunLoopSourcePriority::ReleaseUnusedResourcesTimer);
++#endif
+         }
+         m_releaseUnusedPipelinesTimer->startRepeating(s_releaseUnusedPipelinesTimerInterval);
+     });

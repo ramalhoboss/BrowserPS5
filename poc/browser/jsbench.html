@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- JIT benchmark inside the browser (docs/04-jit.md, J2): the tests of
+     poc/jsc_shell/bench.js run in the WebProcess, one at a time, and every
+     result goes into the title, which a browser built with LOG_TITLE=1 logs.
+     Installed as /user/homebrew/browserps5/data/jsbench.html and opened with
+     HOME_URL=file:///user/homebrew/browserps5/data/jsbench.html. -->
+<meta charset="utf-8">
+<title>jsbench: waiting</title>
+<body style="background:#fff;color:#000;font:32px sans-serif;margin:40px">
+<p id="out">jsbench</p>
+<script>
+const tests = [
+  ["loop", () => { let s = 0; for (let i = 0; i < 1e7; i++) s += i; return s; }],
+  ["objects", () => { class P { constructor(x, y) { this.x = x; this.y = y; } add(o) { return new P(this.x + o.x, this.y + o.y); } } let p = new P(0, 0); const d = new P(1, 2); for (let i = 0; i < 2e6; i++) p = p.add(d); return p.x + p.y; }],
+  ["strings", () => { const a = []; for (let i = 0; i < 2e5; i++) a.push("item-" + i.toString(16)); return a.join(",").split(",").filter(x => x.indexOf("f") >= 0).length; }],
+  ["regexp", () => { const re = /^([a-z]+)-(\d+)@([a-z]+)\.(com|pt)$/; let n = 0; for (let i = 0; i < 2e5; i++) if (re.test("user-" + i + "@mail." + (i & 1 ? "com" : "pt"))) n++; return n; }],
+  ["json", () => { const obj = {list: []}; for (let i = 0; i < 200; i++) obj.list.push({id: i, name: "n" + i, tags: ["a", "b", "c"], ok: i % 2 === 0}); let n = 0; for (let j = 0; j < 2000; j++) n += JSON.parse(JSON.stringify(obj)).list.length; return n; }],
+  ["sort", () => { const a = []; let x = 12345; for (let i = 0; i < 2e5; i++) { x = (x * 1103515245 + 12345) & 0x7fffffff; a.push(x); } a.sort((p, q) => p - q); return a[0] <= a[1] ? "sorted" : "NOT sorted"; }],
+  ["closures", () => { const a = []; for (let i = 0; i < 1e6; i++) a.push(i); return a.map(v => v * 2).filter(v => v % 3 === 0).reduce((s, v) => s + v, 0); }],
+  // DOM work, which the JIT does not speed up as much: 2000 elements made,
+  // styled, measured and removed.
+  ["dom", () => { const box = document.createElement("div"); document.body.appendChild(box); let h = 0; for (let i = 0; i < 2000; i++) { const e = document.createElement("span"); e.textContent = "item " + i; e.style.padding = (i % 7) + "px"; box.appendChild(e); } h = box.offsetHeight; box.remove(); return h > 0 ? "laid out" : "NOT laid out"; }],
+];
+const done = [];
+let total = 0;
+function next(i) {
+  if (i === tests.length) {
+    document.title = "jsbench total " + total.toFixed(1) + " ms: " + done.join(", ");
+    document.getElementById("out").textContent = document.title;
+    return;
+  }
+  const t0 = performance.now();
+  const r = tests[i][1]();
+  const ms = performance.now() - t0;
+  total += ms;
+  done.push(tests[i][0] + " " + ms.toFixed(1));
+  document.title = "jsbench " + tests[i][0] + " " + ms.toFixed(1) + " ms (" + r + ")";
+  document.getElementById("out").textContent = done.join(", ");
+  setTimeout(() => next(i + 1), 50);
+}
+setTimeout(() => next(0), 1000);
+</script>

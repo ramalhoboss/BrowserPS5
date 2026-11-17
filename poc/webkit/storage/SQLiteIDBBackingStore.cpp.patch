@@ -1,0 +1,108 @@
+--- a/Source/WebCore/Modules/indexeddb/server/SQLiteIDBBackingStore.cpp
++++ b/Source/WebCore/Modules/indexeddb/server/SQLiteIDBBackingStore.cpp
+@@ -50,6 +50,9 @@
+ #include <JavaScriptCore/JSCInlines.h>
+ #include <JavaScriptCore/StrongInlines.h>
+ #include <wtf/FileSystem.h>
++#include <wtf/HashMap.h>
++#include <wtf/Lock.h>
++#include <wtf/MonotonicTime.h>
+ #include <wtf/NeverDestroyed.h>
+ #include <wtf/TZoneMallocInlines.h>
+ #include <wtf/text/MakeString.h>
+@@ -940,8 +943,79 @@
+     return fullDatabasePathForDirectory(m_databaseDirectory);
+ }
+ 
++// BrowserPS5 (2026-11-11, poc/webkit/storage): indexedDB.databases() opened
++// every database of the site that was not open, each time it was asked: a
++// connection each, in WAL mode, with its -wal and -shm files made and removed.
++// On the PS5 that is about 35 ms a database (making a file 5 ms, the -shm
++// file 12 ms: poc/io_probe), WhatsApp Web has twelve and asks for the list
++// over and over while it syncs: the storage queue answered nothing else for
++// 20 to 75 s, and a page's first sessionStorage (a sync message to that
++// queue) stopped the whole WebProcess for as long. What a file said is kept
++// while the file stays as it was (its time and size, and no log beside it);
++// opening or deleting the database through its backing store forgets it.
++struct NameAndVersionOnFile {
++    String name;
++    uint64_t version { 0 }; // 0: no database in the file
++    std::optional<WallTime> modified;
++    std::optional<uint64_t> size;
++    MonotonicTime readAt;
++};
++
++static Lock nameAndVersionOnFileLock;
++
++static HashMap<String, NameAndVersionOnFile>& nameAndVersionOnFile() WTF_REQUIRES_LOCK(nameAndVersionOnFileLock)
++{
++    static NeverDestroyed<HashMap<String, NameAndVersionOnFile>> map;
++    return map;
++}
++
++static void forgetNameAndVersionOnFile(const String& databasePath)
++{
++    Locker locker { nameAndVersionOnFileLock };
++    nameAndVersionOnFile().remove(databasePath);
++}
++
++static bool hasNoLog(const String& databasePath)
++{
++    auto size = FileSystem::fileSize(makeString(databasePath, "-wal"_s));
++    return !size || !*size;
++}
++
++static std::optional<IDBDatabaseNameAndVersion> readDatabaseNameAndVersionFromFile(const String& databasePath);
++
+ std::optional<IDBDatabaseNameAndVersion> SQLiteIDBBackingStore::databaseNameAndVersionFromFile(const String& databasePath)
+ {
++    {
++        auto modified = FileSystem::fileModificationTime(databasePath);
++        auto size = FileSystem::fileSize(databasePath);
++        if (modified && size && hasNoLog(databasePath)) {
++            Locker locker { nameAndVersionOnFileLock };
++            auto it = nameAndVersionOnFile().find(databasePath);
++            if (it != nameAndVersionOnFile().end() && it->value.modified == modified && it->value.size == size) {
++                if (it->value.version)
++                    return IDBDatabaseNameAndVersion { it->value.name.isolatedCopy(), it->value.version };
++                // "No database": believed for ten seconds only (a file that could not be read is asked again).
++                if (MonotonicTime::now() - it->value.readAt < 10_s)
++                    return std::nullopt;
++            }
++        }
++    }
++
++    auto result = readDatabaseNameAndVersionFromFile(databasePath);
++
++    // The file as it is now: opening and closing it may have written to it.
++    auto modified = FileSystem::fileModificationTime(databasePath);
++    auto size = FileSystem::fileSize(databasePath);
++    Locker locker { nameAndVersionOnFileLock };
++    if (modified && size && hasNoLog(databasePath))
++        nameAndVersionOnFile().set(databasePath.isolatedCopy(), NameAndVersionOnFile { result ? result->name.isolatedCopy() : String(), result ? result->version : 0, modified, size, MonotonicTime::now() });
++    else
++        nameAndVersionOnFile().remove(databasePath);
++    return result;
++}
++
++static std::optional<IDBDatabaseNameAndVersion> readDatabaseNameAndVersionFromFile(const String& databasePath)
++{
+     auto database = makeUniqueRef<SQLiteDatabase>();
+     if (!database->open(databasePath)) {
+         LOG_ERROR("Failed to open SQLite database at path '%s' when getting database name", databasePath.utf8());
+@@ -984,6 +1058,7 @@
+     }
+ 
+     String databasePath = fullDatabasePath();
++    forgetNameAndVersionOnFile(databasePath); // BrowserPS5: it is open from here on, and may change
+     FileSystem::makeAllDirectories(FileSystem::parentPath(databasePath));
+     m_sqliteDB = makeUnique<SQLiteDatabase>();
+     if (CheckedPtr sqliteDB = m_sqliteDB.get(); !sqliteDB->open(databasePath, SQLiteDatabase::OpenMode::ReadWriteCreate, SQLiteDatabase::OpenOptions::CanSuspendWhileLocked)) {
+@@ -2979,6 +3054,7 @@
+ void SQLiteIDBBackingStore::deleteBackingStore()
+ {
+     String databasePath = fullDatabasePath();
++    forgetNameAndVersionOnFile(databasePath); // BrowserPS5
+ 
+     LOG_WITH_STREAM(IndexedDB, stream << "SQLiteIDBBackingStore::deleteBackingStore deleting file '"_s << databasePath << "' on disk"_s);
+ 
