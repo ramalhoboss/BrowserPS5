@@ -60,6 +60,12 @@ typedef enum input_kind {
   // how far L2 is pulled (0..15) in bits 21-24 and R2 in bits 25-28. Sent
   // when it changes. Not the cursor: x, y are not where it is.
   INPUT_PAD,
+  // 2026-11-18, BrowserPS5 RN's title with TITLE_KBM (browser/title/kbm.c): a
+  // USB or Bluetooth keyboard. dx: the key's USB HID usage (page 7; 0xe0 to
+  // 0xe7 the modifiers; 0: the keyboard itself, pressed 1 when it is there
+  // and 0 when it went); dy: the modifiers held (the USB boot report's bits);
+  // pressed: 1 down, 2 held (repeated), 0 up. x, y: the cursor.
+  INPUT_KEY,
 } input_kind_t;
 
 // INPUT_PAD's buttons (libScePad's bits).

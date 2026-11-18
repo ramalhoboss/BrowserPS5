@@ -65,6 +65,7 @@ BrowserPS5 RN is a full web browser for jailbroken PS5 consoles: its own port of
 
 - **DualSense all the way**: a cursor with a magnet for links, the D-pad jumping between links and buttons, radial menus on L2 and R2 with a click in the adaptive triggers, haptics, the light bar in the theme's colour.
 - **The PS5's own keyboard** for text (firmware 13.60), with its suggestions and layout; passwords, and other firmwares, get the browser's own keyboard, with the PS5 keyboard's shortcuts and accents on a long press.
+- **A USB keyboard and mouse**: the mouse is the cursor (its wheel scrolls, its side buttons go back and forward), the keyboard types into pages with Portugal's, Brazil's (ABNT2) or the US layout, by the console's language, and F5, Ctrl+L, Ctrl+T, Ctrl+W and Alt+← / → work as on a computer.
 - **16 themes**, six of them seasonal and switched by the calendar.
 - **Open beside the game**: sends the page you are on to the PS5's own side card, next to your game.
 - **Your phone as keyboard and remote**: pair it with a code or a QR code, type on it, send links and files to the console, and see the console's downloads. Your game's notes and kept pages can be written on it too.
@@ -159,6 +160,8 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 
 **In a game played with keys** (*Menu → Controller as keyboard*, kept for each site): the left stick and the D-pad are the direction keys, the right stick is the mouse, R2 the mouse's button and R3 Enter; ✕ is space, □ △ ○ keys of their own, L1 Q, R1 E, L2 Shift and Options Esc.
 
+**With a USB keyboard and mouse** plugged into the console: the mouse moves the cursor, its left button clicks (held, it drags), the wheel scrolls and the side buttons go back and forward. The keyboard types into the page, and no keyboard opens on the screen while it is plugged in; F5 or Ctrl+R reloads, F6 or Ctrl+L goes to the address, Ctrl+T opens a tab and Ctrl+W closes it, Alt+← and Alt+→ go back and forward. The layout is the console's language's: Portugal's, Brazil's (ABNT2), or the US one for every other language.
+
 **On YouTube's page for televisions**, ○ is the page's own "back": from a film to the screen it was opened from, and from the page's first screen out to the browser.
 
 ---
@@ -245,6 +248,7 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 | A video service will not play | It needs DRM, which BrowserPS5 RN does not have |
 | A download stays at *waiting for the network* | The console lost its connection: it goes on by itself when the network is back |
 | Downloads are slow | Use a network cable: over Wi-Fi the console takes about 27 MB/s at most |
+| The browser should not use a keyboard or mouse plugged into the console | Put an empty file named `no-kbm` in `/data/homebrew/PPSA97024/` (by FTP) |
 | The cursor moves or clicks when a finger brushes the touch pad | Put an empty file named `no-touch-cursor` in `/data/homebrew/PPSA97024/` (by FTP): the pad is then only its press |
 
 The browser's own logs are in `/data/homebrew/PPSA97024/` (`browser-run.txt`, `browser-title.txt`, `web-stderr.txt`). They are kept for the last four sessions and help when reporting a problem.

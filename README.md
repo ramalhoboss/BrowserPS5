@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc15-2f6dff"></a>
+  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc16-2f6dff"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-PS5%20(jailbroken)-0b0b1a">
   <img alt="Tested firmware" src="https://img.shields.io/badge/tested%20on-firmware%2013.60-ff2e4a">
   <img alt="Engine" src="https://img.shields.io/badge/engine-WebKit%20627.1.7-8a5cf6">
@@ -101,6 +101,7 @@ All four are captures taken on the console.
 - **DualSense all the way**: a cursor with a magnet for links, the D-pad jumping between links and buttons, radial menus on L2 and R2 with a click in the adaptive triggers, haptics, the light bar in the theme's colour.
 - **The touch pad as a laptop's**: a finger moves the cursor, a tap clicks, two fingers scroll the page and it glides on after they leave.
 - **The PS5's own keyboard** for text (firmware 13.60), with its suggestions and layout; passwords, and other firmwares, get the browser's own keyboard.
+- **A USB keyboard and mouse**: the mouse is the cursor (its wheel scrolls, its side buttons go back and forward), the keyboard types into pages with Portugal's, Brazil's (ABNT2) or the US layout, by the console's language, and F5, Ctrl+L, Ctrl+T, Ctrl+W and Alt+← / → work as on a computer.
 - **16 themes**, six of them seasonal and switched by the calendar, and an animated starting screen.
 - **Open beside the game**: sends the page you are on to the PS5's own side card, next to your game.
 - **Your phone as keyboard and remote**: pair it with a code or a QR code, type on it, send links and files to the console, and see the console's downloads.
@@ -260,6 +261,7 @@ The PS5's own WebKit is old, locked down and out of reach for homebrew, and a fi
 | 17 November | rc12: the touch pad as a laptop's, key codes for web games and emulators, the animated starting screen, a race in the IPC found and fixed |
 | 18 November | rc14: the browser updates itself, the engine's pipes become pairs of sockets (no page loaded once the console's pipes ran out), ○ as the "back" of YouTube's page for televisions |
 | 18 November | rc15: video files in a page play (MP4 from memory, WebM with Vorbis sound), a start that fails closes the app cleanly, the title's pipes become pairs of sockets too |
+| 18 November | rc16: a USB keyboard and mouse, with the layout of the console's language |
 
 Some of the problems that had to be solved on the way, each documented where it is solved:
 
@@ -298,6 +300,7 @@ Reports from other firmwares, consoles and setups are welcome: open an issue wit
 | --- | --- |
 | YouTube up to 2160p (H.264, VP9), and `youtube.com/tv` | Video with DRM: Netflix, Disney+, Prime Video, Vimeo, Spotify's web player |
 | Video files in a page (MP4, WebM), as the Internet Archive gives them | Ogg files (`.ogg`) |
+| A USB keyboard and mouse | Keyboard layouts other than Portugal's, Brazil's and the US one (they type as the US one) |
 | WhatsApp Web and Telegram Web: linking, chats, files | Calls, camera and microphone (no WebRTC), so no cloud gaming |
 | WebGL 1 and 2, WebAssembly, Web Audio, Media Source Extensions | Text-to-speech |
 | Emulators and games that run in a page, with the controller as their keyboard | More than 6 tabs |
@@ -387,6 +390,8 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 
 **In a game played with keys** (*Menu → Controller as keyboard*, kept for each site): the left stick and the D-pad are the direction keys, the right stick is the mouse, R2 the mouse's button and R3 Enter; ✕ is space, □ △ ○ keys of their own, L1 Q, R1 E, L2 Shift and Options Esc.
 
+**With a USB keyboard and mouse** plugged into the console: the mouse moves the cursor, its left button clicks (held, it drags), the wheel scrolls and the side buttons go back and forward. The keyboard types into the page, and no keyboard opens on the screen while it is plugged in; F5 or Ctrl+R reloads, F6 or Ctrl+L goes to the address, Ctrl+T opens a tab and Ctrl+W closes it, Alt+← and Alt+→ go back and forward. The layout is the console's language's: Portugal's, Brazil's (ABNT2), or the US one for every other language.
+
 **On YouTube's page for televisions**, ○ is the page's own "back": from a film to the screen it was opened from, and from the page's first screen out to the browser.
 
 ---
@@ -452,6 +457,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 | A video service will not play | It needs DRM, which BrowserPS5 RN does not have |
 | A download stays at *waiting for the network* | The console lost its connection: it goes on by itself when the network is back |
 | Downloads are slow | Use a network cable: over Wi-Fi the console takes about 27 MB/s at most |
+| The browser should not use a keyboard or mouse plugged into the console | Put an empty file named `no-kbm` in `/data/homebrew/PPSA97024/` (by FTP) |
 | The cursor moves or clicks when a finger brushes the touch pad | Put an empty file named `no-touch-cursor` in `/data/homebrew/PPSA97024/` (by FTP): the pad is then only its press |
 
 The browser's own logs are in `/data/homebrew/PPSA97024/` (`browser-run.txt`, `browser-title.txt`, `web-stderr.txt`). They are kept for the last four sessions and help when reporting a problem.

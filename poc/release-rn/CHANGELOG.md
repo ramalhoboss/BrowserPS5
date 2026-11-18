@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-rc16 — 2026-11-18
+
+Since rc15:
+
+- **A USB keyboard and mouse.** Plug them into the console and use them in the browser: the mouse moves the cursor, its left button clicks (held, it drags), the wheel scrolls and the side buttons go back and forward. The keyboard types into pages with the layout of the console's language: Portugal's or Brazil's (ABNT2), with their accents on dead keys, or the US one for every other language. While a keyboard is plugged in, no keyboard opens on the screen for a text field. F5 or Ctrl+R reloads, F6 or Ctrl+L goes to the address, Ctrl+T opens a tab and Ctrl+W closes it, Alt+← and Alt+→ go back and forward. The app loads the PS5's own libraries for them when it starts; an empty file named `no-kbm` in `/data/homebrew/PPSA97024/` turns this off. What is typed is never written to the logs.
+- **A still page is not sent to the TV again and again.** The app showed a frame 60 times a second even when nothing on the screen changed; now it shows one only when something did.
+- Tested: the set of tests on the console with this title and browser (the engine is rc15's), 9 of 9: the start and its checks, 24 of 24 sites, a PDF, the local network's block, a tour of pages, YouTube, a download, a still page, and the video files 5 of 5. With a USB keyboard and mouse plugged into the console: the cursor, clicks, typing, F5 and Alt+←.
+- Known: Brazil's layout was checked on the PC, key by key, not with a Brazilian keyboard; other languages' keyboards (AZERTY, QWERTZ and the like) type as a US one. Copy and paste with Ctrl+C and Ctrl+V, and Bluetooth keyboards and mice, were not tried. With the browser open on a still page the console draws about 3.4 W more than on its home screen (7.8 W against 4.3 W, measured on the console's own counter): most of it is the engine keeping the GPU, and it is not lowered yet. Tested on one console, firmware 13.60.
+
 ## 1.0.0-rc15 — 2026-11-18
 
 Since rc14:

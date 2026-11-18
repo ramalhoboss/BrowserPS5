@@ -15,15 +15,15 @@ along with this program; see the file COPYING. If not, see
 <http://www.gnu.org/licenses/>.  */
 
 // kbm (2026-11-18, BrowserPS5 RN's title, TITLE_KBM=1): a USB or Bluetooth mouse and keyboard plugged into the
-// console. The system's libraries for them (libSceMouse, libSceKeyboard) are loaded and bound at run time, as
-// the system keyboard's is (sysime.c): on a console or firmware where that fails, nothing changes and the log
-// says why.
+// console. The system's libraries for them (libSceMouse, libSceKeyboard) are imported and loaded by the system
+// at run time, as the video decoder's is (kbm.c): on a console or firmware where that fails, nothing changes and
+// the log says why.
 //
 //   - The mouse moves the browser's cursor (INPUT_MOVE, as the left stick), its left button is ✕ (INPUT_BUTTON_DOWN
 //     and _UP; held, a drag), its wheel scrolls in steps (INPUT_SCROLL, as the D-pad), its side buttons are back
 //     and forward. Nothing new for the browser's interface to know.
-//   - The keyboard: its first readings are written to the log as they come (the layout of the library's data is
-//     not published), for the step that turns them into the page's keys.
+//   - The keyboard: each key down, held (repeated) and up as INPUT_KEY (input.h), with its USB HID usage and the
+//     modifiers; the browser makes the characters. The log says when it comes and goes, never the keys.
 #pragma once
 
 #include "input.h"

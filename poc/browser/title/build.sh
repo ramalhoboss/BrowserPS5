@@ -121,12 +121,22 @@ for module in display input ime; do
     cc "${cflags[@]}" -c "$poc/hello_page/$module.c" -o "$work/obj/$module.o"
 done
 [[ ${TITLE_SYSIME:-0} == 1 ]] && cc "${cflags[@]}" -c "$here/sysime.c" -o "$work/obj/sysime.o"
-# TITLE_KBM=1 (2026-11-18, BrowserPS5 RN): a USB or Bluetooth mouse and keyboard (kbm.c), their system libraries
-# loaded and bound at run time as the system keyboard's are.
+# TITLE_KBM=1 (2026-11-18, BrowserPS5 RN): a USB or Bluetooth mouse and keyboard (kbm.c). Their functions are
+# imported through link-only stubs (kbm_link_stub.c), as the microphone's and the video decoder's are, and the
+# system loads the libraries by id at run time (sceKernelDlsym gives nothing by name in a title).
 kbm_objs=()
+kbm_stubs=()
+kbm_stub_flags=()
 if [[ ${TITLE_KBM:-0} == 1 ]]; then
     cc "${cflags[@]}" -c "$here/kbm.c" -o "$work/obj/kbm.o"
     kbm_objs=("$work/obj/kbm.o")
+    for lib in Mouse Keyboard; do
+        cc -std=c11 -O2 -fPIC -DKBM_STUB_${lib^^} -c "$here/kbm_link_stub.c" -o "$work/obj/libSce${lib}_stub.o"
+        "$sdk/bin/prospero-lld" --shared -soname "libSce$lib.prx" -o "$work/stubs/libSce$lib.so" \
+            "$work/obj/libSce${lib}_stub.o"
+        kbm_stubs+=("$work/stubs/libSce$lib.so")
+        kbm_stub_flags+=(--stub "$work/stubs/libSce$lib.so")
+    done
 fi
 if [[ ${TITLE_MIC:-0} == 1 ]]; then
     cc "${cflags[@]}" -c "$here/mic.c" -o "$work/obj/mic.o"
@@ -347,7 +357,7 @@ fi
     "$work/obj/display.o" "$work/obj/input.o" "$work/obj/ime.o" "${sysime_objs[@]}" "${mic_objs[@]}" "${kbm_objs[@]}" "$work/obj/feel.o" \
     "$work/obj/video.o" "$work/obj/capture.o" "${splash_objs[@]}" "${webkit_inputs[@]}" \
     "$ff/lib/libavcodec.a" "$ff/lib/libswresample.a" "$ff/lib/libavutil.a" \
-    "$work/stubs/libSceAgc.so" "$work/stubs/libSceAgcDriver.so" "$work/stubs/libSceVideodec2.so" "${mic_stubs[@]}" \
+    "$work/stubs/libSceAgc.so" "$work/stubs/libSceAgcDriver.so" "$work/stubs/libSceVideodec2.so" "${mic_stubs[@]}" "${kbm_stubs[@]}" \
     "${title_inputs[@]}" \
     --as-needed "${modules[@]}" > "$work/link.log" 2>&1 || true
 { grep -v "warning:" "$work/link.log" || true; } | head -60
@@ -371,7 +381,7 @@ if (( webkit )); then
 fi
 "$tool" link --in "$work/llvm-pie.elf" --out "$work/eboot.elf" \
     --stub-dir "$sdk/target/lib" --stub "$work/stubs/libSceAgc.so" \
-    --stub "$work/stubs/libSceAgcDriver.so" --stub "$work/stubs/libSceVideodec2.so" "${mic_stub_flags[@]}" --module-sdk 0x02000009 \
+    --stub "$work/stubs/libSceAgcDriver.so" --stub "$work/stubs/libSceVideodec2.so" "${mic_stub_flags[@]}" "${kbm_stub_flags[@]}" --module-sdk 0x02000009 \
     --companion-sdk 0x08050001 --file-name eboot.elf
 if [[ ${TITLE_SCRUB:-0} == 1 ]]; then  # (2026-11-14, RN's releases) the build machine's user names out of the title, before it is signed: common/scrub-paths.py
     python3 -I "$poc/common/scrub-paths.py" "$work/eboot.elf"

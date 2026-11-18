@@ -1793,7 +1793,14 @@ int main()
     uint64_t shown = 0, taken = 0;
     bool splash_done = false;
     double tile_ms = 0, wait_ms = 0, last = now_ms();
-    uint64_t last_shown = 0, last_taken = 0;
+    uint64_t last_taken = 0;
+    /* The idle frames left out (below): the front buffer last flipped as it is (~0u: none, or one with
+     * video or the starting screen in it). */
+    uint64_t flipped = 0, skipped = 0, last_flipped = 0, last_skipped = 0;
+    unsigned plain_front = ~0u;
+    const bool always_flip = !access("/app0/always-flip", F_OK);
+    report("screen: %s", always_flip ? "every frame flipped (/app0/always-flip)"
+                                     : "a frame with nothing new is not flipped");
     while (!link_closed) {
         int fresh;
         front = link_take(view, front, &fresh);
@@ -1814,13 +1821,28 @@ int main()
         }
         if (video_on && screen == link_buffer(view, front))  // (not under the starting screen)
             screen = video_compose(screen, LINK_WIDTH, LINK_HEIGHT, LINK_WIDTH);
-        if ((err = display_show(screen, &tile_ms, &wait_ms))) {
-            report("display_show: 0x%x", err);
+        /* 2026-11-18 (the browser was reported as power-hungry; poc/power_probe: the GPU's rails took 4.4 W on
+         * the home screen and 7.9 W with the browser on a page that stood still, while the title copied and
+         * flipped the screen 60 times a second with no new frame): when nothing on the screen can have changed
+         * (no new frame from the browser, no video under the page, the starting screen over, no capture), the
+         * copy and the flip are left out and the loop sleeps about a frame. The browser still gets its VSYNC.
+         * The file /app0/always-flip keeps the flip of every frame, as before. */
+        const bool plain = screen == link_buffer(view, front);
+        if (!fresh && plain && plain_front == front && !(splash_on && !splash_done) && !always_flip &&
+            !capture_running()) {
+            ++skipped;
             sceKernelUsleep(16000);
+        } else {
+            if ((err = display_show(screen, &tile_ms, &wait_ms))) {
+                report("display_show: 0x%x", err);
+                sceKernelUsleep(16000);
+            }
+            ++flipped;
+            plain_front = plain && !err ? front : ~0u;
+            /* The video of the browser (docs/09-video.md): what was just shown,
+             * copied (~1 ms) while a capture runs. */
+            capture_frame(screen, LINK_WIDTH, LINK_HEIGHT, LINK_WIDTH);
         }
-        /* The video of the browser (docs/09-video.md): what was just shown,
-         * copied (~1 ms) while a capture runs. */
-        capture_frame(screen, LINK_WIDTH, LINK_HEIGHT, LINK_WIDTH);
         ++shown;
         link_msg_t vsync;
         memset(&vsync, 0, sizeof(vsync));
@@ -1831,10 +1853,13 @@ int main()
 
         const double now = now_ms();
         if (now - last >= 5000) {
-            const uint64_t n = shown - last_shown;
-            report("screen: %llu flips, %llu new frames in %.1f s; copy %.2f ms, wait %.2f ms per flip",
+            const uint64_t n = flipped - last_flipped;
+            report("screen: %llu flips, %llu new frames in %.1f s; copy %.2f ms, wait %.2f ms per flip; "
+                   "%llu frames with nothing new not flipped",
                    (unsigned long long)n, (unsigned long long)(taken - last_taken), (now - last) / 1e3,
-                   n ? tile_ms / n : 0.0, n ? wait_ms / n : 0.0);
+                   n ? tile_ms / n : 0.0, n ? wait_ms / n : 0.0, (unsigned long long)(skipped - last_skipped));
+            last_flipped = flipped;
+            last_skipped = skipped;
             if (title_memory_stats) {
                 title_memory_stats_t m;
                 title_memory_stats(&m);
@@ -1873,7 +1898,6 @@ int main()
             if (video_on && video_status(video_line, sizeof(video_line)))
                 report("%s", video_line);
             last = now;
-            last_shown = shown;
             last_taken = taken;
             tile_ms = wait_ms = 0;
         }

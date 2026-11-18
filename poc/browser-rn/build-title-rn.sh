@@ -26,6 +26,8 @@ export TITLE_SYSIME=${TITLE_SYSIME-1}
 export TITLE_MIC=${TITLE_MIC-0}
 # 2026-11-18: pipe() and pipe2() in the title on pairs of sockets (TITLE_PIPES, build.sh); TITLE_PIPES=0 builds one without.
 export TITLE_PIPES=${TITLE_PIPES-1}
+# 2026-11-18 (1.0.0-rc16): a USB or Bluetooth mouse and keyboard (TITLE_KBM, build.sh, title/kbm.c); TITLE_KBM=0 builds one without.
+export TITLE_KBM=${TITLE_KBM-1}
 [ "$TITLE_QUIET_LOG" = 1 ] || unset TITLE_QUIET_LOG
 # 2026-11-17: the touch pad's surface as a laptop's (hello_page/input.c INPUT_TOUCH_SURFACE, touch_surface.h);
 # TITLE_TOUCH=0 builds a title without it.

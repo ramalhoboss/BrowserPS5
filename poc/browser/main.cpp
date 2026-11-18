@@ -2354,11 +2354,21 @@ keys_cancel(void) {
 // browser's own: the system's, opened while the title drew with the GPU,
 // took the console down (TV test, 2026-11-04 18:19, a click on YouTube's
 // search; docs/03-video-e-gpu.md). Returns what ime_open() would.
+#ifdef APP_RN
+static bool hw_keyboard_on;  // a USB keyboard is there (hw_key_input())
+#endif
+
 static int
 open_keyboard(const char* kind, const char* hint, ime_kind_t ime,
               ime_enter_t enter, const char* text) {
 #ifdef REMOTE_UI
 #ifdef APP_RN
+  // 2026-11-18: with a USB keyboard there, no keyboard on the screen: the field has the focus, and the keys
+  // type into it (hw_key_input()).
+  if(hw_keyboard_on) {
+    POC_LOG("keyboard for a %s field: the USB keyboard types into it", kind);
+    return 0;
+  }
   // BrowserPS5 RN (2026-11-11): the system's keyboard when the setting says
   // so. What took the console down on 2026-11-04 was the GPU drawing under
   // it; RN's title pauses the pages first, as for the PS button, opens the
@@ -16244,6 +16254,371 @@ radial_input(const input_event_t* e) {
 }
 
 
+#ifdef APP_RN
+// 2026-11-18: a USB or Bluetooth keyboard, as the title reads it (title/kbm.c, INPUT_KEY in input.h: the key's USB
+// HID usage, the modifiers, down / held / up). WebKit's PlayStation entry takes no modifiers
+// (WKPagePrivatePlayStation.cpp: "TODO: Handle modifiers"), so the character is made here, with the keyboard of
+// the console's language (the system's, set at start; the browser's own when the console did not say):
+// Portugal's layout or Brazil's (ABNT2), with their dead keys for the accents, or else the US one; and Ctrl and Alt make the browser's shortcuts. The keys go to the view in focus (the page in the game
+// mode). While the system's keyboard is open it takes them itself; the browser's own hides at the first key.
+#define HID_CTRL  0x11u
+#define HID_SHIFT 0x22u
+#define HID_ALT   0x04u
+#define HID_ALTGR 0x40u
+#define HID_DEAD(c) (0x80000000u | (uint32_t)(c))  // a dead key: its accent waits for the next key
+
+static struct {
+  bool caps;               // Caps Lock, as its key toggles it here
+  uint32_t dead;           // a dead key's accent waiting (0: none)
+  int32_t down_code[256];  // the key code each usage went down with, for its key up
+  int down_pane[256];
+  int console_lang;        // the console's language (sceSystemServiceParamGetInt(1)), -1: not known
+} hw_keys = {false, 0, {}, {}, -1};
+
+// The keyboards' layouts: the console's language says which (hw_layout()).
+enum { HW_US, HW_PT, HW_BR };
+
+// The keys that type, by usage: plain, with Shift, with AltGr (0: nothing), on the US, Portuguese and
+// Brazilian (ABNT2) keyboards. Letters (0x04-0x1d) and the keypad are made in hw_key_char().
+static const struct {
+  uint8_t usage;
+  uint32_t us[2];
+  uint32_t pt[3];
+  uint32_t br[3];
+} hw_chars[] = {
+  {0x1e, {'1', '!'}, {'1', '!', 0}, {'1', '!', 0xb9}},                  // br: ¹
+  {0x1f, {'2', '@'}, {'2', '"', '@'}, {'2', '@', 0xb2}},                // br: ²
+  {0x20, {'3', '#'}, {'3', '#', 0xa3}, {'3', '#', 0xb3}},               // pt: £; br: ³
+  {0x21, {'4', '$'}, {'4', '$', 0xa7}, {'4', '$', 0xa3}},               // pt: §; br: £
+  {0x22, {'5', '%'}, {'5', '%', 0x20ac}, {'5', '%', 0xa2}},             // pt: €; br: ¢
+  {0x23, {'6', '^'}, {'6', '&', 0}, {'6', HID_DEAD(0xa8), 0xac}},       // br: ¨ ¬
+  {0x24, {'7', '&'}, {'7', '/', '{'}, {'7', '&', 0}},
+  {0x25, {'8', '*'}, {'8', '(', '['}, {'8', '*', 0}},
+  {0x26, {'9', '('}, {'9', ')', ']'}, {'9', '(', 0}},
+  {0x27, {'0', ')'}, {'0', '=', '}'}, {'0', ')', 0}},
+  {0x2c, {' ', ' '}, {' ', ' ', 0}, {' ', ' ', 0}},
+  {0x2d, {'-', '_'}, {'\'', '?', 0}, {'-', '_', 0}},
+  {0x2e, {'=', '+'}, {0xab, 0xbb, 0}, {'=', '+', 0xa7}},                // pt: « »; br: §
+  {0x2f, {'[', '{'}, {'+', '*', HID_DEAD(0xa8)}, {HID_DEAD(0xb4), HID_DEAD('`'), 0}},  // pt: ¨; br: ´ `
+  {0x30, {']', '}'}, {HID_DEAD(0xb4), HID_DEAD('`'), 0}, {'[', '{', 0xaa}},            // pt: ´ `; br: ª
+  {0x31, {'\\', '|'}, {HID_DEAD('~'), HID_DEAD('^'), 0}, {']', '}', 0xba}},            // br: º
+  {0x32, {'\\', '|'}, {HID_DEAD('~'), HID_DEAD('^'), 0}, {']', '}', 0xba}},  // (an ISO keyboard's key by Enter)
+  {0x33, {';', ':'}, {0xe7, 0xc7, 0}, {0xe7, 0xc7, 0}},                 // ç Ç
+  {0x34, {'\'', '"'}, {0xba, 0xaa, 0}, {HID_DEAD('~'), HID_DEAD('^'), 0}},  // pt: º ª
+  {0x35, {'`', '~'}, {'\\', '|', 0}, {'\'', '"', 0}},
+  {0x36, {',', '<'}, {',', ';', 0}, {',', '<', 0}},
+  {0x37, {'.', '>'}, {'.', ':', 0}, {'.', '>', 0}},
+  {0x38, {'/', '?'}, {'-', '_', 0}, {';', ':', 0}},
+  {0x64, {'\\', '|'}, {'<', '>', 0}, {'\\', '|', 0}},        // (an ISO keyboard's key by the left Shift)
+  {0x87, {0, 0}, {0, 0, 0}, {'/', '?', 0xb0}},   // (ABNT2's key by the right Shift) °
+};
+
+// The keys that do not type, by usage: their X11 key codes, as send_key() takes them.
+static int32_t
+hw_key_code(unsigned usage) {
+  if(usage >= 0x3a && usage <= 0x45) {
+    return 0xffbe + (int32_t)(usage - 0x3a);  // F1-F12
+  }
+  switch(usage) {
+  case 0x28: case 0x58: return KEY_RETURN;
+  case 0x29: return 0xff1b;  // Escape
+  case 0x2a: return KEY_BACKSPACE;
+  case 0x2b: return 0xff09;  // Tab
+  case 0x39: return 0xffe5;  // Caps Lock
+  case 0x46: return 0xff61;  // Print
+  case 0x47: return 0xff14;  // Scroll Lock
+  case 0x48: return 0xff13;  // Pause
+  case 0x49: return 0xff63;  // Insert
+  case 0x4a: return 0xff50;  // Home
+  case 0x4b: return 0xff55;  // Page Up
+  case 0x4c: return 0xffff;  // Delete
+  case 0x4d: return 0xff57;  // End
+  case 0x4e: return 0xff56;  // Page Down
+  case 0x4f: return 0xff53;  // Right
+  case 0x50: return 0xff51;  // Left
+  case 0x51: return 0xff54;  // Down
+  case 0x52: return 0xff52;  // Up
+  case 0x53: return 0xff7f;  // Num Lock
+  case 0x65: return 0xff67;  // Menu
+  case 0xe0: return 0xffe3;  // Control
+  case 0xe1: return 0xffe1;  // Shift
+  case 0xe2: return 0xffe9;  // Alt
+  case 0xe3: return 0xffeb;  // Super
+  case 0xe4: return 0xffe4;
+  case 0xe5: return 0xffe2;
+  case 0xe6: return 0xfe03;  // AltGr (ISO Level 3 Shift)
+  case 0xe7: return 0xffec;
+  }
+  return 0;
+}
+
+// What a key types (a code point, HID_DEAD(accent), or 0).
+static uint32_t
+hw_key_char(unsigned usage, bool shift, bool altgr, int layout) {
+  if(usage >= 0x04 && usage <= 0x1d) {
+    if(altgr) {
+      if(layout == HW_PT) {
+        return usage == 0x08 ? 0x20ac : 0;  // € (AltGr+E)
+      }
+      if(layout == HW_BR) {  // AltGr+Q, W, E: / ? °
+        return usage == 0x14 ? '/' : usage == 0x1a ? '?' : usage == 0x08 ? 0xb0 : 0;
+      }
+      return 0;
+    }
+    const bool upper = shift != hw_keys.caps;
+    return (uint32_t)((upper ? 'A' : 'a') + (usage - 0x04));
+  }
+  if(usage >= 0x54 && usage <= 0x63) {  // the keypad, with Num Lock on
+    static const char keypad[] = "/*-+\n1234567890.";
+    const char c = keypad[usage - 0x54];
+    if(layout == HW_BR && usage == 0x63) {
+      return ',';  // ABNT2's keypad: its decimal key is the comma, and 0x85 the point
+    }
+    return c == '\n' ? 0 : (uint32_t)c;
+  }
+  if(usage == 0x85) {  // the keypad's other key (ABNT2's point)
+    return layout == HW_BR ? '.' : ',';
+  }
+  for(size_t i = 0; i < sizeof(hw_chars) / sizeof(hw_chars[0]); i++) {
+    if(hw_chars[i].usage == usage) {
+      if(layout != HW_US) {
+        uint32_t c = (layout == HW_PT ? hw_chars[i].pt : hw_chars[i].br)[altgr ? 2 : shift ? 1 : 0];
+        if(usage == 0x33 && hw_keys.caps && !altgr) {  // ç follows Caps Lock, as the letters do
+          c = shift ? 0xe7 : 0xc7;
+        }
+        return c;
+      }
+      return altgr ? 0 : hw_chars[i].us[shift ? 1 : 0];
+    }
+  }
+  return 0;
+}
+
+// An accent and a letter as one (0: they do not make one).
+static uint32_t
+hw_dead_compose(uint32_t accent, uint32_t c) {
+  static const char vowels[] = "aeiouAEIOU";
+  static const uint16_t acute[] = {0xe1, 0xe9, 0xed, 0xf3, 0xfa, 0xc1, 0xc9, 0xcd, 0xd3, 0xda};
+  static const uint16_t grave[] = {0xe0, 0xe8, 0xec, 0xf2, 0xf9, 0xc0, 0xc8, 0xcc, 0xd2, 0xd9};
+  static const uint16_t circumflex[] = {0xe2, 0xea, 0xee, 0xf4, 0xfb, 0xc2, 0xca, 0xce, 0xd4, 0xdb};
+  static const uint16_t diaeresis[] = {0xe4, 0xeb, 0xef, 0xf6, 0xfc, 0xc4, 0xcb, 0xcf, 0xd6, 0xdc};
+  if(accent == '~') {
+    switch(c) {
+    case 'a': return 0xe3;
+    case 'o': return 0xf5;
+    case 'n': return 0xf1;
+    case 'A': return 0xc3;
+    case 'O': return 0xd5;
+    case 'N': return 0xd1;
+    }
+    return 0;
+  }
+  const char* at = c < 0x80 && c ? strchr(vowels, (int)c) : NULL;
+  if(!at) {
+    return 0;
+  }
+  const size_t i = (size_t)(at - vowels);
+  switch(accent) {
+  case 0xb4: return acute[i];
+  case '`': return grave[i];
+  case '^': return circumflex[i];
+  case 0xa8: return diaeresis[i];
+  }
+  return 0;
+}
+
+// Down (or up) on pane, with text when it types.
+static void
+hw_send(int pane, bool down, int32_t code, uint32_t cp) {
+  char text[5] = "";
+  uint32_t length = 0;
+  if(cp) {
+    if(cp < 0x80) {
+      text[length++] = (char)cp;
+    } else if(cp < 0x800) {
+      text[length++] = (char)(0xc0 | cp >> 6);
+      text[length++] = (char)(0x80 | (cp & 0x3f));
+    } else {
+      text[length++] = (char)(0xe0 | cp >> 12);
+      text[length++] = (char)(0x80 | (cp >> 6 & 0x3f));
+      text[length++] = (char)(0x80 | (cp & 0x3f));
+    }
+  }
+  WKPageHandleKeyboardEvent(page(pane), WKKeyboardEventMake(down ? kWKEventKeyDown : kWKEventKeyUp,
+      kWKInputTypeNormal, length ? text : NULL, length, "", code, 0, 0, 0));
+}
+
+// A character typed: its key down with its text.
+static void
+hw_type(int pane, unsigned usage, uint32_t cp) {
+  const int32_t code = (cp >= 0x20 && cp < 0x7f) || (cp >= 0xa0 && cp <= 0xff) ? (int32_t)cp
+                     : (int32_t)(0x01000000 | cp);
+  hw_send(pane, true, code, cp);
+  hw_keys.down_code[usage] = code;
+  hw_keys.down_pane[usage] = pane;
+}
+
+// Ctrl and Alt: the browser's shortcuts. True when the key was one.
+static bool
+hw_shortcut(unsigned usage, uint32_t mods, int pane) {
+  const bool ctrl = mods & HID_CTRL, alt = (mods & HID_ALT) && !ctrl;
+  const char* edit = NULL;
+  if(usage == 0x3e || (ctrl && usage == 0x15)) {  // F5, Ctrl+R
+    WKPageReload(page(PAGE));
+  } else if(usage == 0x3f || (ctrl && usage == 0x0f)) {  // F6, Ctrl+L: the address
+    set_focus(BAR);
+    run_script(BAR, "address.focus(); address.select()", 0, ignore_result);
+  } else if(ctrl && usage == 0x17) {  // Ctrl+T
+    tab_new(0);
+  } else if(ctrl && usage == 0x1a) {  // Ctrl+W
+    tab_close(tab_in_front());
+  } else if(alt && usage == 0x50) {  // Alt+Left
+    go_back();
+  } else if(alt && usage == 0x4f) {  // Alt+Right
+    WKPageGoForward(page(PAGE));
+  } else if(ctrl && usage == 0x04) {
+    edit = "selectAll";
+  } else if(ctrl && usage == 0x06) {
+    edit = "copy";
+  } else if(ctrl && usage == 0x1b) {
+    edit = "cut";
+  } else if(ctrl && usage == 0x19) {
+    edit = "paste";
+  } else if(ctrl && usage == 0x1d) {
+    edit = (mods & HID_SHIFT) ? "redo" : "undo";
+  } else if(ctrl && usage == 0x1c) {
+    edit = "redo";
+  } else {
+    return false;
+  }
+  if(edit) {
+    char script[96];
+    snprintf(script, sizeof(script), "document.execCommand('%s')", edit);
+    run_script(pane, script, 0, ignore_result);
+  }
+  POC_LOG("keyboard: shortcut 0x%02x with modifiers 0x%02x", usage, mods);
+  return true;
+}
+
+// The keyboard's layout: the console's language's (the browser's when the console did not say).
+static int
+hw_layout() {
+  if(hw_keys.console_lang >= 0) {
+    return hw_keys.console_lang == 7 ? HW_PT : hw_keys.console_lang == 17 ? HW_BR : HW_US;  // Portugal, Brazil
+  }
+  return !strcmp(settings.lang, "pt") ? HW_PT : HW_US;
+}
+
+static bool
+hw_key_input(const input_event_t* e) {
+  if(e->kind != INPUT_KEY) {
+    return false;
+  }
+  const unsigned usage = (unsigned)e->dx & 0xff;
+  const int layout = hw_layout();
+  uint32_t mods = (uint32_t)e->dy & 0xff;
+  if(layout == HW_US && (mods & HID_ALTGR)) {  // no AltGr on a US keyboard: the right Alt is Alt
+    mods = (mods & ~HID_ALTGR) | HID_ALT;
+  }
+  const int pressed = e->pressed;
+  if(!usage) {
+    hw_keyboard_on = pressed != 0;
+    POC_LOG("keyboard: a USB keyboard %s", hw_keyboard_on ? "is there (no keyboard on the screen for fields)" : "went");
+    return true;
+  }
+  hw_keyboard_on = true;
+  if(app.system_ime) {  // the system's keyboard takes the keys itself
+    return true;
+  }
+  int pane = app.game ? PAGE : app.focus;
+  if(pane < 0 || pane >= PANES) {
+    pane = PAGE;
+  }
+  if(!pressed) {
+    if(hw_keys.down_code[usage]) {
+      hw_send(hw_keys.down_pane[usage], false, hw_keys.down_code[usage], 0);
+      hw_keys.down_code[usage] = 0;
+    }
+    return true;
+  }
+  if(app.keys_open) {
+    keys_hide();
+  }
+  if(usage >= 0xe0) {  // a modifier: its own key down, for the pages that look (games)
+    if(pressed == 1) {
+      const int32_t code = usage == 0xe6 && layout == HW_US ? 0xffea : hw_key_code(usage);
+      hw_send(pane, true, code, 0);
+      hw_keys.down_code[usage] = code;
+      hw_keys.down_pane[usage] = pane;
+    }
+    return true;
+  }
+  if((mods & (HID_CTRL | HID_ALT)) && !(mods & HID_ALTGR)) {
+    if(pressed == 2 || hw_shortcut(usage, mods, pane)) {
+      return true;
+    }
+    const int32_t code = hw_key_code(usage) ? hw_key_code(usage)
+                       : (int32_t)hw_key_char(usage, false, false, HW_US);
+    if(code) {  // another one: the key, without its character
+      hw_send(pane, true, code, 0);
+      hw_keys.down_code[usage] = code;
+      hw_keys.down_pane[usage] = pane;
+    }
+    return true;
+  }
+  if(usage == 0x3e || usage == 0x3f) {  // F5, F6
+    if(pressed == 1) {
+      hw_shortcut(usage, mods, pane);
+    }
+    return true;
+  }
+  if(usage == 0x39 && pressed == 1) {
+    hw_keys.caps = !hw_keys.caps;
+  }
+  const uint32_t c = hw_key_char(usage, (mods & HID_SHIFT) != 0, (mods & HID_ALTGR) != 0, layout);
+  if(!c) {
+    const int32_t code = hw_key_code(usage);
+    if(code) {
+      hw_keys.dead = 0;
+      hw_send(pane, true, code, usage == 0x2b ? '\t' : 0);
+      hw_keys.down_code[usage] = code;
+      hw_keys.down_pane[usage] = pane;
+    }
+    return true;
+  }
+  if(c & 0x80000000u) {  // a dead key: twice types the accent itself
+    const uint32_t accent = c & 0xffff;
+    if(pressed == 2) {
+      return true;
+    }
+    if(hw_keys.dead) {
+      hw_type(pane, usage, hw_keys.dead);
+      hw_keys.dead = hw_keys.dead == accent ? 0 : accent;
+    } else {
+      hw_keys.dead = accent;
+    }
+    return true;
+  }
+  if(hw_keys.dead) {
+    const uint32_t accent = hw_keys.dead, both = hw_dead_compose(accent, c);
+    hw_keys.dead = 0;
+    if(both) {
+      hw_type(pane, usage, both);
+      return true;
+    }
+    if(c != ' ') {
+      hw_type(pane, usage, accent);
+      hw_send(pane, false, hw_keys.down_code[usage], 0);
+    } else {
+      hw_type(pane, usage, accent);  // the accent alone
+      return true;
+    }
+  }
+  hw_type(pane, usage, c);
+  return true;
+}
+#endif
+
 // On the main thread: WebKit's API is not thread safe.
 static void
 dispatch(void* arg) {
@@ -16254,6 +16629,10 @@ dispatch(void* arg) {
     moves_flush(true);
   }
 #ifdef APP_RN
+  if(hw_key_input(e)) {
+    free(e);
+    return;
+  }
   if(ask_native_input(e)) {
     free(e);
     return;
@@ -16393,6 +16772,7 @@ dispatch(void* arg) {
     break;
   case INPUT_RADIAL:  // radial_input() takes them
   case INPUT_PAD:     // and game_input() these
+  case INPUT_KEY:     // and hw_key_input() these (RN)
     break;
   case INPUT_QUIT:  // options: the menu, where "Sair" is (it quit at once until 2026-11-05)
     if(!app.keys_open && !app.switcher_open && !app.radial_open) {
@@ -21830,6 +22210,9 @@ main(void) {
     int console_lang = -1;
     const int lang_err = sceSystemServiceParamGetInt(1, &console_lang);  // SCE_SYSTEM_SERVICE_PARAM_ID_LANG
     const char* by = read ? "its settings say so" : lang_err ? "the console did not say: as before" : "the console's";
+    if(!lang_err) {
+      hw_keys.console_lang = console_lang;  // a USB keyboard's layout
+    }
 #ifndef DEMO
     if(!read && !lang_err) {
       snprintf(settings.lang, sizeof(settings.lang), "%s", lang_of_console(console_lang));
