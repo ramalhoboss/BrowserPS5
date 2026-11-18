@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc14-2f6dff"></a>
+  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc15-2f6dff"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-PS5%20(jailbroken)-0b0b1a">
   <img alt="Tested firmware" src="https://img.shields.io/badge/tested%20on-firmware%2013.60-ff2e4a">
   <img alt="Engine" src="https://img.shields.io/badge/engine-WebKit%20627.1.7-8a5cf6">
@@ -78,6 +78,7 @@ All four are captures taken on the console.
 ### Video, sound and graphics
 
 - **YouTube up to 2160p**, with H.264 and VP9 decoded by the PS5's own video hardware.
+- **Video files in a page**: MP4 and WebM (H.264, VP8 or VP9, with AAC, Opus or Vorbis sound), as the Internet Archive and many sites give them, play and seek.
 - **YouTube's TV interface** (`youtube.com/tv`) from a tile on the start page, driven with the D-pad like the console's own app.
 - **WebGL 1 and 2**, **WebAssembly**, **Web Audio**, Media Source Extensions and the Media Session API.
 - **Emulators and games that run in a page**: JSNES ran homebrew at a steady 60 frames a second and v86 booted FreeDOS in under 18 seconds on the console, with the DualSense as their keyboard.
@@ -258,6 +259,7 @@ The PS5's own WebKit is old, locked down and out of reach for homebrew, and a fi
 | 16 November | rc9 to rc11: your games and trophies, a page for each game, cheats and patches, captures, Discord, the console's health, emoji |
 | 17 November | rc12: the touch pad as a laptop's, key codes for web games and emulators, the animated starting screen, a race in the IPC found and fixed |
 | 18 November | rc14: the browser updates itself, the engine's pipes become pairs of sockets (no page loaded once the console's pipes ran out), ○ as the "back" of YouTube's page for televisions |
+| 18 November | rc15: video files in a page play (MP4 from memory, WebM with Vorbis sound), a start that fails closes the app cleanly, the title's pipes become pairs of sockets too |
 
 Some of the problems that had to be solved on the way, each documented where it is solved:
 
@@ -294,7 +296,8 @@ Reports from other firmwares, consoles and setups are welcome: open an issue wit
 
 | Works | Does not work |
 | --- | --- |
-| YouTube up to 2160p (H.264, VP9), and `youtube.com/tv` | Video with DRM: Netflix, Disney+, Prime Video, Spotify's web player |
+| YouTube up to 2160p (H.264, VP9), and `youtube.com/tv` | Video with DRM: Netflix, Disney+, Prime Video, Vimeo, Spotify's web player |
+| Video files in a page (MP4, WebM), as the Internet Archive gives them | Ogg files (`.ogg`) |
 | WhatsApp Web and Telegram Web: linking, chats, files | Calls, camera and microphone (no WebRTC), so no cloud gaming |
 | WebGL 1 and 2, WebAssembly, Web Audio, Media Source Extensions | Text-to-speech |
 | Emulators and games that run in a page, with the controller as their keyboard | More than 6 tabs |
@@ -426,7 +429,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 
 ## What it does not do
 
-- **No DRM video**: Netflix, Disney+, Prime Video, Spotify's web player and the like do not play.
+- **No DRM video**: Netflix, Disney+, Prime Video, Vimeo, Spotify's web player and the like do not play.
 - **No calls, camera or microphone** (no WebRTC), and no text-to-speech.
 - Up to **6 tabs**, sharing 1 GiB: a very heavy page may be loaded again when you come back to it.
 - *Open beside the game* shows the page in the **PS5's own side card**, a much smaller browser than this one: simple pages only.
@@ -442,7 +445,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 | No BrowserPS5 RN tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
-| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | **With 1.0.0-rc12**: a folder the engine needs is missing on a console that never had an earlier BrowserPS5 RN. Run the installer of **1.0.0-rc13** or later (your data stays), or create **`/user/homebrew/browserps5/data/tmp`** by hand (FTP or a file manager), and open the browser again. **If it still closes**: make sure the ELF loader answers on port 9021 (load etaHEN or your loader again); then please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | **With 1.0.0-rc12**: a folder the engine needs is missing on a console that never had an earlier BrowserPS5 RN. Run the installer of **1.0.0-rc13** or later (your data stays), or create **`/user/homebrew/browserps5/data/tmp`** by hand (FTP or a file manager), and open the browser again. **If it still closes**: make sure the ELF loader answers on port 9021 (load etaHEN or your loader again); then please open an issue with `browser-title.txt` (below), your console and how you load your payloads. **From 1.0.0-rc15** a start that fails closes the app without that error, and `browser-title.txt` says why |
 | *"is open: nothing was installed"* | Close BrowserPS5 RN (Options → Close application) and send the installer again |
 | No page loads, not even the start page (1.0.0-rc13 and earlier) | Restart the console, and install this release: it no longer happens |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc15 — 2026-11-18
+
+Since rc14:
+
+- **Video files put straight into a page now play.** A page with `<video src="….mp4">` (the Internet Archive's films, many news sites and forums) stopped with an error: with the usual `preload`, GStreamer kept the file in a temporary file on the disk, which the pages' process cannot make on the console. The file now plays from memory, and seeking in it works. Seen on the console: the Internet Archive's player loaded in under 6 s and played its film (360p).
+- **WebM with Vorbis sound plays.** The engine had no Vorbis decoder (GStreamer's own needs libvorbis, which this build does not have, and gst-libav leaves FFmpeg's out on purpose), so an older WebM (VP8 with Vorbis sound) did not open at all. FFmpeg's decoder now plays it (`poc/media/gst-libav-vorbis.py`). `.ogg` files still do not play.
+- **A start that fails no longer ends in *"Game or App Error"*.** When the browser cannot start (no screen, the browser's program missing, or no answer from it within 60 s), the app now closes the way it does when you leave it, instead of ending its own process. Why the start failed is written in `browser-title.txt`. Tried on the console with the browser's program taken away: the app closed by itself 11 s after it was opened.
+- **The app's own pipes are pairs of sockets too.** rc14 did this for the engine; the title (where the pages and their video run) still took its pipes from the console's shared pool. `browser-title.txt` says which it uses.
+- `browser-title.txt` now names the console's firmware, which helps with reports from other firmwares.
+- Tested: the set of tests on the console with this engine, title and browser, 16 of 17. The seventeenth, a film on YouTube's page for televisions, did not start, as in rc14's tests (○ still went back inside the page, then out to the browser). The video files 5 of 5: an MP4 with each `preload`, a 52 s MP4 that plays and seeks, the WebM with Vorbis. The failed start: with the browser's program taken away, the app closed by itself 11 s after it was opened.
+- Known: **Vimeo does not play**: its films are protected (CENC, with Widevine and PlayReady), and BrowserPS5 RN has no DRM, as with Netflix. `.ogg` files do not play. Tested on one console, firmware 13.60.
+
 ## 1.0.0-rc14 — 2026-11-18
 
 Since rc13:

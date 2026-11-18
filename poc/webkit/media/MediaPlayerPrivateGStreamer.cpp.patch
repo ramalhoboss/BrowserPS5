@@ -30,7 +30,19 @@
          // The MediaPlayerPrivateGStreamer superclass now processes what it needs by calling updateStates() in handleMessage() for
          // GST_MESSAGE_STATE_CHANGED. However, subclasses still need to override asyncStateChangeDone() to do their own stuff.
          didPreroll();
-@@ -2948,7 +2964,7 @@
+@@ -2860,7 +2876,10 @@
+         m_urisourceBin = element;
+         if (isBlob || isDataUri)
+             g_object_set(element, "ring-buffer-max-size", static_cast<guint64>(2 * MB), nullptr);
+-        else if (!isMediaSource() && !isMediaStreamPlayer())
++        // BrowserPS5 (2026-11-18): this place asked for the buffer on the disk whatever
++        // isMediaDiskCacheDisabled() said (playbin3 with preload "auto"): a plain MP4 still ended with
++        // "Could not create temp file" after that function was made true on the PS5.
++        else if (!isMediaSource() && !isMediaStreamPlayer() && !isMediaDiskCacheDisabled())
+             g_object_set(element, "download", TRUE, nullptr);
+ 
+         // Disable download buffering for WebM because often the needed duration is stored at the
+@@ -2948,7 +2967,7 @@
      if (mediaDiskCachePath.isEmpty())
          mediaDiskCachePath = gBuildFilename(G_DIR_SEPARATOR_S, "var", "tmp");
  #else
@@ -39,7 +51,24 @@
  #endif
  
      auto newDownloadTemplate = gBuildFilename(G_DIR_SEPARATOR_S, mediaDiskCachePath, "WebKit-Media-XXXXXX");
-@@ -3854,7 +3870,15 @@
+@@ -3535,7 +3554,16 @@
+ 
+ bool isMediaDiskCacheDisabled()
+ {
++#if PLATFORM(PLAYSTATION)
++    // BrowserPS5 (2026-11-18): no buffer on the disk for a video that is a file. The buffer's temporary file
++    // (WebKit-Media-XXXXXX) cannot be made from the process the pages run in, and every plain MP4 in a page
++    // ended with "Could not create temp file" (MEDIA_ERR_SRC_NOT_SUPPORTED) unless its preload was
++    // "metadata": the buffer is only asked for with preload "auto". Without it the file plays from memory,
++    // as it did then, and a seek asks the server for the bytes.
++    static bool result = true;
++#else
+     static bool result = false;
++#endif
+ #if PLATFORM(WPE)
+     static std::once_flag once;
+     std::call_once(once, []() {
+@@ -3854,7 +3882,15 @@
          // platform. This also helps with processing metrics gathering. When using the default value
          // the decoder introduces artificial processing latency reflecting the maximum number of threads.
          g_object_set(decoder, "max-threads", 2, nullptr);
@@ -56,7 +85,7 @@
          // WebKitMediaSrc is emitting still-frame events to work around stalls caused by avdec_* decoders.
          // It does so regardless of the decoder we are actually using (see details in the comment there).
          // For any other decoder, we need to attach a probe dropping these events.
-@@ -4615,6 +4639,36 @@
+@@ -4615,6 +4651,36 @@
      if (isHolePunchRenderingEnabled()) {
          m_videoSink = createHolePunchVideoSink();
          installVideoSinkStatsProbe(m_videoSink);

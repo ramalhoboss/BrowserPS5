@@ -25,7 +25,7 @@ scratch on another machine.
 | `poc/release-rn/` | The installer and the uninstallers (`install.c`, `uninstall.c`), `build-release-rn.sh`, the README, CHANGELOG and notices |
 | `poc/webkit/` | WebKit 627.1.7 for the PS5: `build-webkit.sh` (downloads WebKit at a fixed commit and builds it), the patches and replacement files (locks, malloc, network, media, IPC over TCP, GPU compositing, storage...), `package.sh` |
 | `poc/jsc_shell/` | JavaScriptCore's first port (build of ICU and libc++ for the SDK, the CMake platform files WebKit's build uses) |
-| `poc/media/` | FFmpeg, GStreamer and their dependencies, static, for the SDK's sysroot (`build-media.sh`); the PS5 audio and video sinks |
+| `poc/media/` | FFmpeg, GStreamer and their dependencies, static, for the SDK's sysroot (`build-media.sh`, with `gst-libav-vorbis.py`); the PS5 audio and video sinks |
 | `poc/gl_soft/`, `poc/gl_zink/`, `poc/gpu_broker/` | OpenGL ES for the engine: Mesa (softpipe; zink over RADV on the console's GPU) and the GPU broker from PS5_Vulkan |
 | `poc/webkit_title/`, `poc/hello_page/`, `poc/bigapp_gl/`, `poc/launcher/` | Pieces the title and the browser's link use (WebKit in a title, input, the process launcher) |
 | `poc/play_after/` | The small payload that starts a game after the browser has closed ("Play") |

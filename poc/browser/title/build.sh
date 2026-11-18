@@ -110,6 +110,7 @@ title_defines=()
 (( webkit )) && title_defines=(-DWEBKIT_IN_TITLE)
 [[ ${TITLE_SYSIME:-0} == 1 ]] && title_defines+=(-DTITLE_SYSIME)
 [[ ${TITLE_MIC:-0} == 1 ]] && title_defines+=(-DTITLE_MIC)
+[[ ${TITLE_KBM:-0} == 1 ]] && title_defines+=(-DTITLE_KBM)
 [[ " ${TITLE_EXTRA_CFLAGS:-} " == *" -DTITLE_RN "* ]] && title_defines+=(-DTITLE_RN)  # (2026-11-14: title.cpp's RN parts)
 [[ $webkit == 1 && ${TITLE_MALLOC:-0} == 1 ]] && title_defines+=(-DTITLE_MALLOC)  # (2026-11-14: malloc on libpas, below)
 cc "${cxxflags[@]}" -Werror -I"$poc/hello_page" -I"$broker" -I"$poc/gpu_broker" -I"$here" -I"$poc/common" \
@@ -120,6 +121,13 @@ for module in display input ime; do
     cc "${cflags[@]}" -c "$poc/hello_page/$module.c" -o "$work/obj/$module.o"
 done
 [[ ${TITLE_SYSIME:-0} == 1 ]] && cc "${cflags[@]}" -c "$here/sysime.c" -o "$work/obj/sysime.o"
+# TITLE_KBM=1 (2026-11-18, BrowserPS5 RN): a USB or Bluetooth mouse and keyboard (kbm.c), their system libraries
+# loaded and bound at run time as the system keyboard's are.
+kbm_objs=()
+if [[ ${TITLE_KBM:-0} == 1 ]]; then
+    cc "${cflags[@]}" -c "$here/kbm.c" -o "$work/obj/kbm.o"
+    kbm_objs=("$work/obj/kbm.o")
+fi
 if [[ ${TITLE_MIC:-0} == 1 ]]; then
     cc "${cflags[@]}" -c "$here/mic.c" -o "$work/obj/mic.o"
     cc -std=c11 -O2 -fPIC -c "$here/audioin_link_stub.c" -o "$work/obj/libSceAudioIn_stub.o"
@@ -257,6 +265,13 @@ if (( webkit )); then
     for call in socketpair sendmsg recvmsg shm_open shm_unlink dup; do
         webkit_flags+=("--wrap=$call" "-u" "__wrap_$call")
     done
+    # TITLE_PIPES=1 (2026-11-18, BrowserPS5 RN's titles): pipe() and pipe2() of the code in the title (GLib's
+    # and GStreamer's, in the WebProcess) on libc-fixes' wrappers, as in the library: a pair of sockets, and
+    # the pipe only when there is none (pipe2 then goes to compat.c's, through its --defsym below). A pipe's
+    # buffer comes from a pool the whole console shares; used up, a write fails and the other end never wakes.
+    if [[ ${TITLE_PIPES:-0} == 1 ]]; then
+        webkit_flags+=(--wrap=pipe --wrap=pipe2 -u __wrap_pipe -u __wrap_pipe2)
+    fi
     # compat.c: the libc functions a title has no import for.
     for name in thr_self pipe2 ppoll mkostemp getpwuid getpwnam_r clock_getcpuclockid2 uselocale \
             ___mb_cur_max timegm; do
@@ -329,7 +344,7 @@ fi
     -e _start -o "$work/llvm-pie.elf" \
     "$work/obj/app_crt.o" "$work/obj/app_cpp_runtime.o" "$work/obj/title.o" "$work/obj/server.o" \
     "$work/obj/broker_display.o" "$work/obj/packet_io_tcp.o" \
-    "$work/obj/display.o" "$work/obj/input.o" "$work/obj/ime.o" "${sysime_objs[@]}" "${mic_objs[@]}" "$work/obj/feel.o" \
+    "$work/obj/display.o" "$work/obj/input.o" "$work/obj/ime.o" "${sysime_objs[@]}" "${mic_objs[@]}" "${kbm_objs[@]}" "$work/obj/feel.o" \
     "$work/obj/video.o" "$work/obj/capture.o" "${splash_objs[@]}" "${webkit_inputs[@]}" \
     "$ff/lib/libavcodec.a" "$ff/lib/libswresample.a" "$ff/lib/libavutil.a" \
     "$work/stubs/libSceAgc.so" "$work/stubs/libSceAgcDriver.so" "$work/stubs/libSceVideodec2.so" "${mic_stubs[@]}" \

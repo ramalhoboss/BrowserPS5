@@ -35,6 +35,9 @@
 #include "mic.h"
 #endif
 #include "input.h"
+#ifdef TITLE_KBM
+#include "kbm.h"
+#endif
 #include "feel.h"
 #include "link.h"
 #include "tone.h"
@@ -1198,6 +1201,41 @@ static bool connect_ui(int seconds)
 #define BROWSER_LOG "/app0/browser-run.txt"
 #define ELFLDR_PORT 9021
 
+#ifdef TITLE_RN
+/* 2026-11-18: a report came with this title's log only, and what it needed was in the browser's own
+ * (BROWSER_LOG): the interface had ended two seconds after it connected, and why it did was written there. So
+ * when the browser's output ends early (under BROWSER_EARLY bytes: a session writes far more than that), its
+ * last lines are written here too, each cut at the first web address it has. */
+#define BROWSER_EARLY (64 * 1024)
+#define BROWSER_TAIL 1800
+
+static void browser_tail_report(char *tail, size_t len, bool whole)
+{
+    char *line = tail;
+    char *const end = tail + len;
+    if (!whole) {  /* the first line may be the end of one: left out */
+        while (line < end && *line != '\n')
+            line++;
+        line += line < end;
+    }
+    while (line < end) {
+        char *stop = line;
+        while (stop < end && *stop != '\n')
+            stop++;
+        *stop = 0;
+        char *address = strstr(line, "http://");
+        char *secure = strstr(line, "https://");
+        if (secure && (!address || secure < address))
+            address = secure;
+        if (address)
+            *address = 0;
+        if (*line)
+            report("the browser's last lines: %.220s%s", line, address ? "<address>" : "");
+        line = stop + 1;
+    }
+}
+#endif
+
 static void *browser_output_thread(void *arg)
 {
     const int sock = (int)(intptr_t)arg;
@@ -1205,14 +1243,39 @@ static void *browser_output_thread(void *arg)
     static char buffer[16384];
     ssize_t n;
     size_t total = 0;
+#ifdef TITLE_RN
+    static char tail[BROWSER_TAIL + 1];
+    size_t kept = 0;
+#endif
     while ((n = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
         total += (size_t)n;
         if (log) {
             fwrite(buffer, 1, (size_t)n, log);
             fflush(log);
         }
+#ifdef TITLE_RN
+        if (total <= BROWSER_EARLY) {  /* the end of what came so far */
+            const size_t got = (size_t)n;
+            if (got >= BROWSER_TAIL) {
+                memcpy(tail, buffer + got - BROWSER_TAIL, BROWSER_TAIL);
+                kept = BROWSER_TAIL;
+            } else {
+                if (kept + got > BROWSER_TAIL) {
+                    const size_t drop = kept + got - BROWSER_TAIL;
+                    memmove(tail, tail + drop, kept - drop);
+                    kept -= drop;
+                }
+                memcpy(tail + kept, buffer, got);
+                kept += got;
+            }
+        }
+#endif
     }
     report("the browser's output ended after %zu bytes (%s)", total, n < 0 ? strerror(errno) : "closed");
+#ifdef TITLE_RN
+    if (total > 0 && total < BROWSER_EARLY)
+        browser_tail_report(tail, kept, total <= BROWSER_TAIL);
+#endif
     if (log)
         fclose(log);
     close(sock);
@@ -1482,6 +1545,46 @@ static const char *firmware_text()
 
 #endif
 
+#ifdef TITLE_RN
+/* A start that fails (no screen, no browser in time, no view; 2026-11-18) leaves as the normal end does,
+ * with sceSystemServiceLoadExec("exit"). Returning from main() ran exit(), and on consoles that reported it
+ * a destructor crashed there (mspace_free from pixman_destructor, 2026-11-17): the system showed its error
+ * for the game, and the reason for the failed start stayed only in this report. The caller has closed
+ * what it opened first, as the end of main() does. */
+static void leave_after_failed_start(const char *why)
+{
+    exiting = 1;
+    report("exit: %s: sceSystemServiceLoadExec(\"exit\") (not exit() and its destructors)", why);
+    if (report_file)
+        fflush(report_file);
+    if (report_fd >= 0)
+        fsync(report_fd);
+    const double asked = now_ms();
+    sceSystemServiceLoadExec("exit", nullptr);
+    while (now_ms() - asked < LOADEXEC_WAIT_MS)
+        sceKernelUsleep(100000);
+    _exit(0);
+}
+
+/* Whether pipe() gives a pair of sockets here (2026-11-18, build.sh TITLE_PIPES: --wrap=pipe and
+ * --wrap=pipe2 on libc-fixes' wrappers, for GLib's and GStreamer's pipes in the WebProcess). A pipe's
+ * buffer comes from a pool all the console's processes share; when it is used up, a write to a pipe fails
+ * and the thread waiting on the other end never wakes. */
+static void pipes_note()
+{
+    int fds[2];
+    if (pipe(fds)) {
+        report("pipes: pipe() failed (%s)", strerror(errno));
+        return;
+    }
+    struct stat st;
+    const bool sockets = !fstat(fds[0], &st) && S_ISSOCK(st.st_mode);
+    report("pipes: %s", sockets ? "pairs of sockets (not the system's pool of pipes)" : "the system's pipes");
+    close(fds[0]);
+    close(fds[1]);
+}
+#endif
+
 int main()
 {
     keep_old_logs();
@@ -1499,6 +1602,7 @@ int main()
     report("browser title pid %d", getpid());
 #ifdef TITLE_RN
     report("firmware %s", firmware_text());
+    pipes_note();
 #endif
     flexible_note("the title's start");
 
@@ -1516,6 +1620,9 @@ int main()
     int err = display_open();
     if (err) {
         report("FAIL display_open: 0x%x", err);
+#ifdef TITLE_RN
+        leave_after_failed_start("no screen");
+#endif
         return 1;
     }
     flexible_note("the display");
@@ -1632,6 +1739,9 @@ int main()
                 sceKernelUsleep(100000);
             _exit(0);
         }
+#ifdef TITLE_RN
+        leave_after_failed_start("the browser did not come");
+#endif
         return 1;
     }
     title_state_set(LINK_TITLE_CONNECTED);
@@ -1649,6 +1759,9 @@ int main()
             video_stop();
         sound_stop();
         display_close();
+#ifdef TITLE_RN
+        leave_after_failed_start("no view");
+#endif
         return 1;
     }
 
@@ -1656,6 +1769,11 @@ int main()
         report("input_start: 0x%x (no controller)", err);
     else
         feel_start(input_handle());
+#ifdef TITLE_KBM
+    /* 2026-11-18: a USB or Bluetooth mouse and keyboard (kbm.h), with the controller's cursor (input.c). */
+    if (!err && kbm_start(on_input, LINK_WIDTH, LINK_HEIGHT))
+        report("kbm: no mouse or keyboard library (the log's kbm lines say why)");
+#endif
     flexible_note("the screen's view and the controller");
     link_msg_t hello;
     memset(&hello, 0, sizeof(hello));

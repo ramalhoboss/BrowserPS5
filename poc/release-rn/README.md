@@ -44,6 +44,7 @@ BrowserPS5 RN is a full web browser for jailbroken PS5 consoles: its own port of
 ### Video, sound and graphics
 
 - **YouTube up to 2160p**, with H.264 and VP9 decoded by the PS5's own video hardware.
+- **Video files in a page**: MP4 and WebM (H.264, VP8 or VP9, with AAC, Opus or Vorbis sound), as the Internet Archive and many sites give them, play and seek.
 - **YouTube's TV interface** (`youtube.com/tv`) from a tile on the start page, driven with the D-pad like the console's own app.
 - **WebGL 1 and 2**, **Web Audio**, Media Source Extensions and the Media Session API.
 
@@ -221,7 +222,7 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 
 ## What it does not do
 
-- **No DRM video**: Netflix, Disney+, Prime Video, Spotify's web player and the like do not play.
+- **No DRM video**: Netflix, Disney+, Prime Video, Vimeo, Spotify's web player and the like do not play.
 - **No calls, camera or microphone** (no WebRTC), and no text-to-speech.
 - Up to **6 tabs**, sharing 1 GiB: a very heavy page may be loaded again when you come back to it.
 - *Open beside the game* shows the page in the **PS5's own side card**, a much smaller browser than this one: simple pages only.
@@ -237,7 +238,7 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 | No BrowserPS5 RN tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
-| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | Make sure the ELF loader answers on port 9021 (load etaHEN or your loader again) and open the browser again. If it still closes, please report it with the report of `BrowserPS5-check.elf` or `browser-title.txt` (below), your console and how you load your payloads |
+| The loading screen shows and the browser closes (with 1.0.0-rc14 and earlier, sometimes with a *"Game or App Error"*) | Make sure the ELF loader answers on port 9021 (load etaHEN or your loader again) and open the browser again. If it still closes, please report it with the report of `BrowserPS5-check.elf` or `browser-title.txt` (below), your console and how you load your payloads: `browser-title.txt` says why the start failed |
 | *"is open: nothing was installed"* | Close BrowserPS5 RN (Options → Close application) and send the installer again |
 | No page loads, not even the start page (1.0.0-rc13 and earlier) | Restart the console, and install this release: it no longer happens |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |

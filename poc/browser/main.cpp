@@ -4242,6 +4242,18 @@ extensions_apply(void) {
   // From each page's start, so the errors of its first seconds count too.
   add_script(media_probe_js, true, true);
 #endif
+#if defined(SHOW_YT_DIAG) || defined(SHOW_SITE_ERRORS)
+  // make SHOW_YT_DIAG=1 or SHOW_SITE_ERRORS=1 (a test's): what a page's scripts complain of, kept from its start for the test to read
+  // (window.__bps5log: console.error and console.warn, errors and rejected promises nobody caught).
+  add_script("(function () { if (window.top !== window || window.__bps5log) return; var L = window.__bps5log = [];"
+             " function add(k, a) { try { L.push(k + ': ' + Array.prototype.map.call(a, function (x) {"
+             " return x && x.stack ? String(x.message || x) + ' @ ' + String(x.stack).slice(0, 160) : typeof x === 'object' ? JSON.stringify(x).slice(0, 160) : String(x); }).join(' ').slice(0, 320));"
+             " if (L.length > 40) L.shift(); } catch (e) {} }"
+             " ['error', 'warn'].forEach(function (k) { var o = console[k]; console[k] = function () { add(k, arguments); return o.apply(console, arguments); }; });"
+             " window.addEventListener('error', function (e) { add('onerror', [e.message, String(e.filename).slice(-60), e.lineno]); }, true);"
+             " window.addEventListener('unhandledrejection', function (e) { add('rejection', [e.reason]); }); })();",
+             true, true);
+#endif
 #ifdef APP_RN
   add_builtin(away_js, "", true, false);  // every frame: the pause reaches the players of other sites
   add_builtin(tabs_js, settings.popups ? "true, true" : "false, true", true, false);
@@ -19652,6 +19664,70 @@ show_tour(void) {
                " + ' | text ' + (document.body ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 120) : ''); })()",
                said, sizeof(said));
       POC_LOG("show: sites: %d s later: %s", SHOW_SITE_WAIT, said);
+#ifdef SHOW_SITE_ERRORS  // (2026-11-18, a site whose video stays without a source) the video's state and what the page's scripts complained of
+      demo_ask(PAGE,
+               "(function () { var vs = document.querySelectorAll('video'), out = [];"
+               " for (var i = 0; i < vs.length && i < 3; i++) { var v = vs[i];"
+               " out.push('video ' + i + ': src ' + String(v.getAttribute('src') || '').slice(0, 60) + ', current ' + String(v.currentSrc).slice(0, 60)"
+               " + ', sources ' + v.querySelectorAll('source').length + ', network ' + v.networkState + ', ready ' + v.readyState"
+               " + ', error ' + (v.error ? v.error.code + ' ' + v.error.message : 'none') + ', preload ' + v.preload); }"
+               " var fr = document.querySelectorAll('iframe'), fs = [];"
+               " for (var j = 0; j < fr.length && j < 4; j++) fs.push(String(fr[j].src).slice(0, 70));"
+               " var ms = window.MediaSource ? ['video/mp4; codecs=\"avc1.64001F\"', 'video/webm; codecs=\"vp9\"', 'audio/mp4; codecs=\"mp4a.40.2\"'].map(function (t) { return MediaSource.isTypeSupported(t) ? 1 : 0; }).join('') : 'none';"
+               " var hls = document.createElement('video').canPlayType('application/vnd.apple.mpegurl');"
+               " var log = (window.__bps5log || []).slice(-12).join(' || ');"
+               " return (out.join(' ; ') || 'no video') + ' | frames ' + fs.join(' ') + ' | MSE ' + ms + ', HLS \"' + hls + '\" | log ' + (log || 'empty'); })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: the page's video and log: %s", said);
+      demo_ask(PAGE,
+               "(function () { var v = document.querySelector('video'), p = v, chain = [];"
+               " for (var i = 0; i < 6 && p; i++) { chain.push(p.tagName + '.' + String(p.className).slice(0, 40)); p = p.parentElement; }"
+               " var pl = v && v.closest('.player, [class*=player]');"
+               " var bs = pl ? Array.prototype.map.call(pl.querySelectorAll('button'), function (b) { return (b.getAttribute('aria-label') || b.textContent || '').trim().slice(0, 16) + (b.offsetWidth ? '' : '(hidden)'); }).slice(0, 12) : [];"
+               " return 'chain ' + chain.join(' < ') + ' | player buttons ' + bs.length + ': ' + bs.join(', ') + ' | player text ' + (pl ? pl.innerText.replace(/\\s+/g, ' ').slice(0, 160) : 'none')"
+               " + ' | player html ' + (pl ? pl.innerHTML.length : 0) + ' | ua ' + navigator.userAgent.slice(0, 140); })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: the player: %s", said);
+      // Vimeo's player starts from module scripts and import() (2026-11-18): what of it came, and what an
+      // import() of its module does now.
+      demo_ask(PAGE,
+               "(function () { var r = performance.getEntriesByType('resource').filter(function (e) { return /\\.(m?js|css)(\\?|$)/.test(e.name); })"
+               ".map(function (e) { return e.name.replace(/^https?:\\/\\//, '').slice(0, 26) + '..' + e.name.split('/').pop().slice(0, 28) + ' ' + Math.round(e.duration) + 'ms ' + e.transferSize; });"
+               " var c = window.playerConfig, u = c && c.request && c.request.urls ? c.request.urls.js_module : '';"
+               " window.__imp = 'not tried'; window.__eme = navigator.requestMediaKeySystemAccess ? 'pending' : 'no requestMediaKeySystemAccess';"
+               " if (navigator.requestMediaKeySystemAccess) navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{ initDataTypes: ['cenc'], videoCapabilities: [{ contentType: 'video/mp4; codecs=\"avc1.42E01E\"' }] }])"
+               ".then(function () { window.__eme = 'granted'; }, function (e) { window.__eme = 'refused: ' + String(e).slice(0, 80); });"
+               " if (u) { window.__imp = 'pending'; import(u).then(function (m) { window.__imp = 'loaded: ' + Object.keys(m).slice(0, 5).join(','); }, function (e) { window.__imp = 'failed: ' + String(e).slice(0, 120); }); }"
+               " return 'dynamicImport ' + window.dynamicImportSupported + ', cssLayers ' + window.cssLayersSupported + ', noModule ' + window.noModuleLoading"
+               " + ', module ' + String(u).slice(-40) + ' | ' + r.length + ' scripts/styles: ' + r.slice(0, 14).join(' ; '); })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: modules: %s", said);
+      demo_sleep(8000);
+      demo_ask(PAGE, "String(window.__imp) + ' | DRM (Widevine asked): ' + String(window.__eme)", said, sizeof(said));
+      POC_LOG("show: sites: our import() 8 s later: %s", said);
+      // A player that loads its film only once it is asked to play (as a person does: its play button).
+      demo_ask(PAGE,
+               "(function () { var c = Array.prototype.slice.call(document.querySelectorAll('button, [role=button]')).filter(function (b) {"
+               " var t = (b.getAttribute('aria-label') || b.title || b.textContent || '').trim(); return /^(play|reproduzir)\\b/i.test(t) && b.offsetWidth > 0; });"
+               " var v = document.querySelector('video');"
+               " if (window.jwplayer) { try { jwplayer().setMute(true); jwplayer().play(); return 'jwplayer().play() (the Internet Archive\\'s player)'; } catch (e) { return 'jwplayer threw ' + e; } }"
+               " if (c.length) { c[0].click(); return 'pressed ' + (c[0].getAttribute('aria-label') || c[0].textContent).trim().slice(0, 40); }"
+               " if (v) { (v.parentElement || v).click(); return 'clicked the box of the video'; } return 'nothing to press'; })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: play: %s", said);
+      demo_sleep(12000);
+      demo_ask(PAGE,
+               "(function () { var v = document.querySelector('video');"
+               " if (!v && window.jwplayer) { try { var j = jwplayer(); return 'jwplayer ' + j.getState() + ' at ' + Number(j.getPosition()).toFixed(1) + ' of ' + Number(j.getDuration()).toFixed(1)"
+               " + ', quality ' + JSON.stringify((j.getQualityLevels() || [])[j.getCurrentQuality()] || null).slice(0, 80); } catch (e) { return 'jwplayer threw ' + e; } }"
+               " if (!v) return 'no video';"
+               " return 't ' + v.currentTime.toFixed(1) + (v.paused ? ' PAUSED' : ' playing') + ', ready ' + v.readyState + ', network ' + v.networkState"
+               " + ', ' + v.videoWidth + 'x' + v.videoHeight + ', from ' + String(v.currentSrc).slice(0, 50)"
+               " + (v.error ? ', ERROR ' + v.error.code + ' ' + String(v.error.message || '').slice(0, 70) : '')"
+               " + ' | log ' + (window.__bps5log || []).slice(-6).join(' || '); })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: 12 s after play: %s", said);
+#endif
 #endif
       demo_sleep(800);
     }
@@ -19712,6 +19788,154 @@ show_tour(void) {
   // (youtube.com/tv), asked for as what this browser is (a PlayStation 5's WebKit: user_agent_apply()). Is it
   // given to this browser, does the film start by itself, and does it go on after the minute at which the
   // desktop page's film is refused half of the times? Two minutes of what the page shows, three pictures. Then Sair.
+#ifdef SHOW_VIDEOS
+  // make SHOW=1 SHOW_YT=1 SHOW_YT_TV=1 SHOW_VIDEOS=1 (2026-11-18): which kinds of video play, outside YouTube. In
+  // a private tab (nothing is kept): what the engine says it plays (files and Media Source, by codec; HLS by
+  // itself, which sites give a browser that calls itself Safari); three videos put into a plain page by their
+  // address (an MP4 file, a WebM file, an HLS address); then the players of some sites, each asked to play its
+  // largest video without sound: where it is 8 and 12 s later, its size, where it comes from, its error. Then
+  // Sair. No picture of the screen.
+  {
+    static const struct { const char* name; const char* page; const char* video; const char* preload; } list[] = {
+#ifdef SHOW_VIDEOS_FILES  // only the files, by their preload (the buffer on the disk is asked for with "auto", and with play() after "none")
+      {"an MP4 file of 5 s (H.264), preload auto", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", "auto"},
+      {"an MP4 file of 52 s (H.264), as a page gives it", "https://example.com/", "https://media.w3.org/2010/05/sintel/trailer.mp4", 0},
+      {"an MP4 file of 5 s (H.264), preload none", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", "none"},
+      {"an MP4 file of 5 s (H.264), preload metadata", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", "metadata"},
+      {"a WebM file (VP8, Vorbis)", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm", 0},
+#else
+      {"an MP4 file (H.264)", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"},
+      {"a WebM file", "https://example.com/", "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm"},
+      {"an HLS address, by itself", "https://example.com/", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"},
+      {"hls.js's own page (HLS over Media Source)", "https://hlsjs.video-dev.org/demo/", 0},
+      {"dash.js's sample (DASH over Media Source)", "https://reference.dashif.org/dash.js/latest/samples/getting-started/auto-load-single-video.html", 0},
+      {"Vimeo", "https://vimeo.com/76979871", 0},
+      {"Twitch's first page", "https://www.twitch.tv/", 0},
+      {"Kick's first page", "https://kick.com/", 0},
+      {"the Internet Archive", "https://archive.org/details/BigBuckBunny_124", 0},
+#endif
+    };
+    static const char can_js[] =
+      "(function () { var v = document.createElement('video'), M = window.MediaSource || window.ManagedMediaSource;"
+      " function c(t) { return v.canPlayType(t) || 'no'; } function m(t) { return M && M.isTypeSupported ? (M.isTypeSupported(t) ? 'yes' : 'no') : 'none'; }"
+      " var T = {h264: 'video/mp4; codecs=\"avc1.640028\"', hevc: 'video/mp4; codecs=\"hvc1.1.6.L120.90\"', vp9: 'video/webm; codecs=\"vp9\"', vp9mp4: 'video/mp4; codecs=\"vp09.00.40.08\"',"
+      " av1: 'video/mp4; codecs=\"av01.0.08M.08\"', vp8: 'video/webm; codecs=\"vp8\"', aac: 'audio/mp4; codecs=\"mp4a.40.2\"', opus: 'audio/webm; codecs=\"opus\"', mp3: 'audio/mpeg', flac: 'audio/flac', ac3: 'audio/mp4; codecs=\"ac-3\"'};"
+      " var out = []; for (var k in T) out.push(k + ' ' + c(T[k]) + '/' + m(T[k]));"
+      " return 'HLS by itself: ' + c('application/vnd.apple.mpegurl') + ' | MediaSource ' + (window.MediaSource ? 'yes' : 'no') + ', ManagedMediaSource ' + (window.ManagedMediaSource ? 'yes' : 'no')"
+      " + ' | as a file/over Media Source: ' + out.join('; '); })()";
+    static const char find_js[] =
+      "(function () { var vs = Array.prototype.slice.call(document.querySelectorAll('video')), v = null, a = -1; window.__ve = '';"
+      " vs.forEach(function (x) { var r = x.getBoundingClientRect(), s = r.width * r.height; if (s > a) { a = s; v = x; } });"
+      " window.__v = v; if (!v) return 'no video in the page itself (' + document.querySelectorAll('iframe').length + ' frame(s))';"
+      " try { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function (e) { window.__ve = String(e).slice(0, 90); }); } catch (e) { window.__ve = 'threw ' + e; }"
+      " return vs.length + ' video(s), the largest asked to play'; })()";
+    static const char state_js[] =
+      "(function () { var v = window.__v; if (!v) return 'no video'; var s = v.currentSrc || '';"
+      " var kind = s.indexOf('blob:') === 0 ? 'Media Source' : /\\.m3u8/.test(s) ? 'an HLS address' : /\\.mp4/.test(s) ? 'an MP4 file' : /\\.webm/.test(s) ? 'a WebM file' : s ? 'address ' + s.slice(0, 50) : 'no source';"
+      " return 't ' + v.currentTime.toFixed(1) + (v.ended ? ' ENDED' : v.paused ? ' PAUSED' : ' playing') + ' of ' + (isFinite(v.duration) ? v.duration.toFixed(1) : 'no length') + ', ready ' + v.readyState + ', ' + v.videoWidth + 'x' + v.videoHeight + ', from ' + kind"
+      " + (v.error ? ', ERROR ' + v.error.code + ' ' + String(v.error.message || '').slice(0, 70) : '') + (window.__ve ? ', play() said: ' + window.__ve : ''); })()";
+    char said[1200], js[900];
+    int plays = 0, count = 0;
+
+    demo_sleep(2500);
+    demo_main(demo_do_ui, "newprivate");
+    demo_sleep(2500);
+    POC_LOG("show: videos: in a private tab (%s)", tab_is_private() ? "private" : "NOT PRIVATE");
+    for(const auto& one : list) {
+      before = demo_loads();
+      demo_main(demo_do_load, one.page);
+      const bool loaded = demo_wait_load(before, 30000);
+      if(count == 0) {
+        demo_ask(PAGE, can_js, said, sizeof(said));
+        POC_LOG("show: videos: the engine says: %s", said);
+      }
+      if(one.video) {
+        snprintf(js, sizeof(js),
+                 "(function (u, pre) { var v = document.createElement('video'); v.muted = true; v.style.cssText = 'position:fixed;left:0;top:0;width:640px;height:360px';"
+                 " if (pre) v.preload = pre; v.src = u; document.body.appendChild(v); window.__v = v; window.__ve = ''; var p = v.play(); if (p && p.catch) p.catch(function (e) { window.__ve = String(e).slice(0, 90); });"
+                 " return 'put into the page and asked to play'; })('%s', '%s')", one.video, one.preload ? one.preload : "");
+        demo_sleep(1500);
+        demo_ask(PAGE, js, said, sizeof(said));
+      } else {
+        demo_sleep(7000);
+        demo_ask(PAGE, find_js, said, sizeof(said));
+      }
+      POC_LOG("show: videos: %s: page %s; %s", one.name, loaded ? "loaded" : "NOT finished", said);
+      demo_sleep(8000);
+      demo_ask(PAGE, state_js, said, sizeof(said));
+      const double t8 = strncmp(said, "t ", 2) ? -1 : atof(said + 2);
+      POC_LOG("show: videos: %s: 8 s later: %s", one.name, said);
+      demo_sleep(4000);
+      demo_ask(PAGE, state_js, said, sizeof(said));
+      const double t12 = strncmp(said, "t ", 2) ? -1 : atof(said + 2);
+      // (a clip shorter than the wait is at its end by now: that counts, 2026-11-18)
+      const bool playing = (t12 > t8 + 1 && t8 >= 0) || (strstr(said, " ENDED") && t12 > 1);
+      POC_LOG("show: videos: %s: 12 s later: %s => %s", one.name, said, playing ? "PLAYS" : "does not play");
+      if(playing && !strstr(said, " ENDED") && !strstr(said, "no length")) {  // a jump ahead: the bytes are asked of the server again
+        demo_ask(PAGE, "(function () { var v = window.__v; if (!v || !(v.duration > 30)) return 'no jump (short or no video)'; var to = Math.min(40, v.duration - 8); v.currentTime = to; return 'jumped to ' + to.toFixed(0); })()", said, sizeof(said));
+        if(!strncmp(said, "jumped", 6)) {
+          char jumped[64];
+          snprintf(jumped, sizeof(jumped), "%s", said);
+          demo_sleep(4000);
+          demo_ask(PAGE, state_js, said, sizeof(said));
+          POC_LOG("show: videos: %s: %s, 4 s later: %s", one.name, jumped, said);
+        }
+      }
+      plays += playing;
+      count++;
+      demo_ask(PAGE, "(function () { var v = window.__v; if (v) { try { v.pause(); } catch (e) {} } return 'stopped'; })()", said, sizeof(said));
+    }
+    POC_RESULT(1, "show: videos: %d of %d play; done in %.0f s; Sair from the menu", plays, count, (poc_now_ms() - app.start_ms) / 1e3);
+    demo_main(demo_do_ui, "menu-do?quit");
+    return;
+  }
+#endif
+#ifdef SHOW_YT_DIAG
+  // make SHOW=1 SHOW_YT=1 SHOW_YT_TV=1 SHOW_YT_DIAG=1 (2026-11-18): the page for televisions answers a film with
+  // "An error occurred, the YouTube app must be restarted" since 2026-11-17 23:47. Why: what the page's scripts
+  // complained of from its start (extensions_apply() keeps it), what the page says it is (its own configuration:
+  // the client's name and version), what the browser tells sites it is, and what the page's own request for the
+  // film is answered (asked once more here, with the page's own configuration: its status and its reason).
+  {
+    static const char ask_js[] =
+      "(function () { window.__d2 = 'no answer yet'; try { var g = window.ytcfg && ytcfg.get ? function (k) { return ytcfg.get(k); } : function () { return undefined; };"
+      " var ctx = g('INNERTUBE_CONTEXT'), key = g('INNERTUBE_API_KEY'), c = ctx && ctx.client || {};"
+      " window.__d = 'client ' + c.clientName + ' ' + c.clientVersion + ' | platform ' + c.platform + ' | form ' + c.clientFormFactor + ' | model ' + c.deviceModel + ' | os ' + c.osName + ' ' + c.osVersion + ' | browser ' + c.browserName + ' ' + c.browserVersion"
+      " + ' | signed in ' + g('LOGGED_IN') + ' | ua ' + navigator.userAgent;"
+      " if (!ctx) { window.__d2 = 'no configuration to ask with'; return window.__d; }"
+      " fetch('/youtubei/v1/player?prettyPrint=false' + (key ? '&key=' + key : ''), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({context: ctx, videoId: 'aqz-KE-bpKQ'})})"
+      " .then(function (r) { return r.text().then(function (t) { var j = {}; try { j = JSON.parse(t); } catch (e) {} var p = j.playabilityStatus || {};"
+      " window.__d2 = 'HTTP ' + r.status + ' | status ' + p.status + ' | reason ' + (p.reason || '') + ' | ' + JSON.stringify(p.errorScreen || p.messages || {}).slice(0, 300) + ' | formats ' + (j.streamingData ? (j.streamingData.adaptiveFormats || []).length : 'none') + ' | bytes ' + t.length; }); })"
+      " .catch(function (e) { window.__d2 = 'the request failed: ' + e; });"
+      " } catch (e) { window.__d = 'threw ' + e; } return window.__d; })()";
+    char said[1200];
+
+    demo_sleep(2500);
+    before = demo_loads();
+    demo_main(demo_do_load, "https://www.youtube.com/tv#/watch?v=aqz-KE-bpKQ");
+    demo_wait_load(before, 25000);
+    demo_sleep(20000);
+    demo_ask(PAGE, "(function () { var v = document.querySelector('video'); return (v ? 'video t ' + v.currentTime.toFixed(1) + (v.paused ? ' PAUSED' : ' playing') + (v.currentSrc ? '' : ', no source') : 'no video') + ' | text ' + (document.body ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 140) : ''); })()", said, sizeof(said));
+    POC_LOG("show: tv diag: the page: %s", said);
+    for(int i = 0; i < 4; i++) {
+      char js[160];
+      snprintf(js, sizeof(js), "(function () { var L = window.__bps5log; return L ? L.length + ' kept: ' + L.join(' || ').slice(%d, %d) : 'nothing kept'; })()", i * 1000, i * 1000 + 1000);
+      demo_ask(PAGE, js, said, sizeof(said));
+      POC_LOG("show: tv diag: complaints %d: %s", i, said);
+      if(strlen(said) < 900) {
+        break;
+      }
+    }
+    demo_ask(PAGE, ask_js, said, sizeof(said));
+    POC_LOG("show: tv diag: %s", said);
+    demo_sleep(7000);
+    demo_ask(PAGE, "window.__d2", said, sizeof(said));
+    POC_LOG("show: tv diag: the film's request: %s", said);
+    POC_RESULT(1, "show: tv diag done in %.0f s; Sair from the menu", (poc_now_ms() - app.start_ms) / 1e3);
+    demo_main(demo_do_ui, "menu-do?quit");
+    return;
+  }
+#endif
 #ifdef SHOW_YT_BACK
   // make SHOW=1 SHOW_YT=1 SHOW_YT_TV=1 SHOW_YT_BACK=1 (2026-11-17, a report: circle on a film of this page went
   // to the browser's start page). A film of the page opened from the start page, as its address; circle once:

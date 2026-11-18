@@ -256,6 +256,8 @@ step_gstreamer() {
             https://gitlab.freedesktop.org/gstreamer/gstreamer.git "$GST_SRC"
     fi
     (cd "$GST_SRC" && meson subprojects download glib pcre2 libffi proxy-libintl)
+    # FFmpeg's Vorbis decoder in gst-libav (2026-11-18): gst-libav-vorbis.py.
+    python3 "$HERE/gst-libav-vorbis.py" "$GST_SRC"
     fix_glib "$GST_SRC/subprojects/glib-$GLIB_VER"
 
     rm -rf "$build" "$stage"

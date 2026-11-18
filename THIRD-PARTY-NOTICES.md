@@ -75,7 +75,7 @@ Cheat and patch files are not in this release. The cheats panel fetches a game's
 
 ## The LGPL components
 
-WebKit, cairo, GLib, GStreamer, FFmpeg and the other components under the LGPL are linked into the engine. Their sources are the upstream ones named above; the changes this project makes to them are in `poc/webkit/` and `poc/gl_zink/`, with the scripts that build the whole engine from source (`poc/webkit/build-webkit.sh`), so that anyone can rebuild the engine with a changed copy of any of them.
+WebKit, cairo, GLib, GStreamer, FFmpeg and the other components under the LGPL are linked into the engine. Their sources are the upstream ones named above; the changes this project makes to them are in `poc/webkit/`, `poc/media/` (gst-libav: `gst-libav-vorbis.py`) and `poc/gl_zink/`, with the scripts that build the whole engine from source (`poc/webkit/build-webkit.sh`), so that anyone can rebuild the engine with a changed copy of any of them.
 
 ## Trademarks
 
