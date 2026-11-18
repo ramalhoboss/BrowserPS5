@@ -16259,7 +16259,9 @@ radial_input(const input_event_t* e) {
 // HID usage, the modifiers, down / held / up). WebKit's PlayStation entry takes no modifiers
 // (WKPagePrivatePlayStation.cpp: "TODO: Handle modifiers"), so the character is made here, with the keyboard of
 // the console's language (the system's, set at start; the browser's own when the console did not say):
-// Portugal's layout or Brazil's (ABNT2), with their dead keys for the accents, or else the US one; and Ctrl and Alt make the browser's shortcuts. The keys go to the view in focus (the page in the game
+// the layout of Portugal, Brazil (ABNT2), the UK, France (AZERTY), Germany (QWERTZ), Spain or Italy, with their dead
+// keys for the accents, or else the US one; and Ctrl and Alt make the browser's shortcuts, by the letter the key types
+// on the layout (Ctrl+Z on an AZERTY keyboard is the key marked Z). The keys go to the view in focus (the page in the game
 // mode). While the system's keyboard is open it takes them itself; the browser's own hides at the first key.
 #define HID_CTRL  0x11u
 #define HID_SHIFT 0x22u
@@ -16276,41 +16278,110 @@ static struct {
 } hw_keys = {false, 0, {}, {}, -1};
 
 // The keyboards' layouts: the console's language says which (hw_layout()).
-enum { HW_US, HW_PT, HW_BR };
+enum { HW_US, HW_PT, HW_BR, HW_UK, HW_FR, HW_DE, HW_ES, HW_IT, HW_LAYOUTS };
 
-// The keys that type, by usage: plain, with Shift, with AltGr (0: nothing), on the US, Portuguese and
-// Brazilian (ABNT2) keyboards. Letters (0x04-0x1d) and the keypad are made in hw_key_char().
-static const struct {
+// A key that types, by usage, on one layout: plain, with Shift, with AltGr, with Shift and AltGr (0: nothing; with
+// Shift and AltGr, 0 is AltGr's). The letters a layout leaves where the US one has them (0x04-0x1d) are not listed,
+// nor the space and the keypad (hw_key_char()).
+struct hw_key {
   uint8_t usage;
-  uint32_t us[2];
-  uint32_t pt[3];
-  uint32_t br[3];
-} hw_chars[] = {
-  {0x1e, {'1', '!'}, {'1', '!', 0}, {'1', '!', 0xb9}},                  // br: ¹
-  {0x1f, {'2', '@'}, {'2', '"', '@'}, {'2', '@', 0xb2}},                // br: ²
-  {0x20, {'3', '#'}, {'3', '#', 0xa3}, {'3', '#', 0xb3}},               // pt: £; br: ³
-  {0x21, {'4', '$'}, {'4', '$', 0xa7}, {'4', '$', 0xa3}},               // pt: §; br: £
-  {0x22, {'5', '%'}, {'5', '%', 0x20ac}, {'5', '%', 0xa2}},             // pt: €; br: ¢
-  {0x23, {'6', '^'}, {'6', '&', 0}, {'6', HID_DEAD(0xa8), 0xac}},       // br: ¨ ¬
-  {0x24, {'7', '&'}, {'7', '/', '{'}, {'7', '&', 0}},
-  {0x25, {'8', '*'}, {'8', '(', '['}, {'8', '*', 0}},
-  {0x26, {'9', '('}, {'9', ')', ']'}, {'9', '(', 0}},
-  {0x27, {'0', ')'}, {'0', '=', '}'}, {'0', ')', 0}},
-  {0x2c, {' ', ' '}, {' ', ' ', 0}, {' ', ' ', 0}},
-  {0x2d, {'-', '_'}, {'\'', '?', 0}, {'-', '_', 0}},
-  {0x2e, {'=', '+'}, {0xab, 0xbb, 0}, {'=', '+', 0xa7}},                // pt: « »; br: §
-  {0x2f, {'[', '{'}, {'+', '*', HID_DEAD(0xa8)}, {HID_DEAD(0xb4), HID_DEAD('`'), 0}},  // pt: ¨; br: ´ `
-  {0x30, {']', '}'}, {HID_DEAD(0xb4), HID_DEAD('`'), 0}, {'[', '{', 0xaa}},            // pt: ´ `; br: ª
-  {0x31, {'\\', '|'}, {HID_DEAD('~'), HID_DEAD('^'), 0}, {']', '}', 0xba}},            // br: º
-  {0x32, {'\\', '|'}, {HID_DEAD('~'), HID_DEAD('^'), 0}, {']', '}', 0xba}},  // (an ISO keyboard's key by Enter)
-  {0x33, {';', ':'}, {0xe7, 0xc7, 0}, {0xe7, 0xc7, 0}},                 // ç Ç
-  {0x34, {'\'', '"'}, {0xba, 0xaa, 0}, {HID_DEAD('~'), HID_DEAD('^'), 0}},  // pt: º ª
-  {0x35, {'`', '~'}, {'\\', '|', 0}, {'\'', '"', 0}},
-  {0x36, {',', '<'}, {',', ';', 0}, {',', '<', 0}},
-  {0x37, {'.', '>'}, {'.', ':', 0}, {'.', '>', 0}},
-  {0x38, {'/', '?'}, {'-', '_', 0}, {';', ':', 0}},
-  {0x64, {'\\', '|'}, {'<', '>', 0}, {'\\', '|', 0}},        // (an ISO keyboard's key by the left Shift)
-  {0x87, {0, 0}, {0, 0, 0}, {'/', '?', 0xb0}},   // (ABNT2's key by the right Shift) °
+  uint32_t c[4];
+};
+
+static const hw_key hw_us[] = {
+  {0x1e, {'1', '!'}}, {0x1f, {'2', '@'}}, {0x20, {'3', '#'}}, {0x21, {'4', '$'}}, {0x22, {'5', '%'}},
+  {0x23, {'6', '^'}}, {0x24, {'7', '&'}}, {0x25, {'8', '*'}}, {0x26, {'9', '('}}, {0x27, {'0', ')'}},
+  {0x2d, {'-', '_'}}, {0x2e, {'=', '+'}}, {0x2f, {'[', '{'}}, {0x30, {']', '}'}},
+  {0x31, {'\\', '|'}}, {0x32, {'\\', '|'}},  // (0x32: an ISO keyboard's key by Enter)
+  {0x33, {';', ':'}}, {0x34, {'\'', '"'}}, {0x35, {'`', '~'}}, {0x36, {',', '<'}}, {0x37, {'.', '>'}},
+  {0x38, {'/', '?'}}, {0x64, {'\\', '|'}},  // (0x64: an ISO keyboard's key by the left Shift)
+};
+
+static const hw_key hw_pt[] = {
+  {0x1e, {'1', '!'}}, {0x1f, {'2', '"', '@'}}, {0x20, {'3', '#', 0xa3}}, {0x21, {'4', '$', 0xa7}},  // £ §
+  {0x22, {'5', '%', 0x20ac}}, {0x23, {'6', '&'}}, {0x24, {'7', '/', '{'}}, {0x25, {'8', '(', '['}},  // €
+  {0x26, {'9', ')', ']'}}, {0x27, {'0', '=', '}'}}, {0x2d, {'\'', '?'}}, {0x2e, {0xab, 0xbb}},  // « »
+  {0x2f, {'+', '*', HID_DEAD(0xa8)}},                                                             // ¨
+  {0x30, {HID_DEAD(0xb4), HID_DEAD('`')}},                                                        // ´ `
+  {0x31, {HID_DEAD('~'), HID_DEAD('^')}}, {0x32, {HID_DEAD('~'), HID_DEAD('^')}},
+  {0x33, {0xe7, 0xc7}}, {0x34, {0xba, 0xaa}}, {0x35, {'\\', '|'}}, {0x36, {',', ';'}}, {0x37, {'.', ':'}},  // ç º ª
+  {0x38, {'-', '_'}}, {0x64, {'<', '>'}},
+  {0x08, {'e', 'E', 0x20ac}},  // AltGr+E: €
+};
+
+static const hw_key hw_br[] = {  // ABNT2
+  {0x1e, {'1', '!', 0xb9}}, {0x1f, {'2', '@', 0xb2}}, {0x20, {'3', '#', 0xb3}}, {0x21, {'4', '$', 0xa3}},  // ¹ ² ³ £
+  {0x22, {'5', '%', 0xa2}}, {0x23, {'6', HID_DEAD(0xa8), 0xac}}, {0x24, {'7', '&'}}, {0x25, {'8', '*'}},  // ¢ ¨ ¬
+  {0x26, {'9', '('}}, {0x27, {'0', ')'}}, {0x2d, {'-', '_'}}, {0x2e, {'=', '+', 0xa7}},                // §
+  {0x2f, {HID_DEAD(0xb4), HID_DEAD('`')}}, {0x30, {'[', '{', 0xaa}},                                     // ´ ` ª
+  {0x31, {']', '}', 0xba}}, {0x32, {']', '}', 0xba}},                                                     // º
+  {0x33, {0xe7, 0xc7}}, {0x34, {HID_DEAD('~'), HID_DEAD('^')}}, {0x35, {'\'', '"'}}, {0x36, {',', '<'}},
+  {0x37, {'.', '>'}}, {0x38, {';', ':'}}, {0x64, {'\\', '|'}},
+  {0x87, {'/', '?', 0xb0}},  // ABNT2's key by the right Shift; °
+  {0x14, {'q', 'Q', '/'}}, {0x1a, {'w', 'W', '?'}}, {0x08, {'e', 'E', 0xb0}},  // AltGr+Q, W, E: / ? °
+};
+
+static const hw_key hw_uk[] = {
+  {0x1e, {'1', '!'}}, {0x1f, {'2', '"'}}, {0x20, {'3', 0xa3}}, {0x21, {'4', '$', 0x20ac}}, {0x22, {'5', '%'}},  // £ €
+  {0x23, {'6', '^'}}, {0x24, {'7', '&'}}, {0x25, {'8', '*'}}, {0x26, {'9', '('}}, {0x27, {'0', ')'}},
+  {0x2d, {'-', '_'}}, {0x2e, {'=', '+'}}, {0x2f, {'[', '{'}}, {0x30, {']', '}'}},
+  {0x31, {'#', '~'}}, {0x32, {'#', '~'}}, {0x33, {';', ':'}}, {0x34, {'\'', '@'}},
+  {0x35, {'`', 0xac, 0xa6}}, {0x36, {',', '<'}}, {0x37, {'.', '>'}}, {0x38, {'/', '?'}},  // ¬ ¦
+  {0x64, {'\\', '|'}},
+  {0x04, {'a', 'A', 0xe1, 0xc1}}, {0x08, {'e', 'E', 0xe9, 0xc9}}, {0x0c, {'i', 'I', 0xed, 0xcd}},  // AltGr: á é í
+  {0x12, {'o', 'O', 0xf3, 0xd3}}, {0x18, {'u', 'U', 0xfa, 0xda}},                                // ó ú
+};
+
+static const hw_key hw_fr[] = {  // AZERTY: the digits with Shift
+  {0x1e, {'&', '1'}}, {0x1f, {0xe9, '2', HID_DEAD('~')}}, {0x20, {'"', '3', '#'}}, {0x21, {'\'', '4', '{'}},  // é
+  {0x22, {'(', '5', '['}}, {0x23, {'-', '6', '|'}}, {0x24, {0xe8, '7', HID_DEAD('`')}}, {0x25, {'_', '8', '\\'}},  // è
+  {0x26, {0xe7, '9', '^'}}, {0x27, {0xe0, '0', '@'}}, {0x2d, {')', 0xb0, ']'}}, {0x2e, {'=', '+', '}'}},  // ç à °
+  {0x2f, {HID_DEAD('^'), HID_DEAD(0xa8)}}, {0x30, {'$', 0xa3, 0xa4}},  // ^ ¨; £ ¤
+  {0x31, {'*', 0xb5}}, {0x32, {'*', 0xb5}}, {0x33, {'m', 'M'}}, {0x34, {0xf9, '%'}}, {0x35, {0xb2}},  // µ ù ²
+  {0x10, {',', '?'}}, {0x36, {';', '.'}}, {0x37, {':', '/'}}, {0x38, {'!', 0xa7}}, {0x64, {'<', '>'}},  // §
+  {0x04, {'q', 'Q'}}, {0x14, {'a', 'A'}}, {0x1a, {'z', 'Z'}}, {0x1d, {'w', 'W'}},
+  {0x08, {'e', 'E', 0x20ac}},  // AltGr+E: €
+};
+
+static const hw_key hw_de[] = {  // QWERTZ
+  {0x1e, {'1', '!'}}, {0x1f, {'2', '"', 0xb2}}, {0x20, {'3', 0xa7, 0xb3}}, {0x21, {'4', '$'}}, {0x22, {'5', '%'}},  // ² § ³
+  {0x23, {'6', '&'}}, {0x24, {'7', '/', '{'}}, {0x25, {'8', '(', '['}}, {0x26, {'9', ')', ']'}},
+  {0x27, {'0', '=', '}'}}, {0x2d, {0xdf, '?', '\\'}}, {0x2e, {HID_DEAD(0xb4), HID_DEAD('`')}},  // ß; ´ `
+  {0x2f, {0xfc, 0xdc}}, {0x30, {'+', '*', '~'}}, {0x31, {'#', '\''}}, {0x32, {'#', '\''}},  // ü
+  {0x33, {0xf6, 0xd6}}, {0x34, {0xe4, 0xc4}}, {0x35, {HID_DEAD('^'), 0xb0}},  // ö ä; ^ °
+  {0x36, {',', ';'}}, {0x37, {'.', ':'}}, {0x38, {'-', '_'}}, {0x64, {'<', '>', '|'}},
+  {0x1c, {'z', 'Z'}}, {0x1d, {'y', 'Y'}},
+  {0x14, {'q', 'Q', '@'}}, {0x08, {'e', 'E', 0x20ac}}, {0x10, {'m', 'M', 0xb5}},  // AltGr+Q, E, M: @ € µ
+};
+
+static const hw_key hw_es[] = {  // Spain's
+  {0x1e, {'1', '!', '|'}}, {0x1f, {'2', '"', '@'}}, {0x20, {'3', 0xb7, '#'}}, {0x21, {'4', '$', HID_DEAD('~')}},  // ·
+  {0x22, {'5', '%'}}, {0x23, {'6', '&', 0xac}}, {0x24, {'7', '/'}}, {0x25, {'8', '('}}, {0x26, {'9', ')'}},  // ¬
+  {0x27, {'0', '='}}, {0x2d, {'\'', '?'}}, {0x2e, {0xa1, 0xbf}},                                       // ¡ ¿
+  {0x2f, {HID_DEAD('`'), HID_DEAD('^'), '['}}, {0x30, {'+', '*', ']'}},
+  {0x31, {0xe7, 0xc7, '}'}}, {0x32, {0xe7, 0xc7, '}'}}, {0x33, {0xf1, 0xd1}},                       // ç ñ
+  {0x34, {HID_DEAD(0xb4), HID_DEAD(0xa8), '{'}}, {0x35, {0xba, 0xaa, '\\'}},                           // ´ ¨; º ª
+  {0x36, {',', ';'}}, {0x37, {'.', ':'}}, {0x38, {'-', '_'}}, {0x64, {'<', '>'}},
+  {0x08, {'e', 'E', 0x20ac}},  // AltGr+E: €
+};
+
+static const hw_key hw_it[] = {  // no dead keys
+  {0x1e, {'1', '!'}}, {0x1f, {'2', '"'}}, {0x20, {'3', 0xa3}}, {0x21, {'4', '$'}}, {0x22, {'5', '%'}},  // £
+  {0x23, {'6', '&'}}, {0x24, {'7', '/'}}, {0x25, {'8', '('}}, {0x26, {'9', ')'}}, {0x27, {'0', '='}},
+  {0x2d, {'\'', '?'}}, {0x2e, {0xec, '^'}}, {0x2f, {0xe8, 0xe9, '[', '{'}}, {0x30, {'+', '*', ']', '}'}},  // ì è é
+  {0x31, {0xf9, 0xa7}}, {0x32, {0xf9, 0xa7}}, {0x33, {0xf2, 0xe7, '@'}}, {0x34, {0xe0, 0xb0, '#'}},  // ù § ò ç à °
+  {0x35, {'\\', '|'}}, {0x36, {',', ';'}}, {0x37, {'.', ':'}}, {0x38, {'-', '_'}}, {0x64, {'<', '>'}},
+  {0x08, {'e', 'E', 0x20ac}},  // AltGr+E: €
+};
+
+static const struct {
+  const hw_key* keys;
+  size_t count;
+} hw_layouts[HW_LAYOUTS] = {
+#define HW_TABLE(t) {t, sizeof(t) / sizeof(t[0])}
+  HW_TABLE(hw_us), HW_TABLE(hw_pt), HW_TABLE(hw_br), HW_TABLE(hw_uk),
+  HW_TABLE(hw_fr), HW_TABLE(hw_de), HW_TABLE(hw_es), HW_TABLE(hw_it),
+#undef HW_TABLE
 };
 
 // The keys that do not type, by usage: their X11 key codes, as send_key() takes them.
@@ -16352,46 +16423,79 @@ hw_key_code(unsigned usage) {
   return 0;
 }
 
+// A key's row on a layout (NULL: the layout does not list it).
+static const hw_key*
+hw_row(unsigned usage, int layout) {
+  if(layout < 0 || layout >= HW_LAYOUTS) {
+    layout = HW_US;
+  }
+  for(size_t i = 0; i < hw_layouts[layout].count; i++) {
+    if(hw_layouts[layout].keys[i].usage == usage) {
+      return &hw_layouts[layout].keys[i];
+    }
+  }
+  return NULL;
+}
+
+// A letter and its capital (Latin-1), which Caps Lock swaps.
+static bool
+hw_cased(uint32_t lower, uint32_t upper) {
+  return upper == lower - 0x20 && ((lower >= 'a' && lower <= 'z') || (lower >= 0xe0 && lower <= 0xfe && lower != 0xf7));
+}
+
 // What a key types (a code point, HID_DEAD(accent), or 0).
 static uint32_t
 hw_key_char(unsigned usage, bool shift, bool altgr, int layout) {
-  if(usage >= 0x04 && usage <= 0x1d) {
-    if(altgr) {
-      if(layout == HW_PT) {
-        return usage == 0x08 ? 0x20ac : 0;  // € (AltGr+E)
-      }
-      if(layout == HW_BR) {  // AltGr+Q, W, E: / ? °
-        return usage == 0x14 ? '/' : usage == 0x1a ? '?' : usage == 0x08 ? 0xb0 : 0;
-      }
-      return 0;
-    }
-    const bool upper = shift != hw_keys.caps;
-    return (uint32_t)((upper ? 'A' : 'a') + (usage - 0x04));
-  }
   if(usage >= 0x54 && usage <= 0x63) {  // the keypad, with Num Lock on
     static const char keypad[] = "/*-+\n1234567890.";
     const char c = keypad[usage - 0x54];
-    if(layout == HW_BR && usage == 0x63) {
-      return ',';  // ABNT2's keypad: its decimal key is the comma, and 0x85 the point
+    if((layout == HW_BR || layout == HW_DE) && usage == 0x63) {
+      return ',';  // ABNT2's and Germany's keypads: the decimal key is the comma (ABNT2's 0x85 is the point)
     }
     return c == '\n' ? 0 : (uint32_t)c;
   }
   if(usage == 0x85) {  // the keypad's other key (ABNT2's point)
     return layout == HW_BR ? '.' : ',';
   }
-  for(size_t i = 0; i < sizeof(hw_chars) / sizeof(hw_chars[0]); i++) {
-    if(hw_chars[i].usage == usage) {
-      if(layout != HW_US) {
-        uint32_t c = (layout == HW_PT ? hw_chars[i].pt : hw_chars[i].br)[altgr ? 2 : shift ? 1 : 0];
-        if(usage == 0x33 && hw_keys.caps && !altgr) {  // ç follows Caps Lock, as the letters do
-          c = shift ? 0xe7 : 0xc7;
-        }
-        return c;
-      }
-      return altgr ? 0 : hw_chars[i].us[shift ? 1 : 0];
-    }
+  if(usage == 0x2c) {
+    return altgr ? 0 : ' ';
   }
-  return 0;
+  uint32_t lower, upper;
+  if(const hw_key* row = hw_row(usage, layout)) {
+    if(altgr) {
+      return row->c[shift && row->c[3] ? 3 : 2];
+    }
+    lower = row->c[0];
+    upper = row->c[1];
+  } else if(usage >= 0x04 && usage <= 0x1d) {
+    if(altgr) {
+      return 0;
+    }
+    lower = 'a' + (usage - 0x04);
+    upper = lower - 0x20;
+  } else {
+    return 0;
+  }
+  if(hw_keys.caps && hw_cased(lower, upper)) {  // Caps Lock: the letters (ç ñ ü and the like too)
+    shift = !shift;
+  }
+  return shift ? upper : lower;
+}
+
+static int hw_layout();
+
+// What a key types on the layout with no modifier, for the shortcuts and the keys sent without a character (a
+// dead key, or a character past ASCII: the US keyboard's).
+static uint32_t
+hw_key_base(unsigned usage, int layout) {
+  const bool caps = hw_keys.caps;
+  hw_keys.caps = false;
+  uint32_t c = hw_key_char(usage, false, false, layout);
+  if(c >= 0x80) {
+    c = hw_key_char(usage, false, false, HW_US);
+  }
+  hw_keys.caps = caps;
+  return c;
 }
 
 // An accent and a letter as one (0: they do not make one).
@@ -16462,31 +16566,32 @@ hw_type(int pane, unsigned usage, uint32_t cp) {
 static bool
 hw_shortcut(unsigned usage, uint32_t mods, int pane) {
   const bool ctrl = mods & HID_CTRL, alt = (mods & HID_ALT) && !ctrl;
+  const uint32_t letter = ctrl ? hw_key_base(usage, hw_layout()) : 0;  // the key's letter on the keyboard's layout
   const char* edit = NULL;
-  if(usage == 0x3e || (ctrl && usage == 0x15)) {  // F5, Ctrl+R
+  if(usage == 0x3e || letter == 'r') {  // F5, Ctrl+R
     WKPageReload(page(PAGE));
-  } else if(usage == 0x3f || (ctrl && usage == 0x0f)) {  // F6, Ctrl+L: the address
+  } else if(usage == 0x3f || letter == 'l') {  // F6, Ctrl+L: the address
     set_focus(BAR);
     run_script(BAR, "address.focus(); address.select()", 0, ignore_result);
-  } else if(ctrl && usage == 0x17) {  // Ctrl+T
+  } else if(letter == 't') {  // Ctrl+T
     tab_new(0);
-  } else if(ctrl && usage == 0x1a) {  // Ctrl+W
+  } else if(letter == 'w') {  // Ctrl+W
     tab_close(tab_in_front());
   } else if(alt && usage == 0x50) {  // Alt+Left
     go_back();
   } else if(alt && usage == 0x4f) {  // Alt+Right
     WKPageGoForward(page(PAGE));
-  } else if(ctrl && usage == 0x04) {
+  } else if(letter == 'a') {
     edit = "selectAll";
-  } else if(ctrl && usage == 0x06) {
+  } else if(letter == 'c') {
     edit = "copy";
-  } else if(ctrl && usage == 0x1b) {
+  } else if(letter == 'x') {
     edit = "cut";
-  } else if(ctrl && usage == 0x19) {
+  } else if(letter == 'v') {
     edit = "paste";
-  } else if(ctrl && usage == 0x1d) {
+  } else if(letter == 'z') {
     edit = (mods & HID_SHIFT) ? "redo" : "undo";
-  } else if(ctrl && usage == 0x1c) {
+  } else if(letter == 'y') {
     edit = "redo";
   } else {
     return false;
@@ -16500,11 +16605,21 @@ hw_shortcut(unsigned usage, uint32_t mods, int pane) {
   return true;
 }
 
-// The keyboard's layout: the console's language's (the browser's when the console did not say).
+// The keyboard's layout: the console's language's (the browser's when the console did not say). Latin America's
+// (20) and Canada's French (22) keyboards are not Spain's and France's: the US one there.
 static int
 hw_layout() {
+  switch(hw_keys.console_lang) {
+  case 7: return HW_PT;
+  case 17: return HW_BR;
+  case 18: return HW_UK;
+  case 2: return HW_FR;
+  case 4: return HW_DE;
+  case 3: return HW_ES;
+  case 5: return HW_IT;
+  }
   if(hw_keys.console_lang >= 0) {
-    return hw_keys.console_lang == 7 ? HW_PT : hw_keys.console_lang == 17 ? HW_BR : HW_US;  // Portugal, Brazil
+    return HW_US;
   }
   return !strcmp(settings.lang, "pt") ? HW_PT : HW_US;
 }
@@ -16557,8 +16672,7 @@ hw_key_input(const input_event_t* e) {
     if(pressed == 2 || hw_shortcut(usage, mods, pane)) {
       return true;
     }
-    const int32_t code = hw_key_code(usage) ? hw_key_code(usage)
-                       : (int32_t)hw_key_char(usage, false, false, HW_US);
+    const int32_t code = hw_key_code(usage) ? hw_key_code(usage) : (int32_t)hw_key_base(usage, layout);
     if(code) {  // another one: the key, without its character
       hw_send(pane, true, code, 0);
       hw_keys.down_code[usage] = code;

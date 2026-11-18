@@ -2,7 +2,7 @@
 # script stopped: pulls RN's logs into results/rn-feel-<time>-<name>, writes
 # the screens as PNGs, prints the numbers and puts ${BACK:-menu-rn.tar} back
 # if no app is open.   bash collect-feel-rn.sh [name]
-poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.50; ID=PPSA97024
+poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.52; ID=PPSA97024
 rn=$poc/browser-rn/out; work=$(mktemp -d)
 send() { MSYS_NO_PATHCONV=1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$poc/send.ps1")" \
   -Ps5Host $ps5 -Payload "$(cygpath -w "$poc/$1")" -InputFile "$(cygpath -w "$2")" -TimeoutSec "${3:-120}" 2>&1 | tr -d '\r' | sed 's/^\xef\xbb\xbf//'; }

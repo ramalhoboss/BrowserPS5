@@ -4,7 +4,7 @@
 # out/menu-rn-speed.tar, opens the title, waits for the test to quit by
 # itself, pulls the logs, puts out/menu-rn.tar back.
 #   bash run-speed-rn.sh        (Git Bash on the PC)
-poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.50; ID=PPSA97024
+poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.52; ID=PPSA97024
 rn=$poc/browser-rn/out
 out=$poc/results/rn-speed-$(date +%Y%m%d-%H%M%S); mkdir -p "$out"; work=$(mktemp -d)
 send() { MSYS_NO_PATHCONV=1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$poc/send.ps1")" \

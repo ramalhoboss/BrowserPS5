@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-rc17 — 2026-11-18
+
+Since rc16:
+
+- **More keyboard layouts.** A USB keyboard now types with the layout of the UK, France (AZERTY), Germany (QWERTZ), Spain or Italy when the console is set to that language, besides Portugal's, Brazil's (ABNT2) and the US one. Their accents work on the dead keys (^ ¨ ´ ` ~), AltGr gives its characters (€, @, # and the brackets, with Shift too where the layout wants it, as Italy's { }), and Caps Lock also gives the capitals of letters such as ç, ñ, ü and ö.
+- **The shortcuts follow the letters on the keys.** Ctrl+Z, Ctrl+A, Ctrl+W and the rest were read by the key's place on a US keyboard, so on an AZERTY keyboard Ctrl+Z was the key marked W. Now they are read by the letter the key types with the console's layout.
+- **About rc16's note on power**: the extra power with the browser open on a still page is the console's own. Any app in front draws about the same, even one that never starts the GPU (7.6 W against 4.4 W on the home screen); the browser adds about 0.3 W to that.
+- Tested: the set of tests on the console with this browser (the title is rc16's, the engine rc15's), 9 of 9: the start and its checks, 24 of 24 sites, a PDF, the local network's block, a tour of pages, YouTube, a download, a still page, and the video files 5 of 5. The layouts: 136 checks of the keys' tables on the PC, the earlier layouts' included.
+- Known: the new layouts were checked on the PC, key by key (136 checks, with Portugal's, Brazil's and the US one), not with those keyboards. Latin America's and Canada's French keyboards, and the other languages', type as the US one. Copy and paste with Ctrl+C and Ctrl+V, and Bluetooth keyboards and mice, were not tried. Tested on one console, firmware 13.60.
+
 ## 1.0.0-rc16 — 2026-11-18
 
 Since rc15:

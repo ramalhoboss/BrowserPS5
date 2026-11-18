@@ -30,7 +30,7 @@ FOLDERS = ['browser', 'browser-rn', 'release-rn', 'common', 'webkit', 'webkit_ti
 OTHER_FOLDERS = {'gl_soft': os.path.join(os.path.dirname(os.path.dirname(POC)), 'poc', 'gl_soft')}
 FILES = ['send.ps1']
 # This console's and this PC's addresses in the scripts and tests: the same example address in every file.
-ADDRESSES = {'192.168.1.50': '192.168.1.50', '192.168.1.51': '192.168.1.51'}
+ADDRESSES = {'192.168.1.50': '192.168.1.50', '192.168.1.51': '192.168.1.51', '192.168.1.52': '192.168.1.52'}
 # Never copied: builds, test results, the console's tests and logs.
 SKIP_DIRS = {'out', 'build', 'results', 'preview', '__pycache__', 'node_modules', '.git', '.vs', 'console',
              'tests-host-out', 'video-test', 'old'}
@@ -111,7 +111,7 @@ def scan():
              ('Discord webhook', re.compile(r'discord(app)?\.com/api/webhooks/\d+/[\w-]{20,}', re.I)),
              ('token', re.compile(r'\b(ghp_[A-Za-z0-9]{20,}|github_pat_\w{20,}|sk-[A-Za-z0-9]{20,}|xox[bp]-[\w-]{10,})'))]
     # Addresses and mails that are fine in a public source (examples, upstream authors' public addresses).
-    fine = re.compile(r'(192\.168\.[01]\.(0|1|50|51)$|10\.0\.0\.[01]$|\.example\b|@example\.|noreply|no-reply|'
+    fine = re.compile(r'(192\.168\.[01]\.(0|1|50|51|52)$|10\.0\.0\.[01]$|\.example\b|@example\.|noreply|no-reply|'
                       r'@[a-z]\.pt$|@bank\.pt$|@m\.youtube\.com$|@sony\.com$|webhooks/123456|@users\.noreply|'
                       r'@webkit\.org|@apple\.com|@gnu\.org|@fsf\.org|@freedesktop\.org|@mesa3d|@igalia\.com|'
                       r'@gnome\.org|@mozilla\.|@google\.com|@chromium\.org|@[\w.-]*\.(png|jpg|svg|webp)\b)', re.I)

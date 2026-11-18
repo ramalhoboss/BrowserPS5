@@ -111,6 +111,11 @@ title_defines=()
 [[ ${TITLE_SYSIME:-0} == 1 ]] && title_defines+=(-DTITLE_SYSIME)
 [[ ${TITLE_MIC:-0} == 1 ]] && title_defines+=(-DTITLE_MIC)
 [[ ${TITLE_KBM:-0} == 1 ]] && title_defines+=(-DTITLE_KBM)
+# TITLE_GPU_COUNT=1 (2026-11-18, a diagnostic): the title's submissions to the GPU counted (title.cpp, "gpu:" every 5 s).
+gpu_count_flags=()
+[[ ${TITLE_GPU_COUNT:-0} == 1 ]] && { title_defines+=(-DTITLE_GPU_COUNT); gpu_count_flags=(--wrap=sceAgcDriverSubmitDcb); }
+# TITLE_NO_BROKER=1 (2026-11-18, a diagnostic): the GPU broker is not started (title.cpp); never in a release.
+[[ ${TITLE_NO_BROKER:-0} == 1 ]] && title_defines+=(-DTITLE_NO_BROKER)
 [[ " ${TITLE_EXTRA_CFLAGS:-} " == *" -DTITLE_RN "* ]] && title_defines+=(-DTITLE_RN)  # (2026-11-14: title.cpp's RN parts)
 [[ $webkit == 1 && ${TITLE_MALLOC:-0} == 1 ]] && title_defines+=(-DTITLE_MALLOC)  # (2026-11-14: malloc on libpas, below)
 cc "${cxxflags[@]}" -Werror -I"$poc/hello_page" -I"$broker" -I"$poc/gpu_broker" -I"$here" -I"$poc/common" \
@@ -349,7 +354,7 @@ if (( webkit )); then
 fi
 
 "$sdk/bin/prospero-lld" "${radv_linker_script[@]}" --eh-frame-hdr "${radv_link_flags[@]}" \
-    "${webkit_flags[@]}" \
+    "${webkit_flags[@]}" "${gpu_count_flags[@]}" \
     --version-script "$native/app-symbols.map" --exclude-libs=ALL --gc-sections \
     -e _start -o "$work/llvm-pie.elf" \
     "$work/obj/app_crt.o" "$work/obj/app_cpp_runtime.o" "$work/obj/title.o" "$work/obj/server.o" \

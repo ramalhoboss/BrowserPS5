@@ -4,7 +4,7 @@
 # opens the title, waits for it to quit by itself (~130 s), pulls the logs,
 # and puts back ${BACK:-menu-rn-probe.tar}. Needs no app open.
 #   bash run-wprobe-rn.sh        (Git Bash on the PC)
-poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.50; ID=PPSA97024
+poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.52; ID=PPSA97024
 rn=$poc/browser-rn/out
 out=$poc/results/rn-wprobe-$(date +%Y%m%d-%H%M%S); mkdir -p "$out"; work=$(mktemp -d)
 send() { MSYS_NO_PATHCONV=1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$poc/send.ps1")" \

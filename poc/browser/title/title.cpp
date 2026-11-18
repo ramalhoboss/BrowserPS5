@@ -77,6 +77,43 @@ extern "C" int sceKernelUsleep(unsigned microseconds);
 
 #define OWNER_PORT 9040
 #define REPORT_PATH "/app0/browser-title.txt"
+
+#ifdef TITLE_GPU_COUNT
+/* 2026-11-18, a diagnostic (TITLE_GPU_COUNT=1, build.sh): what the GPU is given while a page stands still. Every
+ * submission of the title goes through sceAgcDriverSubmitDcb (the broker's, for the browser's interface, and RADV's,
+ * for the pages' engine): counted here, by the thread that made it, and written with the screen's line. */
+struct gpu_submit_description {
+    void *words;
+    uint32_t word_count;
+    uint8_t flag;
+    uint8_t padding[3];
+};
+extern "C" int32_t __real_sceAgcDriverSubmitDcb(gpu_submit_description *description);
+#define GPU_THREADS 6
+static struct {
+    pthread_mutex_t lock;
+    unsigned long long count, words;
+    unsigned long long thread_count[GPU_THREADS];
+    uintptr_t thread[GPU_THREADS];
+} gpu_count = {PTHREAD_MUTEX_INITIALIZER, 0, 0, {}, {}};
+
+extern "C" int32_t __wrap_sceAgcDriverSubmitDcb(gpu_submit_description *description)
+{
+    const uintptr_t self = (uintptr_t)pthread_self();
+    pthread_mutex_lock(&gpu_count.lock);
+    ++gpu_count.count;
+    gpu_count.words += description ? description->word_count : 0;
+    for (int i = 0; i < GPU_THREADS; i++) {
+        if (gpu_count.thread[i] == self || !gpu_count.thread[i]) {
+            gpu_count.thread[i] = self;
+            ++gpu_count.thread_count[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&gpu_count.lock);
+    return __real_sceAgcDriverSubmitDcb(description);
+}
+#endif
 #define CONNECT_SECONDS 60
 
 static FILE *report_file;
@@ -1607,7 +1644,15 @@ int main()
     flexible_note("the title's start");
 
     ps5_gpu_broker_set_shared_memory(named_alloc, nullptr);
+#ifdef TITLE_NO_BROKER
+    /* 2026-11-18, a diagnostic (TITLE_NO_BROKER=1, build.sh): the GPU is never started, to measure the power of the
+     * title in front without it. Never in a release. */
+    report("diagnostic: the GPU broker is not started (TITLE_NO_BROKER)");
+    (void)absent;
+    if (false) {
+#else
     if (ps5_gpu_broker_start("/app0", false, true, absent)) {
+#endif
         pthread_t broker;
         pthread_create(&broker, nullptr, broker_thread, nullptr);
         report("broker started");
@@ -1860,6 +1905,23 @@ int main()
                    n ? tile_ms / n : 0.0, n ? wait_ms / n : 0.0, (unsigned long long)(skipped - last_skipped));
             last_flipped = flipped;
             last_skipped = skipped;
+#ifdef TITLE_GPU_COUNT
+            {
+                char by[GPU_THREADS * 32] = "";
+                size_t at = 0;
+                pthread_mutex_lock(&gpu_count.lock);
+                const unsigned long long count = gpu_count.count, words = gpu_count.words;
+                for (int i = 0; i < GPU_THREADS && gpu_count.thread[i]; i++) {
+                    at += (size_t)snprintf(by + at, sizeof by - at, " %lx:%llu", (unsigned long)gpu_count.thread[i],
+                                           gpu_count.thread_count[i]);
+                    gpu_count.thread_count[i] = 0;
+                }
+                gpu_count.count = 0, gpu_count.words = 0;
+                pthread_mutex_unlock(&gpu_count.lock);
+                report("gpu: %llu submissions, %llu KiB of commands in %.1f s; by thread:%s", count, words * 4 / 1024,
+                       (now - last) / 1e3, by);
+            }
+#endif
             if (title_memory_stats) {
                 title_memory_stats_t m;
                 title_memory_stats(&m);
