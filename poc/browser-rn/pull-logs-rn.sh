@@ -1,5 +1,5 @@
 # Pulls BrowserPS5 RN (PPSA97025) logs: the current session and 3 old ones.
-poc=/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc; ps5=192.168.1.50
+poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.50
 out=$poc/results/rn-live-$(date +%H%M%S); mkdir -p "$out"; work=$(mktemp -d)
 send() { MSYS_NO_PATHCONV=1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$poc/send.ps1")" \
   -Ps5Host $ps5 -Payload "$(cygpath -w "$poc/$1")" -InputFile "$(cygpath -w "$2")" -TimeoutSec "${3:-120}" 2>&1 | tr -d '\r' | sed 's/^\xef\xbb\xbf//'; }

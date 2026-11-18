@@ -7,7 +7,7 @@
 # (build.sh's): a title with another engine next to it (2026-11-11:
 # title-rn-async-base.tar, title-rn-plus-base.tar).
 set -uo pipefail
-P=/mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc
+P=/mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc
 base=${TITLE_BASE_OUT:-title-rn-base.tar}
 log=/tmp/build-${base%.tar}.log
 # 2026-11-11 16:20: every title of RN's keeps its WebProcess's log in memory

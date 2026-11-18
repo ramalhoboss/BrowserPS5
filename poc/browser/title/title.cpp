@@ -1449,6 +1449,39 @@ static void keep_old_logs()
 }
 
 
+#ifdef TITLE_RN
+/* 2026-11-17: the firmware in the log's first lines: a log sent from another console says which it is. */
+struct sw_version {
+    uint64_t size;
+    char text[0x1c];
+    uint32_t version;  // 0xMMmm....: "MM.mm" in hexadecimal digits
+};
+extern "C" int sceKernelGetProsperoSystemSwVersion(struct sw_version *version);
+
+static const char *firmware_text()
+{
+    static char text[40];
+    struct sw_version v;
+    if (text[0])
+        return text;
+    memset(&v, 0, sizeof(v));
+    v.size = sizeof(v);
+    if (sceKernelGetProsperoSystemSwVersion(&v))
+        snprintf(text, sizeof(text), "unknown");
+    else if (v.version >> 24)
+        snprintf(text, sizeof(text), "%x.%02x", v.version >> 24, (v.version >> 16) & 0xff);
+    else {
+        v.text[sizeof(v.text) - 1] = 0;
+        const char *t = v.text;
+        while (*t == ' ')
+            t++;
+        snprintf(text, sizeof(text), "%s", t[0] ? t : "unknown");
+    }
+    return text;
+}
+
+#endif
+
 int main()
 {
     keep_old_logs();
@@ -1464,6 +1497,9 @@ int main()
     direct_budget_note("at the start");
     crash_hooks();
     report("browser title pid %d", getpid());
+#ifdef TITLE_RN
+    report("firmware %s", firmware_text());
+#endif
     flexible_note("the title's start");
 
     ps5_gpu_broker_set_shared_memory(named_alloc, nullptr);

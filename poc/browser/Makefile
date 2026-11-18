@@ -219,6 +219,9 @@ endif
 ifdef SHOW_PDF
     CXXFLAGS += -DSHOW_PDF
 endif
+ifdef SHOW_UPDATE
+    CXXFLAGS += -DSHOW_UPDATE
+endif
 ifdef SHOW_DL_KEEP
     CXXFLAGS += -DSHOW_DL_KEEP=$(SHOW_DL_KEEP)
 endif
@@ -252,14 +255,26 @@ endif
 ifdef SHOW_SITES
     CXXFLAGS += -DSHOW_SITES
 endif
+ifdef SHOW_SITE
+    CXXFLAGS += -DSHOW_SITE='"$(SHOW_SITE)"'
+endif
+ifdef SHOW_SITE_WAIT
+    CXXFLAGS += -DSHOW_SITE_WAIT=$(SHOW_SITE_WAIT)
+endif
 ifdef SHOW_EMU
     CXXFLAGS += -DSHOW_EMU
+endif
+ifdef SHOW_GAMES
+    CXXFLAGS += -DSHOW_GAMES
 endif
 ifdef SHOW_YT_EMBED
     CXXFLAGS += -DSHOW_YT_EMBED
 endif
 ifdef SHOW_YT_TV
     CXXFLAGS += -DSHOW_YT_TV
+endif
+ifdef SHOW_YT_BACK
+    CXXFLAGS += -DSHOW_YT_BACK
 endif
 ifdef SHOW_YT_PS5UA
     CXXFLAGS += -DSHOW_YT_PS5UA
@@ -451,9 +466,24 @@ play_after_elf.o: play_after_elf.S play_after.elf
 # share.c (2026-11-16): a capture sent to a Discord channel by its webhook (share.h).
 share.o: share.c share.h
 	$(CC) $(CFLAGS) -I$(HB)/include -c -o $@ share.c
+# The browser's own updates (2026-11-17; update.h): what GitHub's list of releases says (update.c, tested on the
+# PC: make update_test), the two requests (update_net.c, libcurl), and update_after.elf, which hands a release's
+# installer to the payload loader once the browser has left (../update_after/main.c).
+UPDATE_AFTER := ../update_after
+update.o: update.c update.h xps5/json.h
+	$(CC) $(CFLAGS) -c -o $@ update.c
+update_net.o: update_net.c update_net.h $(COMMON)/sha256.h
+	$(CC) $(CFLAGS) -I$(HB)/include -c -o $@ update_net.c
+update_after.elf: $(UPDATE_AFTER)/main.c $(UPDATE_AFTER)/update_after.h $(COMMON)/poc_log.h $(COMMON)/sha256.h $(TITLE)/link.h
+	$(CC) -Wall -Werror -O1 -I$(COMMON) -I$(TITLE) -o $@ $(UPDATE_AFTER)/main.c -lSceSystemService -lSceUserService
+update_after_elf.o: update_after_elf.S update_after.elf
+	$(CC) -c -o $@ update_after_elf.S
+update_test: update_test.c update.c update.h xps5/json.c xps5/mem.c $(COMMON)/sha256.h
+	gcc -std=gnu11 -g -O1 -Wall -Werror -fsanitize=address,undefined -fno-sanitize-recover=undefined -o $@ update_test.c update.c xps5/json.c xps5/mem.c
+	./update_test
 ifdef APP_RN
     UI_OBJS += ask_box.o $(PVG_OBJS) games.o xps5-game.o xps5-json.o xps5-mem.o xps5-trophy.o xps5-captures.o health.o \
-               play_after_elf.o share.o
+               play_after_elf.o share.o update.o update_net.o update_after_elf.o
 endif
 
 # REMOTE_UI: the pause when the system is over the app (title/remote.h).

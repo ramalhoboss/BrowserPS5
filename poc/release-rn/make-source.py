@@ -24,9 +24,10 @@ DEST = os.path.join(POC, 'browser-rn', 'out', 'release', 'BrowserPS5-%s-source' 
 
 # What the release is built from (build-release-rn.sh, browser-rn/*.sh, the Makefiles they call).
 FOLDERS = ['browser', 'browser-rn', 'release-rn', 'common', 'webkit', 'webkit_title', 'jsc_shell', 'gl_zink',
-           'gpu_broker', 'media', 'hello_page', 'bigapp_gl', 'launcher', 'play_after', 'install_tar', 'remove_files']
-# Folders the build reads that live in the project's first folder (Desktop/BrowserPS5/poc), copied to poc/<name>.
-OTHER_FOLDERS = {'gl_soft': os.path.join(os.path.dirname(os.path.dirname(POC)), 'BrowserPS5', 'poc', 'gl_soft')}
+           'gpu_broker', 'media', 'hello_page', 'bigapp_gl', 'launcher', 'play_after', 'update_after', 'pipe_probe', 'install_tar', 'remove_files']
+# Folders the build reads that live in the project's first folder (the poc beside this project's folder, since
+# 2026-11-17: Desktop/BrowserPS5/poc), copied to poc/<name>.
+OTHER_FOLDERS = {'gl_soft': os.path.join(os.path.dirname(os.path.dirname(POC)), 'poc', 'gl_soft')}
 FILES = ['send.ps1']
 # This console's and this PC's addresses in the scripts and tests: the same example address in every file.
 ADDRESSES = {'192.168.1.50': '192.168.1.50', '192.168.1.51': '192.168.1.51'}

@@ -8,7 +8,7 @@
 #                           eboot.elf, checked first to give this very eboot.bin), scrubbed, by the same tool
 # The packs of before stay beside them as *-before-scrub.tar. Every member keeps its place in its tar.
 set -euo pipefail
-POC=/mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc; RN=$POC/browser-rn/out; ID=${RN_ID:-PPSA97024}
+POC=/mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; RN=$POC/browser-rn/out; ID=${RN_ID:-PPSA97024}
 VK=${PS5_VULKAN:-$HOME/browserps5-build/ext/PS5_Vulkan}; TOOL=$VK/build/host/ps5-native-tool
 WORK=${TITLE_WORK:-$HOME/browserps5-build/browser_title_rn_full}
 SCRUB="python3 -I $POC/common/scrub-paths.py"

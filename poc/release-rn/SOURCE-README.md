@@ -1,8 +1,8 @@
-# BrowserPS5 — source code
+# BrowserPS5 RN — source code
 
-The complete source of the BrowserPS5 release of the same version: the browser, its title, its installer, the
+The complete source of the BrowserPS5 RN release of the same version: the browser, its title, its installer, the
 changes made to WebKit, Mesa, GStreamer and the other libraries the engine is built from, and the scripts that build
-all of it. BrowserPS5 is free software under the GNU General Public License, version 3 or later (`LICENSE`); the
+all of it. BrowserPS5 RN is free software under the GNU General Public License, version 3 or later (`LICENSE`); the
 projects it is built on keep their own licences (`poc/release-rn/THIRD-PARTY-NOTICES.md`).
 
 The upstream projects themselves are not copied here: the build scripts download each one at a fixed version or

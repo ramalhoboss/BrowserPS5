@@ -12,7 +12,7 @@
 set -e
 W=$HOME/browserps5-build
 B=$W/${1:-webkit-build-plus}
-H=/mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/webkit
+H=/mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/webkit
 FUNCTIONS="pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock pthread_mutex_trylock pthread_mutex_timedlock pthread_mutex_unlock
 pthread_mutexattr_init pthread_mutexattr_destroy pthread_mutexattr_settype pthread_mutexattr_gettype
 pthread_cond_init pthread_cond_destroy pthread_cond_wait pthread_cond_timedwait pthread_cond_signal pthread_cond_broadcast

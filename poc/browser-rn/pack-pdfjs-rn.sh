@@ -6,7 +6,7 @@
 #   wsl -e bash pack-pdfjs-rn.sh
 set -e
 src=$HOME/browserps5-build/WebKit/Source/ThirdParty/pdfjs
-out=/mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/browser-rn/out/pdfjs-rn.tar
+out=/mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/browser-rn/out/pdfjs-rn.tar
 T=$(mktemp -d); D=$T/user/homebrew/browserps5-rn/pdfjs
 mkdir -p $D/build $D/web/locale
 cp $src/LICENSE $D/

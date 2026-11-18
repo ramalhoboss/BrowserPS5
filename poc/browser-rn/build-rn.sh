@@ -19,7 +19,7 @@ R=$HOME/browserps5-build/rn
 # one, PPSA97024, was removed). RN_ID=PPSA97024 RN_MEDIA=0: the title of before.
 ID=${RN_ID:-PPSA97024}
 mkdir -p "$R" "$here/out"
-for d in bigapp_gl common gl_zink hello_page launcher play_after torrent webkit; do
+for d in bigapp_gl common gl_zink hello_page launcher play_after torrent update_after webkit; do
     ln -sfn "$poc/$d" "$R/$d"
 done
 # The copy: sources only (objects, ELFs and tars are rebuilt or not needed).
@@ -41,6 +41,8 @@ python3 "$here/pages/start-rn.py" "$R/browser/start.html" "$here/pages/start-rn.
 # 2026-11-11: the settings page said "BrowserPS5 NK" (it came from that app): RN, in the copy only.
 grep -q "<b>BrowserPS5 <i>NK</i></b>" "$R/browser/settings.html" || { echo "settings.html: the name to change is not there"; exit 1; }
 sed -i "s|<b>BrowserPS5 <i>NK</i></b>|<b>BrowserPS5 <i>RN</i></b>|" "$R/browser/settings.html"
+# 2026-11-18: the app's name is "BrowserPS5 RN" in every text people read (pages/name-rn.py), in the copy only.
+python3 "$here/pages/name-rn.py" "$R/browser" || exit 1
 # The keyboard is RN's own page (pages/keyboard.html, copied over the browser's above).
 cd "$R/browser"
 if [[ ${1:-} == pages ]]; then  # only the pages, to look at them on the PC

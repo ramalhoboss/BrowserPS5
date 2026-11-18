@@ -146,6 +146,20 @@
     grid.insertBefore(a, grid.querySelector('.tile.add'));
   };
 
+  // 2026-11-17: the icons are asked for once the page has loaded, not while it loads. An icon is a picture from
+  // its site, and the page's load waits for every picture asked for before it ends: when a site's name got no
+  // answer at the first DNS question the console asked again 1.5 s or 6 s later (measured without the browser:
+  // one name in twelve, poc/pipe_probe/dns.c), and the bar stood near its end for that long with the page already
+  // there (3 of the 16 starts of that evening's tests: 2.1 s, 6.0 s and 6.1 s from the first bytes to the end,
+  // against 0.4-0.6 s). A turn of the event loop after "load", so that the load has ended when the first is asked.
+  let loaded = document.readyState === 'complete';
+  if (!loaded) {
+    addEventListener('load', () => setTimeout(() => {
+      loaded = true;
+      icons();
+    }, 0), {once: true});
+  }
+
   const refresh = () => {
     services();
     tv();
@@ -154,7 +168,8 @@
       shown = null;
       show(grid.querySelector('.tile:not(.add)'));
     }
-    icons();
+    if (loaded)
+      icons();
   };
   refresh();
   new MutationObserver(refresh).observe(grid, {childList: true});

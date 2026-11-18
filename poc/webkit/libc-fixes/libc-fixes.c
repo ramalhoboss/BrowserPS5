@@ -43,9 +43,11 @@ along with this program; see the file COPYING. If not, see
 // (env.txt) are threads made as they are.
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/thr.h>
 #include <sys/time.h>
@@ -56,6 +58,74 @@ along with this program; see the file COPYING. If not, see
 #include "known_threads.h"
 
 #define MIN_THREAD_STACK (512 * 1024)
+
+// pipe() and pipe2() give a pair of sockets (2026-11-17; --wrap=pipe and
+// --wrap=pipe2: every pipe made by code in the library, libcurl's among it).
+//
+// A pipe's buffer comes from a pool of the system's that all the console's
+// processes share, and the pool can run out. From 18:14 that day every write
+// to any pipe on the console failed with ENOMEM, in a small program of its
+// own too (poc/pipe_probe: pipe() and pipe2() still give the two ends,
+// write() says "Cannot allocate memory", and a thread in poll() on the other
+// end sleeps on). libcurl wakes its thread through a pipe
+// (curl_multi_wakeup()) and its resolver's thread says "done" through
+// another: the NetworkProcess's curl thread slept in curl_multi_poll() with
+// every request queued behind it, and no page loaded, the start page
+// included, at every start of the browser. A socketpair() made by the same
+// program at the same moment worked (the thread woke 0.1 ms after the
+// write): its buffers are not that pool's. The two ends do what a pipe's do
+// for what is asked of them here (read, write, poll, close, O_NONBLOCK,
+// FD_CLOEXEC); either end reads and writes, as FreeBSD's pipes.
+//
+// The real socketpair(): where the transport wraps it (--wrap=socketpair, a
+// pair made into a meeting over TCP for two processes) that is
+// __real_socketpair. With no pair to be had, the pipe after all. The __real_
+// names are weak: a program linked without these --wrap options (the title)
+// has this file too.
+int __real_socketpair(int domain, int type, int protocol, int sv[2]) __attribute__((weak));
+int __real_pipe(int fds[2]) __attribute__((weak));
+int __real_pipe2(int fds[2], int flags) __attribute__((weak));
+
+static int
+socket_pipe(int fds[2], int flags) {
+  int sv[2];
+
+  if(__real_socketpair ? __real_socketpair(AF_UNIX, SOCK_STREAM, 0, sv)
+                       : socketpair(AF_UNIX, SOCK_STREAM, 0, sv)) {
+    return -1;
+  }
+  for(int i = 0; i < 2; i++) {
+    if(flags & O_CLOEXEC) {
+      fcntl(sv[i], F_SETFD, FD_CLOEXEC);
+    }
+    if(flags & O_NONBLOCK) {
+      const int now = fcntl(sv[i], F_GETFL);
+      if(now >= 0) {
+        fcntl(sv[i], F_SETFL, now | O_NONBLOCK);
+      }
+    }
+  }
+  fds[0] = sv[0];
+  fds[1] = sv[1];
+  return 0;
+}
+
+int
+__wrap_pipe(int fds[2]) {
+  if(!socket_pipe(fds, 0)) {
+    return 0;
+  }
+  return __real_pipe ? __real_pipe(fds) : -1;
+}
+
+int
+__wrap_pipe2(int fds[2], int flags) {
+  if(!socket_pipe(fds, flags)) {
+    return 0;
+  }
+  return __real_pipe2 ? __real_pipe2(fds, flags) : -1;
+}
+
 
 ssize_t __real_readlink(const char* path, char* buf, size_t size);
 int __real_pthread_create(pthread_t* thread, const pthread_attr_t* attr,

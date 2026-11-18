@@ -308,4 +308,10 @@ static const struct lang_c_row {
     "Eine Seite wollte eine Adresse dieser Konsole selbst öffnen, und der Browser ist nicht dorthin gegangen. Wenn du sie öffnen möchtest, gib die Adresse selbst ein.",
     "Una pagina ha tentato di aprire un indirizzo di questa stessa console e il browser non ci è andato. Se vuoi aprirlo, scrivi tu l'indirizzo.",
     "Een pagina probeerde een adres van deze console zelf te openen en de browser is daar niet heen gegaan. Wil je het openen, typ het adres dan zelf."}},
+  {"Installing BrowserPS5 RN %s. The browser closes and opens again by itself.",
+   {"Instalando BrowserPS5 RN %s. El navegador se cierra y vuelve a abrirse solo.",
+    "Installation de BrowserPS5 RN %s. Le navigateur se ferme et se rouvre tout seul.",
+    "BrowserPS5 RN %s wird installiert. Der Browser schließt sich und öffnet sich von selbst wieder.",
+    "Installazione di BrowserPS5 RN %s. Il browser si chiude e si riapre da solo.",
+    "BrowserPS5 RN %s wordt geïnstalleerd. De browser sluit en opent vanzelf weer."}},
 };

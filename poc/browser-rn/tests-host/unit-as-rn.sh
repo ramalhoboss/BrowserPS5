@@ -1,7 +1,7 @@
 #!/bin/bash
 # The modules' own unit tests (the Makefile's "make test" lines), built as the RN app builds them (-DAPP_RN), in a
 # folder of /tmp: the fixes of 2026-11-14 behind APP_RN must not break what these check.
-B=/mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/browser
+B=/mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/browser
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 cd "$B" || exit 1

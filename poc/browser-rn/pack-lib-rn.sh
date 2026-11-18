@@ -37,7 +37,7 @@ if [ "$soname" != libWebKit.so.SOVERSION ]; then
 fi
 # 2026-11-14: the build machine's user names out of what is packed (../common/scrub-paths.py: the paths of the
 # sources the compiler leaves in a binary; the name's letters are changed in place, nothing else).
-python3 -I /mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/common/scrub-paths.py $(cd $T && find user -type f \( -name "*.SOVERSION" -o -name "*.elf" \) | sed "s|^|$T/|")
-(cd $T && tar --format=ustar --owner=0 --group=0 -cf /mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/browser-rn/out/$2 $files)
+python3 -I /mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/common/scrub-paths.py $(cd $T && find user -type f \( -name "*.SOVERSION" -o -name "*.elf" \) | sed "s|^|$T/|")
+(cd $T && tar --format=ustar --owner=0 --group=0 -cf /mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/browser-rn/out/$2 $files)
 echo "$2: $soname $(md5sum $T/user/homebrew/lib/$soname | cut -c1-8) $(stat -c %s $T/user/homebrew/lib/$soname) bytes"
-tar -tvf /mnt/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc/browser-rn/out/$2 | awk '{print "  " $3, $6}'; rm -rf $T
+tar -tvf /mnt/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc/browser-rn/out/$2 | awk '{print "  " $3, $6}'; rm -rf $T

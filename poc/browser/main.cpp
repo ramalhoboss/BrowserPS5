@@ -86,6 +86,7 @@ along with this program; see the file COPYING. If not, see
 #include "video_ring.h"
 #endif
 
+#include <WebKit/WKBackForwardListItemRef.h>
 #include <WebKit/WKBackForwardListRef.h>
 #include <WebKit/WKContext.h>
 #include <WebKit/WKContextPrivate.h>
@@ -657,6 +658,7 @@ typedef struct app {
   bool fullscreen;    // a video covers the screen, no bar (ext/fullscreen.js)
   bool native_fullscreen;  // WebKit's own full screen holds it (view_enter_fullscreen)
   bool game;          // a web game has the controller (docs/07, "Modo jogo")
+  bool aim_shown;     // RN: in it, the right stick moved the pointer (aim_step()): it is drawn
   bool cursor_off;    // not drawn: a game, the cinema's rest, or the D-pad driving the page (display_thread)
   bool keys_drive;    // the D-pad's arrow keys drive the page (dpad_keys_now()) and the stick has not moved since
   double input_ms;    // the controller last did something (not a game's)
@@ -1410,7 +1412,7 @@ display_thread(void*) {
     pthread_mutex_lock(&app.lock);
     {  // the cursor out of the way: a game has the controller, or a video
        // covers the screen and the controller rested (docs/07, "Modo cinema")
-      bool off = app.game || (app.fullscreen && settings.cinema
+      bool off = (app.game && !app.aim_shown) || (app.fullscreen && settings.cinema
                               && poc_now_ms() - app.input_ms > CINEMA_CURSOR_MS)
                  // 2026-11-11: a page driven by the D-pad's arrow keys (YouTube na TV) has its own highlight:
                  // the cursor is in the way until the stick moves it again
@@ -2113,6 +2115,37 @@ static const char field_script[] = "(function () {" FOCUSED_ELEMENT R"(
 static const char select_script[] = "(function () {" FOCUSED_ELEMENT R"(
   if (e && e.select) e.select();
 })())";
+
+#ifdef APP_RN
+// 2026-11-17 (RN): the keyboard for a page's field only when the press gave that field the focus, or was on the
+// field itself (or its label). A page that keeps a field in focus by itself (a game's name box: slither.io) had
+// the keyboard open over the game at every press anywhere on it. field_mark_js runs before the press reaches
+// the page and remembers what had the focus; field_at_js is field_script for a press at (x, y) of the page.
+static const char field_mark_js[] = "(function () {" FOCUSED_ELEMENT " window.__bps5was = e || null; })()";
+static const char field_at_js[] = "(function (x, y) {" FOCUSED_ELEMENT R"(
+  var was = window.__bps5was;
+  window.__bps5was = undefined;
+  if (!e) return null;
+  var hint = (e.enterKeyHint || e.getAttribute('enterkeyhint') || '')
+    .toLowerCase() + '\n', found = null;
+  if (e.tagName == 'TEXTAREA') found = 'textarea\n' + hint + e.value;
+  else if (e.tagName == 'INPUT' &&
+           /^(text|search|url|email|tel|password|number)$/.test(e.type))
+    found = e.type + '\n' + hint + e.value;
+  else if (e.isContentEditable) found = 'edit\n' + hint;
+  if (!found || e !== was) return found;
+  var t = document.elementFromPoint(x, y);
+  while (t && t.shadowRoot) {
+    var inner = t.shadowRoot.elementFromPoint(x, y);
+    if (!inner || inner === t) break;
+    t = inner;
+  }
+  for (var n = t; n; n = n.parentNode || n.host) {
+    if (n === e || (n.tagName == 'LABEL' && n.control === e)) return found;
+  }
+  return null;
+}))";
+#endif
 
 // field_found's context: the pane.
 #define FIELD_CTX(pane) ((void*)(uintptr_t)(pane))
@@ -3320,14 +3353,21 @@ static void bar_tabs(void);
 // BrowserPS5 RN (2026-11-11): is the page in front YouTube's page for televisions and consoles
 // (https://www.youtube.com/tv, which this browser is given under its own name: user_agent_for())? It is driven
 // by the D-pad (dpad_keys_now()) and has the whole screen by itself, as on a television (tv_page_fullscreen()).
+#ifdef APP_RN
+static bool
+tv_url(const char* url) {
+  static const char tv[] = "https://www.youtube.com/tv";
+  const char after = strncmp(url, tv, sizeof(tv) - 1) ? 'x' : url[sizeof(tv) - 1];
+  return after == 0 || after == '#' || after == '/' || after == '?';
+}
+#endif
+
 static bool
 tv_page_now(void) {
 #ifdef APP_RN
-  static const char tv[] = "https://www.youtube.com/tv";
   char url[4096];
   take_url(WKPageCopyActiveURL(page(PAGE)), url, sizeof(url));
-  const char after = strncmp(url, tv, sizeof(tv) - 1) ? 'x' : url[sizeof(tv) - 1];
-  return after == 0 || after == '#' || after == '/' || after == '?';
+  return tv_url(url);
 #else
   return false;
 #endif
@@ -9793,6 +9833,313 @@ game_play(const char* id) {
           id, size);
   stop((void*)1);
 }
+
+// The browser's own updates (2026-11-17; update.h says what an update is). Nobody is asked anything:
+//   - some seconds after the first page of a session, on a thread of its own (it sleeps, and its priority is
+//     under the browser's others): GitHub's list of the project's releases, UPDATE_EVERY_S apart at most; a newer
+//     release's installer is fetched into UPDATE_DIR while the browser is used, checked against the size and the
+//     SHA-256 the list gave, and left there with a line that says what it is (UPDATE_READY);
+//   - the next time the browser is opened, at its first page: with such an installer waiting it says so, sends
+//     update_after.elf to the console's payload loader and leaves as "Sair" does; update_after hands the installer
+//     over once the browser is gone and opens the browser again (../update_after/main.c). A session is never cut
+//     short for an update, and the installer is the one anybody sends by hand.
+// A build with no release file (sent by hand: "dev"), a console with the file UPDATE_OFF_FILE, and a test build
+// (but SHOW_UPDATE's) look for nothing. A release whose installer ran and did not install (UPDATE_FAILED) is not
+// fetched again. And the browser leaves for one release's installer UPDATE_TRIES_MAX times at most (UPDATE_TRIES,
+// counted before it leaves; update_after removes the count once the release is installed): on a console where
+// the rest never ends well, whatever the reason, it would otherwise close itself at every start. After that the
+// release is as one that failed: it is installed by hand, as before there were updates.
+#include "update.h"
+#include "update_net.h"
+#include "../update_after/update_after.h"
+
+extern "C" const char update_after_elf[], update_after_elf_end[];
+
+#define UPDATE_OFF_FILE     DATA_DIR "/no-updates"
+#define UPDATE_CHECKED_FILE UPDATE_DIR "/checked.txt"
+#define UPDATE_EVERY_S      (6 * 3600)
+#define UPDATE_TRIES_MAX    2
+#ifdef SHOW_UPDATE
+#define UPDATE_FIRST_S 3
+#else
+#define UPDATE_FIRST_S 20
+#endif
+#if (!defined(SHOW) && !defined(DEMO) && !defined(SPEED_TEST)) || defined(SHOW_UPDATE)
+#define UPDATES_ON 1
+#endif
+
+enum { UPDATE_IDLE, UPDATE_LOOKING, UPDATE_NONE, UPDATE_FETCHING, UPDATE_READY_NOW, UPDATE_NOT_NOW, UPDATE_LEAVING };
+static volatile int update_state;
+static volatile unsigned long long update_got;
+static volatile int update_stop;
+
+// The release that is installed (release.txt's first line); false when there is none, or it is not a version.
+static bool
+update_installed(char* out, size_t size) {
+  out[0] = 0;
+  if(FILE* f = fopen(UPDATE_RELEASE, "r")) {
+    if(!fgets(out, (int)size, f)) {
+      out[0] = 0;
+    }
+    fclose(f);
+  }
+  out[strcspn(out, "\r\n")] = 0;
+  return out[0] && update_newer("0", out);
+}
+
+// The installer that waits in UPDATE_DIR, as UPDATE_READY says it (and its file is of that size).
+static bool
+update_waiting(char* version, size_t vsize, unsigned long long* bytes, char* sha, size_t ssize) {
+  char line[160] = "", v[40] = "", h[80] = "";
+  struct stat st;
+  FILE* f = fopen(UPDATE_READY, "r");
+
+  if(!f) {
+    return false;
+  }
+  const bool read = fgets(line, sizeof(line), f) && sscanf(line, "%39s %llu %79s", v, bytes, h) == 3;
+  fclose(f);
+  if(!read || strlen(h) != 64 || !update_newer("0", v) || stat(UPDATE_ELF, &st) || (unsigned long long)st.st_size != *bytes) {
+    return false;
+  }
+  snprintf(version, vsize, "%s", v);
+  snprintf(sha, ssize, "%s", h);
+  return true;
+}
+
+static bool
+update_failed_before(const char* version) {
+  char line[64] = "";
+  if(FILE* f = fopen(UPDATE_FAILED, "r")) {
+    if(!fgets(line, sizeof(line), f)) {
+      line[0] = 0;
+    }
+    fclose(f);
+  }
+  line[strcspn(line, "\r\n")] = 0;
+  return line[0] && !strcmp(line, version);
+}
+
+// The times the browser has left for this release's installer (UPDATE_TRIES); 0 when the count is another's.
+static int
+update_tries(const char* version) {
+  char v[40] = "";
+  int count = 0;
+  if(FILE* f = fopen(UPDATE_TRIES, "r")) {
+    if(fscanf(f, "%39s %d", v, &count) != 2) {
+      count = 0;
+    }
+    fclose(f);
+  }
+  return count > 0 && !strcmp(v, version) ? count : 0;
+}
+
+static bool
+update_write(const char* path, const char* text) {
+  char fresh[200];
+  snprintf(fresh, sizeof(fresh), "%s.new", path);
+  const int fd = open(fresh, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  const size_t n = strlen(text);
+  bool ok = fd >= 0 && write(fd, text, n) == (ssize_t)n;
+  if(fd >= 0) {
+    close(fd);
+  }
+  ok = ok && !rename(fresh, path);
+  if(!ok) {
+    unlink(fresh);
+  }
+  return ok;
+}
+
+static void*
+update_leave_thread(void*) {
+  sleep(5);  // (the words on the bar read)
+  WKRunLoopCallOnMainThread(stop, (void*)1);
+  return 0;
+}
+
+// Main thread, at the first page: an installer of a newer release waiting? Then it is handed to update_after,
+// and the browser leaves. True when it is leaving.
+static bool
+update_apply(void) {
+  char have[40], version[40], sha[80], ask[240];
+  unsigned long long bytes = 0;
+
+  if(!update_installed(have, sizeof(have)) || !update_waiting(version, sizeof(version), &bytes, sha, sizeof(sha))) {
+    return false;
+  }
+  if(!update_newer(have, version) || update_failed_before(version)) {
+    POC_LOG("update: the installer that waits is of %s, the installed release is %s: removed", version, have);
+    unlink(UPDATE_ELF);
+    unlink(UPDATE_READY);
+    return false;
+  }
+  const int tries = update_tries(version);
+  if(tries >= UPDATE_TRIES_MAX) {
+    char line[48];
+    snprintf(line, sizeof(line), "%s\n", version);
+    update_write(UPDATE_FAILED, line);
+    unlink(UPDATE_ELF);
+    unlink(UPDATE_READY);
+    unlink(UPDATE_TRIES);
+    POC_LOG("update: the browser left %d times for release %s and %s is still the installed one: not tried again by "
+            "itself (its installer can be sent by hand)", tries, version, have);
+    return false;
+  }
+  snprintf(ask, sizeof(ask), "%s %d\n", version, tries + 1);
+  bool ok = update_write(UPDATE_TRIES, ask);  // counted first: with no count there is no leaving
+  snprintf(ask, sizeof(ask), "%s %llu %s %d %d\n", version, bytes, sha, (int)getpid(), (int)getppid());
+  ok = ok && update_write(UPDATE_ASK, ask);
+  const size_t size = (size_t)(update_after_elf_end - update_after_elf);
+  ok = ok && loader_send(update_after_elf, size);
+  if(!ok) {
+    unlink(UPDATE_ASK);
+    POC_LOG("update: release %s waits, but the request could not be written or no payload loader took update_after.elf: "
+            "not installed this time", version);
+    return false;
+  }
+  POC_LOG("update: release %s (%llu bytes) is to be installed over %s (try %d of %d): update_after.elf (%zu bytes) is "
+          "with the payload loader, the browser leaves as \"Sair\" does", version, bytes, have, tries + 1, UPDATE_TRIES_MAX, size);
+  update_state = UPDATE_LEAVING;
+  char said[200];
+  snprintf(said, sizeof(said), lang_en() ? LM("Installing BrowserPS5 RN %s. The browser closes and opens again by itself.")
+                                         : "A instalar o BrowserPS5 RN %s. O browser fecha e volta a abrir sozinho.", version);
+  bar_notify(said, "arrow-download");
+  pthread_t leave;
+  if(pthread_create(&leave, 0, update_leave_thread, 0)) {
+    stop((void*)1);
+  } else {
+    pthread_detach(leave);
+  }
+  return true;
+}
+
+// Its own thread: GitHub asked, and a newer release's installer fetched and checked.
+static void*
+update_thread(void*) {
+  struct sched_param param;
+  int policy;
+  if(!pthread_getschedparam(pthread_self(), &policy, &param)) {
+    param.sched_priority = 760;  // under the browser's own threads (700): a larger number is a lower priority
+    pthread_setschedparam(pthread_self(), policy, &param);
+  }
+  for(int s = 0; s < UPDATE_FIRST_S && !update_stop; s++) {
+    sleep(1);
+  }
+  char have[40], agent[80], waiting[40], sha[80];
+  unsigned long long bytes = 0;
+  struct stat st;
+  (void)st;
+  if(update_stop || !update_installed(have, sizeof(have))) {
+    POC_LOG("update: no release file (a build sent by hand): no updates are looked for");
+    update_state = UPDATE_NONE;
+    return 0;
+  }
+  if(update_waiting(waiting, sizeof(waiting), &bytes, sha, sizeof(sha)) && update_newer(have, waiting)) {
+    POC_LOG("update: release %s waits (%llu bytes): it is installed the next time the browser is opened", waiting, bytes);
+    update_state = UPDATE_READY_NOW;
+    return 0;
+  }
+#ifndef SHOW_UPDATE
+  if(!stat(UPDATE_CHECKED_FILE, &st) && time(0) - st.st_mtime < UPDATE_EVERY_S && time(0) >= st.st_mtime) {
+    POC_LOG("update: looked %ld min ago: not again yet", (long)(time(0) - st.st_mtime) / 60);
+    update_state = UPDATE_NONE;
+    return 0;
+  }
+#endif
+  update_state = UPDATE_LOOKING;
+  mkdir(UPDATE_DIR, 0755);
+  snprintf(agent, sizeof(agent), "BrowserPS5/%s", have);
+  char* text = 0;
+  size_t length = 0;
+  int status = 0, err = 0;
+  update_t u;
+  const double began = poc_now_ms();
+  if(update_net_feed(UPDATE_FEED, agent, &text, &length, &status, &err)) {
+    POC_LOG("update: the list of releases did not come (HTTP %d, curl %d) in %.0f ms: another time", status, err,
+            poc_now_ms() - began);
+    update_state = UPDATE_NOT_NOW;
+    return 0;
+  }
+  const int found = update_from_releases(text, length, UPDATE_REPO, &u);
+  free(text);
+  if(const int fd = open(UPDATE_CHECKED_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644); fd >= 0) {
+    close(fd);
+  }
+  if(found || !update_newer(have, u.version)) {
+    POC_LOG("update: %s is installed and the newest release is %s (%zu bytes of list in %.0f ms): nothing to do", have,
+            found ? "none with an installer" : u.version, length, poc_now_ms() - began);
+    update_state = UPDATE_NONE;
+    return 0;
+  }
+  if(update_failed_before(u.version)) {
+    POC_LOG("update: release %s is newer than %s, but it is one that did not install by itself before (%s): not fetched again",
+            u.version, have, UPDATE_FAILED);
+    update_state = UPDATE_NONE;
+    return 0;
+  }
+  POC_LOG("update: release %s is newer than %s: its installer (%llu bytes) is fetched", u.version, have, u.size);
+  update_state = UPDATE_FETCHING;
+  unlink(UPDATE_READY);
+  const double fetch = poc_now_ms();
+  const int got = update_net_file(u.url, agent, UPDATE_ELF ".part", u.size, u.sha256, &update_got, &update_stop, &status, &err);
+  if(got) {
+    POC_LOG("update: the installer of %s %s (HTTP %d, curl %d, %llu of %llu bytes): another time", u.version,
+            got == -2 ? "came and is NOT the release's file (its size or its SHA-256): removed" : "did not come", status, err,
+            (unsigned long long)update_got, u.size);
+    update_state = UPDATE_NOT_NOW;
+    return 0;
+  }
+  char hex[65], line[160];
+  for(int i = 0; i < 32; i++) {
+    snprintf(hex + 2 * i, 3, "%02x", u.sha256[i]);
+  }
+  const int n = snprintf(line, sizeof(line), "%s %llu %s\n", u.version, u.size, hex);
+  const int fd = open(UPDATE_READY ".new", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  bool ok = fd >= 0 && write(fd, line, (size_t)n) == n;
+  if(fd >= 0) {
+    close(fd);
+  }
+  ok = ok && !rename(UPDATE_ELF ".part", UPDATE_ELF) && !rename(UPDATE_READY ".new", UPDATE_READY);
+  if(!ok) {
+    POC_LOG("update: the installer of %s came whole, but could not be kept (%s): another time", u.version, strerror(errno));
+    unlink(UPDATE_ELF ".part");
+    unlink(UPDATE_ELF);
+    unlink(UPDATE_READY ".new");
+    update_state = UPDATE_NOT_NOW;
+    return 0;
+  }
+  POC_LOG("update: release %s is ready (%llu bytes in %.1f s, its size and its SHA-256 the release's): it is installed the "
+          "next time the browser is opened", u.version, u.size, (poc_now_ms() - fetch) / 1e3);
+  update_state = UPDATE_READY_NOW;
+  return 0;
+}
+
+// Main thread: the first page of the session has loaded.
+static void
+update_first_page(void) {
+  static bool once;
+  if(once) {
+    return;
+  }
+  once = true;
+#ifdef UPDATES_ON
+  if(!access(UPDATE_OFF_FILE, F_OK)) {
+    POC_LOG("update: %s is there: no updates are looked for", UPDATE_OFF_FILE);
+    update_state = UPDATE_NONE;
+    return;
+  }
+  if(update_apply()) {
+    return;
+  }
+  pthread_t thread;
+  if(!pthread_create(&thread, 0, update_thread, 0)) {
+    pthread_detach(thread);
+  }
+#else
+  update_state = UPDATE_NONE;  // a test build: nothing is looked for
+#endif
+}
 #endif
 
 static void
@@ -11431,6 +11778,9 @@ didFinishNavigation(WKPageRef p, WKNavigationRef, WKTypeRef, const void*) {
   take_url(WKPageCopyActiveURL(page(PAGE)), url, sizeof(url));
   POC_RESULT(1, "page loaded %.0f ms after start: %s",
              poc_now_ms() - app.start_ms, url_for_log(url, shown, sizeof(shown)));
+#ifdef APP_RN
+  update_first_page();  // the browser's own updates: once a session
+#endif
 #ifdef H2_TEST
   h2_test();
 #endif
@@ -11947,6 +12297,7 @@ stop(void* fast) {
   stopped = true;
 #ifdef APP_RN
   multi_keep_all();
+  update_stop = 1;  // an installer being fetched is given up: fetched again another time
 #endif
   phone_stop();
   unlink(SESSION_OPEN_FILE);  // a quit, not a fall: the tabs may come back by themselves
@@ -13258,6 +13609,55 @@ scroll(const input_event_t* e) {
 }
 
 
+#ifdef APP_RN
+// 2026-11-17 (reported with 1.0.0-rc13): circle on YouTube's page for televisions (tv_page_now()) went back a
+// page of the browser, and from a film that was the browser's start page: the page keeps its own screens (its
+// home, a film, the search) out of the browser's history. Now circle is the page's own "back", the Escape key,
+// as a television's remote sends it: a film goes back to the screen it was opened from. On the page's first
+// screen (its address has nothing after "#/": its home, or its welcome with no account) there is nothing of the
+// page to go back to: there circle leaves it, to the last page of this tab that is not this one (the page may
+// have left entries of its own in the list), or to the start page when the tab began with it.
+static bool
+tv_url_first(const char* url) {
+  const char* at = strchr(url, '#');
+
+  if(!at) {
+    return true;
+  }
+  at += at[1] == '/' ? 2 : 1;
+  return *at == 0 || *at == '?';
+}
+
+static void
+tv_page_back(void) {
+  char url[4096];
+
+  take_url(WKPageCopyActiveURL(page(PAGE)), url, sizeof(url));
+  if(!tv_url_first(url)) {
+    set_focus(PAGE);
+    send_key(PAGE, 0xff1b, 0, 0);
+    POC_LOG("tv: circle: the page's own back (Escape)");
+    return;
+  }
+  WKBackForwardListRef list = WKPageGetBackForwardList(page(PAGE));
+  const unsigned count = list ? WKBackForwardListGetBackListCount(list) : 0;
+  for(unsigned i = 1; i <= count; i++) {
+    WKBackForwardListItemRef item = WKBackForwardListGetItemAtIndex(list, -(int)i);
+    if(!item) {
+      break;
+    }
+    take_url(WKBackForwardListItemCopyURL(item), url, sizeof(url));
+    if(!tv_url(url)) {
+      POC_LOG("tv: circle on the page's first screen: out of it, %u back in this tab's list", i);
+      WKPageGoToBackForwardListItem(page(PAGE), item);
+      return;
+    }
+  }
+  POC_LOG("tv: circle on the page's first screen, and the tab began with it: the start page");
+  home_open();
+}
+#endif
+
 // Circle: what is open closes first, then the full screen; then back.
 static void
 go_back(void) {
@@ -13273,6 +13673,8 @@ go_back(void) {
     }
 #ifdef APP_RN
   } else if(settings_tab_back()) {  // the settings' own tab: closed
+  } else if(tv_page_now()) {
+    tv_page_back();
 #endif
   } else {
     WKPageGoBack(page(PAGE));
@@ -14167,7 +14569,11 @@ switcher_render(void) {
     text_printf(&t, "%s{title: ", i ? ", " : "");
     text_json(&t, title[0] ? title : web ? url_host(url, host, sizeof(host)) : "Início");
     text_add(&t, ", host: ");
+#ifdef APP_RN
+    text_json(&t, web ? url_host(url, host, sizeof(host)) : "BrowserPS5 RN");
+#else
     text_json(&t, web ? url_host(url, host, sizeof(host)) : "BrowserPS5");
+#endif
     if(tabs[i].shots) {
       text_printf(&t, ", picture: '%d.bmp?%u'", tabs[i].id, tabs[i].shots);
     }
@@ -15099,7 +15505,8 @@ static const struct {
   {INPUT_PAD_CROSS, {0x20, 0x20}, {" ", " "}},   {INPUT_PAD_SQUARE, {'z', 'j'}, {"z", "j"}},
   {INPUT_PAD_TRIANGLE, {'x', 'k'}, {"x", "k"}},  {INPUT_PAD_CIRCLE, {'c', 'l'}, {"c", "l"}},
   {INPUT_PAD_L1, {'q', 'q'}, {"q", "q"}},        {INPUT_PAD_R1, {'e', 'e'}, {"e", "e"}},
-  {INPUT_PAD_L2, {0xffe1, 0xffe1}, {"", ""}},    {INPUT_PAD_R2, {0xff0d, 0xff0d}, {"", ""}},  // Shift, Enter
+  // (2026-11-17: Enter was R2, which is now the mouse's button, aim_pad(); it is the right stick's press)
+  {INPUT_PAD_L2, {0xffe1, 0xffe1}, {"", ""}},    {INPUT_PAD_R3, {0xff0d, 0xff0d}, {"", ""}},  // Shift, Enter
   {INPUT_PAD_OPTIONS, {0xff1b, 0xff1b}, {"", ""}},  // Escape
 };
 
@@ -15216,6 +15623,101 @@ padkeys_release(void) {
   padkeys_here = 0;
 }
 
+// 2026-11-17: with the controller as a keyboard, the right stick is the mouse and R2 its button, as a game on
+// the console has them: the left stick (or the D-pad) walks with the direction keys, the right stick looks or
+// aims, R2 fires. (The left stick as the mouse was tried the same day and taken back: it is the hand that
+// walks.) The title sends the controller only when it changes, so while the stick is held a thread asks for a
+// step of the pointer 60 times a second; it sleeps in between, asks for nothing while the stick rests, and ends
+// with the game mode. The pointer, hidden in the game mode, shows once it has been moved.
+#define AIM_STEP_US 16000
+#define AIM_SPEED   20.0f  // pixels a step at full tilt, with the cursor's speed of the settings at 100
+static float aim_x, aim_y;        // the right stick, -1..1, past its dead zone (main thread)
+static bool aim_button;           // R2 is down: the mouse's left button
+static volatile int aim_moving;   // the stick is off its rest: the thread asks for steps
+static volatile int aim_running;  // the thread's life
+static pthread_t aim_thread;
+
+static void
+aim_step(void*) {  // main thread
+  if(!app.game || !padkeys_here || (!aim_x && !aim_y)) {
+    return;
+  }
+  const pane_t* p = &app.panes[PAGE];
+  const float speed = AIM_SPEED * (settings.cursor_speed > 0 ? settings.cursor_speed : 100) / 100.0f;
+  float x, y;
+  input_cursor(&x, &y);
+  x += aim_x * speed;
+  y += aim_y * speed;
+  x = x < p->left ? p->left : x > p->left + p->width - 1 ? p->left + p->width - 1 : x;
+  y = y < p->top ? p->top : y > p->top + p->height - 1 ? p->top + p->height - 1 : y;
+  input_set_cursor(x, y);
+  mouse(PAGE, kWKEventMouseMove, aim_button ? kWKEventMouseButtonLeftButton : kWKEventMouseButtonNoButton, x, y, 0);
+  pthread_mutex_lock(&app.lock);
+  if(!app.aim_shown) {
+    app.aim_shown = true;
+  }
+  app.dirty = true;
+  pthread_cond_signal(&app.cond);
+  pthread_mutex_unlock(&app.lock);
+}
+
+static void*
+aim_loop(void*) {
+  while(__atomic_load_n(&aim_running, __ATOMIC_ACQUIRE)) {
+    usleep(AIM_STEP_US);
+    if(__atomic_load_n(&aim_moving, __ATOMIC_ACQUIRE) && __atomic_load_n(&aim_running, __ATOMIC_ACQUIRE)) {
+      WKRunLoopCallOnMainThread(aim_step, 0);
+    }
+  }
+  return 0;
+}
+
+// The controller in the game mode of a site with keys: the right stick and R2 (main thread).
+static void
+aim_pad(uint32_t bits, float rx, float ry) {
+  const float dead = 0.18f;
+  const float far = sqrtf(rx * rx + ry * ry);
+  if(far <= dead) {
+    aim_x = aim_y = 0;
+  } else {  // from the dead zone's edge, slow near it for a fine aim
+    const float f = (far - dead) / (1 - dead), g = (f > 1 ? 1 : f) * (f > 1 ? 1 : f) / far;
+    aim_x = rx * g;
+    aim_y = ry * g;
+  }
+  __atomic_store_n(&aim_moving, aim_x || aim_y ? 1 : 0, __ATOMIC_RELEASE);
+  const bool down = bits & INPUT_PAD_R2;
+  if(down != aim_button) {
+    float x, y;
+    input_cursor(&x, &y);
+    aim_button = down;
+    mouse(PAGE, down ? kWKEventMouseDown : kWKEventMouseUp, kWKEventMouseButtonLeftButton, x, y, 1);
+  }
+}
+
+static void
+aim_set(bool on) {
+  if(on && !aim_running) {
+    aim_x = aim_y = 0;
+    aim_button = false;
+    __atomic_store_n(&aim_moving, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&aim_running, 1, __ATOMIC_RELEASE);
+    if(pthread_create(&aim_thread, 0, aim_loop, 0)) {
+      __atomic_store_n(&aim_running, 0, __ATOMIC_RELEASE);
+    }
+  } else if(!on && aim_running) {
+    if(aim_button) {  // the button does not stay down in the page
+      aim_pad(0, 0, 0);
+    }
+    __atomic_store_n(&aim_moving, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&aim_running, 0, __ATOMIC_RELEASE);
+    pthread_join(aim_thread, 0);  // (it sleeps one step at most)
+    aim_x = aim_y = 0;
+  }
+  pthread_mutex_lock(&app.lock);
+  app.aim_shown = false;
+  pthread_mutex_unlock(&app.lock);
+}
+
 // The menu's "Comando como teclado": the next of off, arrows, WASD for the site shown.
 static void
 padkeys_toggle(void) {
@@ -15250,8 +15752,10 @@ game_set(bool on) {
     padkeys_host(host, sizeof(host));
     padkeys_down = 0;
     padkeys_here = host[0] ? padkeys_of(host) : 0;
+    aim_set(padkeys_here != 0);  // and with them the right stick as the mouse
   } else {
     padkeys_release();
+    aim_set(false);
   }
 #endif
   if(on) {
@@ -15310,8 +15814,9 @@ game_input(const input_event_t* e) {
                (unsigned)e->pressed, e->x, e->y, e->dx, e->dy);
       run_script(PAGE, script, 0, ignore_result);
 #ifdef APP_RN
-      if(padkeys_here) {
+      if(padkeys_here) {  // the left stick and the D-pad walk (the keys), the right stick is the mouse (aim_pad())
         padkeys_input((uint32_t)e->pressed, e->x, e->y);
+        aim_pad((uint32_t)e->pressed, e->dx, e->dy);
       }
 #endif
     }
@@ -15802,6 +16307,11 @@ dispatch(void* arg) {
     if(pane != KEYS) {  // the field keeps the focus while keys are pressed
       set_focus(pane);
     }
+#ifdef APP_RN
+    if(pane == PAGE) {  // what has the focus before this press (field_at_js)
+      run_script(PAGE, field_mark_js, 0, ignore_result);
+    }
+#endif
     mouse(pane, kWKEventMouseDown, kWKEventMouseButtonLeftButton, e->x, e->y,
           1);
     break;
@@ -15819,6 +16329,16 @@ dispatch(void* arg) {
     mouse(pane, kWKEventMouseUp, kWKEventMouseButtonLeftButton, e->x, e->y,
           1);
     // After the click: a text field?
+#ifdef APP_RN
+    if(pane == PAGE) {  // only one this press gave the focus to, or was on
+      static char script[sizeof(field_at_js) + 48];
+      const pane_t* p = &app.panes[PAGE];
+      const double z = app.zoom > 0 ? app.zoom : 1;
+      snprintf(script, sizeof(script), "%s(%d, %d)", field_at_js, (int)((e->x - p->left) / z), (int)((e->y - p->top) / z));
+      run_script(PAGE, script, FIELD_CTX(PAGE), field_found);
+      break;
+    }
+#endif
     if(pane != KEYS) {
       run_script(pane, field_script, FIELD_CTX(pane), field_found);
     }
@@ -17254,6 +17774,34 @@ show_tour(void) {
   unsigned before;
 
   demo_main(show_do_one_tab, "");
+#ifdef SHOW_UPDATE
+  // make SHOW=1 SHOW_YT=1 SHOW_UPDATE=1 (2026-11-17): the browser's own updates, with GitHub itself. A first run,
+  // with a release file older than the newest release: the list is asked for 3 s after the first page, the
+  // installer fetched and checked, and this says how it went, then Sair. A second run finds the installer waiting
+  // and leaves by itself at its first page (update_apply()), before this has anything to say.
+  {
+    int s = 0;
+    for(; s < 600 && update_state != UPDATE_NONE && update_state != UPDATE_READY_NOW && update_state != UPDATE_NOT_NOW
+          && update_state != UPDATE_LEAVING; s++) {
+      demo_sleep(1000);
+      if(s % 10 == 9) {
+        POC_LOG("show: update at %d s: state %d, %llu bytes of the installer", s + 1, (int)update_state,
+                (unsigned long long)update_got);
+      }
+    }
+    if(update_state == UPDATE_LEAVING) {
+      POC_LOG("show: update: an installer was waiting: the browser leaves by itself");
+      return;
+    }
+    POC_RESULT(update_state == UPDATE_READY_NOW || update_state == UPDATE_NONE,
+               "show: update: %s after %d s (%llu bytes fetched); Sair from the menu",
+               update_state == UPDATE_READY_NOW ? "a newer release's installer is ready"
+               : update_state == UPDATE_NONE ? "nothing newer (or not looked for)" : "it did not come", s,
+               (unsigned long long)update_got);
+    demo_main(demo_do_ui, "menu-do?quit");
+    return;
+  }
+#endif
 #ifdef SHOW_PROBE
   // make SHOW=1 SHOW_YT=1 SHOW_PROBE=1 (the "full" engine's first runs,
   // 2026-11-11): a plain page, what the engine says it has, Web Audio used
@@ -18875,13 +19423,178 @@ show_tour(void) {
     return;
   }
 #endif
+#ifdef SHOW_GAMES
+  // make SHOW=1 SHOW_YT=1 SHOW_GAMES=1 (2026-11-17): online games that are played in a page, one after another.
+  // For each: did it load, what it has (canvases, WebGL, pointer lock), a picture; then its Play button pressed
+  // as a person would (the cursor on it and a press; with none found, a press in the middle and Enter), and
+  // after it: how many frames a second the page draws, the WebSockets it opened to its server and the messages
+  // that came (counted from the moment the page had loaded), and a second picture. Nothing is typed or signed in.
+  {
+    static const char* const games[] = {
+      "https://slither.io/", "https://diep.io/", "https://krunker.io/", "https://smashkarts.io/",
+      "https://skribbl.io/", "https://agar.io/", "https://lichess.org/tv",
+    };
+    static const char hook_js[] =
+      "(function () { if (window.__g) return 'hooked already'; var W = window.WebSocket, g = window.__g = {ws: 0, open: 0, msg: 0, err: 0, urls: []};"
+      " window.WebSocket = function (u, p) { g.ws++; g.urls.push(String(u).split('?')[0].slice(0, 50));"
+      " var s = p === undefined ? new W(u) : new W(u, p); s.addEventListener('open', function () { g.open++; });"
+      " s.addEventListener('message', function () { g.msg++; }); s.addEventListener('error', function () { g.err++; }); return s; };"
+      " window.WebSocket.prototype = W.prototype; window.WebSocket.CONNECTING = 0; window.WebSocket.OPEN = 1; window.WebSocket.CLOSING = 2;"
+      " window.WebSocket.CLOSED = 3; return 'hooked'; })()";
+    static const char state_js[] =
+      "(function () { var cs = document.querySelectorAll('canvas'), big = 0, bw = 0, bh = 0;"
+      " for (var i = 0; i < cs.length; i++) { var a = cs[i].clientWidth * cs[i].clientHeight; if (a > big) { big = a; bw = cs[i].clientWidth; bh = cs[i].clientHeight; } }"
+      " var gl = 'none'; try { var t = document.createElement('canvas'); gl = t.getContext('webgl2') ? 'webgl2' : t.getContext('webgl') ? 'webgl' : 'none'; } catch (e) { gl = 'threw'; }"
+      " return document.readyState + ' | ' + document.title.slice(0, 40) + ' | canvases ' + cs.length + ' (largest ' + bw + 'x' + bh + '), ' + gl"
+      " + ', WebAssembly ' + (typeof WebAssembly) + ', pointer lock ' + ('requestPointerLock' in Element.prototype) + ', gamepads ' + (typeof navigator.getGamepads)"
+      " + ', frames in the page ' + window.frames.length + ' | ' + location.href.slice(0, 60); })()";
+    static const char play_js[] =
+      "(function () { var re = /^\\s*(play|play now|play!|jogar|start|start game|enter|go|quick play|play as guest|click to play)\\s*$/i, best = null;"
+      " var els = document.querySelectorAll('button, a, input[type=button], input[type=submit], div, span');"
+      " for (var i = 0; i < els.length && !best; i++) { var e = els[i], t = (e.value || e.innerText || '').trim(); if (t.length > 20 || !re.test(t)) continue;"
+      " var r = e.getBoundingClientRect(); if (r.width < 20 || r.height < 12 || r.bottom < 0 || r.top > innerHeight) continue;"
+      " best = [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2), innerWidth, innerHeight, t.replace(/\\s+/g, '_')]; }"
+      " return best ? best.join(' ') : '-1 -1 ' + innerWidth + ' ' + innerHeight + ' none'; })()";
+    static const char frames_js[] =
+      "(function () { var e = window.__f = {n: 0, t0: performance.now(), ms: 0};"
+      " function f() { e.n++; e.ms = performance.now() - e.t0; if (e.ms < 6000) requestAnimationFrame(f); } requestAnimationFrame(f); return 'counting'; })()";
+    static const char after_js[] =
+      "(function () { var e = window.__f || {n: 0, ms: 1}, g = window.__g || {ws: -1, open: 0, msg: 0, err: 0, urls: []}, cs = document.querySelectorAll('canvas');"
+      " return (e.n * 1000 / (e.ms || 1)).toFixed(1) + ' frames a second (' + e.n + ' in ' + Math.round(e.ms) + ' ms), canvases ' + cs.length"
+      " + ', WebSockets made ' + g.ws + ', open ' + g.open + ', messages ' + g.msg + ', errors ' + g.err + ' [' + g.urls.slice(0, 3).join(' ') + ']'"
+      " + ', pointer locked ' + (document.pointerLockElement ? 'yes' : 'no') + ' | ' + document.title.slice(0, 40) + ' | ' + location.href.slice(0, 60); })()";
+    static char said[1200];
+    int loaded_count = 0, count = 0;
+    for(const char* game : games) {
+      const double t0 = poc_now_ms();
+      before = demo_loads();
+      demo_main(demo_do_load, game);
+      const bool loaded = demo_wait_load(before, 30000);
+      const double took = (poc_now_ms() - t0) / 1e3;
+      demo_sleep(strstr(game, "smashkarts") ? 40000 : 7000);  // (a Unity game: its own loading comes after the page's)
+      demo_ask(PAGE, hook_js, said, sizeof(said));
+      demo_ask(PAGE, "(function () { var a = document.activeElement; if (a && a.blur) a.blur(); return 'no field in focus'; })()", said,
+               sizeof(said));
+      demo_ask(PAGE, state_js, said, sizeof(said));
+      count++;
+      loaded_count += loaded;
+      POC_LOG("show: games: %s: %s in %.1f s: %s", game, loaded ? "loaded" : "NOT finished", took, said);
+      demo_main([](const char*) { screenshot("a game, as it opens"); }, "");
+      demo_sleep(800);
+      int cx = -1, cy = -1, iw = 0, ih = 0;
+      char what[64] = "";
+      demo_ask(PAGE, play_js, said, sizeof(said));
+      sscanf(said, "%d %d %d %d %63s", &cx, &cy, &iw, &ih, what);
+      if(iw > 0 && ih > 0) {  // the page is the screen's width and its lower part
+        const float scale = (float)DISPLAY_WIDTH / iw, top = DISPLAY_HEIGHT - ih * scale;
+        if(cx >= 0) {
+          demo_glide(cx * scale, top + cy * scale, 500);
+        } else {
+          demo_glide(DISPLAY_WIDTH * 0.5f, top + ih * scale * 0.5f, 500);
+        }
+      } else {
+        demo_glide(DISPLAY_WIDTH * 0.5f, DISPLAY_HEIGHT * 0.6f, 500);
+      }
+      demo_sleep(250);
+      demo_click();
+      // A game's page often keeps its name field in focus, and a press then opens the browser's keyboard over
+      // the game (the first run: it stayed over every game after the first and took the presses). Closed here.
+      demo_sleep(900);
+      {
+        static bool keys_were_open;
+        demo_main([](const char*) {
+          keys_were_open = app.keys_open;
+          keys_cancel();
+        }, "");
+        POC_LOG("show: games: %s: the keyboard after the press: %s", game, keys_were_open ? "OPEN over the game" : "not open");
+      }
+      demo_sleep(500);
+      if(cx < 0) {
+        demo_event(INPUT_ENTER, 0, 0, 0);
+        demo_sleep(900);
+        demo_main([](const char*) { keys_cancel(); }, "");
+      }
+      POC_LOG("show: games: %s: Play: %s", game, cx >= 0 ? what : "no button found: a press in the middle and Enter");
+      demo_sleep(9000);
+      demo_ask(PAGE, frames_js, said, sizeof(said));
+      demo_sleep(6500);
+      demo_ask(PAGE, after_js, said, sizeof(said));
+      POC_LOG("show: games: %s: after Play: %s", game, said);
+      demo_main([](const char*) { screenshot("a game, after Play"); }, "");
+      demo_sleep(800);
+    }
+#ifdef APP_RN
+    // The right stick as the mouse and R2 as its button, in the game mode of a site with the controller as a
+    // keyboard (aim_pad()): on example.com, W A S D given to the site as the menu does it, the touch pad for the
+    // game mode, the left stick held up (the key w) and the right stick right and down with R2, then all let go;
+    // what the page saw, and all undone.
+    {
+      before = demo_loads();
+      demo_main(demo_do_load, "http://example.com/");
+      demo_wait_load(before, 15000);
+      demo_sleep(1500);
+      demo_ask(PAGE, "(function () { var a = window.__a = {moves: 0, x0: null, y0: null, x1: 0, y1: 0, held: 0, log: []};"
+               " addEventListener('mousemove', function (e) { a.moves++; if (a.x0 === null) { a.x0 = e.clientX; a.y0 = e.clientY; } a.x1 = e.clientX; a.y1 = e.clientY;"
+               " if (e.buttons & 1) a.held++; }, true);"
+               " ['mousedown', 'mouseup', 'keydown', 'keyup'].forEach(function (n) { addEventListener(n, function (e) { a.log.push(n + (e.key ? ' ' + e.key : '')); }, true); });"
+               " return 'listening'; })()", said, sizeof(said));
+      demo_main([](const char*) {
+        padkeys_toggle();  // arrow keys
+        padkeys_toggle();  // W A S D
+        demo_event(INPUT_TOUCHPAD, 0, 0, 0);
+      }, "");
+      demo_sleep(700);
+      demo_main([](const char*) {
+        input_event_t e = {INPUT_PAD, 0, -0.9f, 0.9f, 0.5f, (int)INPUT_PAD_R2};  // walk up (w); aim right and down, firing
+        on_input(&e);
+      }, "");
+      demo_sleep(700);
+      demo_main([](const char*) {
+        input_event_t e = {INPUT_PAD, 0, 0, 0, 0, 0};
+        on_input(&e);
+      }, "");
+      demo_sleep(400);
+      static int game_was;
+      static bool pointer_shown;
+      demo_main([](const char*) {
+        game_was = app.game;
+        pointer_shown = app.aim_shown;
+      }, "");
+      demo_ask(PAGE, "(function () { var a = window.__a; if (!a) return 'no list'; return 'mouse moves ' + a.moves + ' (' + a.held + ' with the button held), from '"
+               " + a.x0 + ',' + a.y0 + ' to ' + a.x1 + ',' + a.y1 + '; ' + a.log.join(', '); })()", said, sizeof(said));
+      POC_LOG("show: games: the right stick as the mouse (game mode %d, pointer %s): %s", game_was, pointer_shown ? "shown" : "hidden", said);
+      demo_main([](const char*) { demo_event(INPUT_TOUCHPAD, 0, 0, 0); }, "");  // the controller back to the cursor
+      demo_sleep(500);
+      demo_main([](const char*) {
+        padkeys_toggle();  // off: the site is off the list again
+        POC_LOG("show: games: the controller as a keyboard undone (game mode %d, %d site(s) on the list)", app.game, padkeys_count);
+      }, "");
+      demo_sleep(400);
+    }
+#endif
+    POC_RESULT(loaded_count == count, "show: games: %d of %d finished loading, in %.0f s; Sair from the menu", loaded_count, count,
+               (poc_now_ms() - app.start_ms) / 1e3);
+    demo_main(demo_do_ui, "menu-do?quit");
+    return;
+  }
+#endif
 #ifdef SHOW_SITES
   // make SHOW=1 SHOW_YT=1 SHOW_SITES=1 (2026-11-14, for the release): the sites people open most, one after
   // another in the same tab, as they are for this user (his cookies; nothing goes to his history: SHOW_YT).
   // For each: did its load finish, in how long, and what the page has (its state, title, text, pictures that
   // came, links, scripts, videos, canvases, where it ended up), with a picture of the screen. A page that takes
   // the WebProcess down says so in the log ("WebProcess crashed") and the next one goes on.
+  // make ... SHOW_SITES=1 SHOW_SITE=<address> (2026-11-17, "does this site open?" asked about one site): that
+  // one address in the place of the list, in a private tab (nothing of it is kept: no cookies, no storage, and
+  // no test writes the history), with no picture of the screen.
   {
+#ifdef SHOW_SITE
+    static const char* const sites[] = {SHOW_SITE};
+    demo_sleep(2500);
+    demo_main(demo_do_ui, "newprivate");
+    demo_sleep(2500);
+    POC_LOG("show: sites: one address, in a private tab (%s)", tab_is_private() ? "private" : "NOT PRIVATE");
+#else
     static const char* const sites[] = {
       "https://www.google.com/search?q=playstation+5",
       "https://www.wikipedia.org/",
@@ -18908,6 +19621,7 @@ show_tour(void) {
       "https://www.speedtest.net/",
       "https://www.playstation.com/",
     };
+#endif
     static char said[1200];
     int finished = 0, count = 0;
     const double all0 = poc_now_ms();
@@ -18927,7 +19641,18 @@ show_tour(void) {
       count++;
       finished += loaded;
       POC_LOG("show: sites: %s: %s in %.1f s: %s", site, loaded ? "loaded" : "NOT finished", took, said);
+#ifndef SHOW_SITE
       demo_main([](const char*) { screenshot("a site"); }, "");
+#endif
+#ifdef SHOW_SITE_WAIT  // (with SHOW_SITE) that many seconds later: the page's video, if it has one, and how its text begins
+      demo_sleep(SHOW_SITE_WAIT * 1000);
+      demo_ask(PAGE,
+               "(function () { var v = document.querySelector('video');"
+               " return (v ? 'video t ' + v.currentTime.toFixed(1) + (v.paused ? ' PAUSED' : ' playing') + (v.currentSrc ? '' : ', no source') + ', ' + v.videoWidth + 'x' + v.videoHeight : 'no video')"
+               " + ' | text ' + (document.body ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 120) : ''); })()",
+               said, sizeof(said));
+      POC_LOG("show: sites: %d s later: %s", SHOW_SITE_WAIT, said);
+#endif
       demo_sleep(800);
     }
     POC_RESULT(finished == count, "show: sites: %d of %d finished loading, in %.0f s; Sair from the menu", finished, count,
@@ -18987,6 +19712,68 @@ show_tour(void) {
   // (youtube.com/tv), asked for as what this browser is (a PlayStation 5's WebKit: user_agent_apply()). Is it
   // given to this browser, does the film start by itself, and does it go on after the minute at which the
   // desktop page's film is refused half of the times? Two minutes of what the page shows, three pictures. Then Sair.
+#ifdef SHOW_YT_BACK
+  // make SHOW=1 SHOW_YT=1 SHOW_YT_TV=1 SHOW_YT_BACK=1 (2026-11-17, a report: circle on a film of this page went
+  // to the browser's start page). A film of the page opened from the start page, as its address; circle once:
+  // the page must still be this one, out of the film (tv_page_back(): the page's own "back"). Circle again, on
+  // the page's first screen: the browser must be out of the page, on the one before it. Where the page is after
+  // each, how long its history is, and whether it asked for its window to be closed (window.close, counted by
+  // the page for this test). Then Sair. (The first run pressed cross on what the page had lit to open a film:
+  // with no account the page starts at its welcome, and cross went into its sign-in. Not done again.)
+  {
+    static const char where_js[] =
+      "(function () { var v = document.querySelector('video'), a = document.activeElement;"
+      " return location.href.slice(0, 90) + ' | history ' + history.length"
+      " + ' | ' + (v ? 'video t ' + v.currentTime.toFixed(1) + (v.paused ? ' PAUSED' : ' playing') + (v.currentSrc ? '' : ', no source') : 'no video')"
+      " + ' | closes ' + (window.__bps5closes === undefined ? 'not counted' : window.__bps5closes)"
+      " + ' | focus ' + (a ? a.tagName + '.' + String(a.className).slice(0, 40) : 'none')"
+      " + ' | text ' + (document.body ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 150) : ''); })()";
+    static const char hook_js[] =
+      "(function () { if (window.__bps5closes === undefined) { window.__bps5closes = 0;"
+      " window.close = function () { window.__bps5closes++; }; } return 'counting'; })()";
+    static const char film_js[] =
+      "(function () { var v = document.querySelector('video'); return v && v.currentSrc && v.currentTime > 1 && !v.paused ? 'playing' : 'not yet'; })()";
+    char said[900];
+    bool film = false, stayed = false, left = false;
+
+    demo_sleep(2500);
+    before = demo_loads();
+    demo_main(demo_do_load, "https://www.youtube.com/tv#/watch?v=aqz-KE-bpKQ");
+    demo_wait_load(before, 25000);
+    for(int i = 0; i < 25 && !film; i++) {
+      demo_sleep(1000);
+      demo_ask(PAGE, film_js, said, sizeof(said));
+      film = !strcmp(said, "playing");
+    }
+    demo_sleep(3000);
+    demo_ask(PAGE, hook_js, said, sizeof(said));
+    demo_ask(PAGE, where_js, said, sizeof(said));
+    POC_LOG("show: tv back: before circle (the film %s): %s", film ? "plays" : "DID NOT START", said);
+    demo_main([](const char*) { screenshot("tv film"); }, "");
+    for(int i = 1; i <= 2; i++) {
+      demo_event(INPUT_BACK, 0, 0, 0);
+      demo_sleep(i == 1 ? 5000 : 4000);
+      if(i == 1) {
+        demo_ask(PAGE, hook_js, said, sizeof(said));
+      }
+      demo_ask(PAGE, where_js, said, sizeof(said));
+      POC_LOG("show: tv back: after circle %d: %s", i, said);
+      if(i == 1) {
+        stayed = !strncmp(said, "https://www.youtube.com/tv", 26) && !strstr(said, "#/watch");
+      } else {
+        left = said[0] && strncmp(said, "https://www.youtube.com/tv", 26);
+      }
+      demo_main([](const char*) { screenshot("tv after circle"); }, "");
+    }
+    POC_LOG("show: tv back: the app's full screen is %s after leaving", app.fullscreen ? "ON" : "off");
+    POC_RESULT(film && stayed && left, "show: tv back: %s; %s; done in %.0f s; Sair from the menu",
+               !film ? "the film did not start" : stayed ? "circle on a film stayed in the page, out of the film" : "circle on a film LEFT the page or the film stayed",
+               left ? "circle on the page's first screen left the page" : "circle on the page's first screen DID NOT leave the page",
+               (poc_now_ms() - app.start_ms) / 1e3);
+    demo_main(demo_do_ui, "menu-do?quit");
+    return;
+  }
+#endif
   {
     static const char tv_js[] =
       "(function () { var v = document.querySelector('video'), b = v && v.buffered, ahead = 0;"
@@ -19360,6 +20147,28 @@ demo(void) {
   started = true;
   pthread_create(&thread, 0, demo_thread, 0);
   pthread_detach(thread);
+}
+
+// 2026-11-17: a test is started by the first page loaded (demo()). When that page never came (the start page
+// stalled twice the same day, the network process silent from the first second), no test ran, nothing asked for
+// "Sair", and the browser stayed open on the console until it was closed by hand. A test build closes itself
+// now: no page DEMO_GUARD_S seconds in, it says so and asks for "Sair" as a test's end does. It sleeps a second
+// at a time and ends with the first page.
+#define DEMO_GUARD_S 90
+static void*
+demo_guard(void*) {
+  for(int s = 0; s < DEMO_GUARD_S; s++) {
+    usleep(1000000);
+    pthread_mutex_lock(&demo_state.lock);
+    const unsigned loads = demo_state.loads;
+    pthread_mutex_unlock(&demo_state.lock);
+    if(loads) {
+      return 0;
+    }
+  }
+  POC_RESULT(0, "no page loaded in the first %d s: the test did not start; Sair from the menu", DEMO_GUARD_S);
+  demo_main(demo_do_ui, "menu-do?quit");
+  return 0;
 }
 
 #ifdef DEMO
@@ -20769,6 +21578,13 @@ main(void) {
   // FileSystemPOSIX.cpp.patch: the PS5 has no /tmp; IndexedDB's Blobs, which
   // WhatsApp Web needs). The same path as the patch; what a fall left there
   // goes, before any WebKit process runs.
+#ifdef APP_RN
+  // 2026-11-17: its parents first. They are the earlier BrowserPS5's data folder, not RN's: on a console that
+  // never had it the mkdir below failed, the engine had nowhere for its temporary files, and 1.0.0-rc12 closed
+  // a second after it started (1.0.0-rc13's installer makes the folder too).
+  mkdir("/user/homebrew/browserps5", 0755);
+  mkdir("/user/homebrew/browserps5/data", 0755);
+#endif
   mkdir(WEBKIT_TEMP_DIR, 0755);
   if(DIR* dir = opendir(WEBKIT_TEMP_DIR)) {
     while(struct dirent* entry = readdir(dir)) {
@@ -21215,6 +22031,12 @@ main(void) {
   pthread_t cursor_test;
   pthread_create(&cursor_test, 0, cursor_test_thread, 0);
   pthread_detach(cursor_test);
+#endif
+#if defined(DEMO) || defined(SHOW)
+  pthread_t guard;  // closes a test build whose first page never loads
+  if(!pthread_create(&guard, 0, demo_guard, 0)) {
+    pthread_detach(guard);
+  }
 #endif
 
   WKRunLoopRunMain();

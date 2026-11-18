@@ -2,7 +2,7 @@
   <img src="docs/images/splash.webp" alt="BrowserPS5 RN starting screen" width="100%">
 </p>
 
-<h1 align="center">BrowserPS5</h1>
+<h1 align="center">BrowserPS5 RN</h1>
 
 <p align="center">
   <b>A real, full web browser for the PlayStation 5.</b><br>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc13-2f6dff"></a>
+  <a href="https://github.com/ramalhoboss/BrowserPS5/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0--rc14-2f6dff"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-PS5%20(jailbroken)-0b0b1a">
   <img alt="Tested firmware" src="https://img.shields.io/badge/tested%20on-firmware%2013.60-ff2e4a">
   <img alt="Engine" src="https://img.shields.io/badge/engine-WebKit%20627.1.7-8a5cf6">
@@ -19,10 +19,10 @@
 
 ---
 
-BrowserPS5 is a **native PS5 title** (`PPSA97024`) that appears in the **Games** tab of the home screen. It is not the console's hidden system browser: the engine, the interface and every feature described here come with it.
+BrowserPS5 RN is a **native PS5 title** (`PPSA97024`) that appears in the **Games** tab of the home screen. It is not the console's hidden system browser: the engine, the interface and every feature described here come with it.
 
 > [!WARNING]
-> **Read first.** BrowserPS5 is an unofficial homebrew project. It is **not affiliated with, endorsed by or connected to Sony Interactive Entertainment, Apple, the WebKit project or any site it opens**. It needs a jailbroken PS5. **Use it at your own risk**: you alone are responsible for your console and for the accounts you sign in to. It was tested on firmware 13.60 only.
+> **Read first.** BrowserPS5 RN is an unofficial homebrew project. It is **not affiliated with, endorsed by or connected to Sony Interactive Entertainment, Apple, the WebKit project or any site it opens**. It needs a jailbroken PS5. **Use it at your own risk**: you alone are responsible for your console and for the accounts you sign in to. It was tested on firmware 13.60 only.
 
 ## Contents
 
@@ -73,6 +73,7 @@ All four are captures taken on the console.
 - **PDF reader** (PDF.js): a PDF a page links to opens in the browser.
 - **Clear error pages** when a site does not load: what happened, in your language, with a button to try again. There is no way past a certificate that fails.
 - **7 languages**: English, Português, Español, Français, Deutsch, Italiano and Nederlands, for the pages, the menus and the browser's own messages. A new install starts in your console's language.
+- **Updates by themselves**: a newer release is fetched in the background and installed the next time you open the browser ([Updating and uninstalling](#updating-and-uninstalling)).
 
 ### Video, sound and graphics
 
@@ -160,7 +161,7 @@ Measured on the console (firmware 13.60):
 
 ### Three processes, two worlds
 
-A PS5 title has the screen, the GPU and a large share of memory, but it cannot start other processes or receive file descriptors. A payload can do both, but has no screen. WebKit wants several processes that pass descriptors to each other. BrowserPS5 splits the engine across the two worlds and carries WebKit's messages between them itself.
+A PS5 title has the screen, the GPU and a large share of memory, but it cannot start other processes or receive file descriptors. A payload can do both, but has no screen. WebKit wants several processes that pass descriptors to each other. BrowserPS5 RN splits the engine across the two worlds and carries WebKit's messages between them itself.
 
 ```mermaid
 flowchart LR
@@ -235,7 +236,7 @@ flowchart LR
     LOADER --> INST["BrowserPS5.elf<br/>installer + xz pack of 338 files"]
     INST -->|"SHA-256 checked"| FILES["/data/homebrew/PPSA97024<br/>/user/homebrew/..."]
     FILES --> SMP["ShadowMountPlus"]
-    SMP --> TILE["BrowserPS5 in the Games tab"]
+    SMP --> TILE["BrowserPS5 RN in the Games tab"]
 ```
 
 ---
@@ -256,6 +257,7 @@ The PS5's own WebKit is old, locked down and out of reach for homebrew, and a fi
 | 14 – 15 November | Release candidates 1 to 8: installer and uninstallers in one file each, ad blocker, the PS5's own keyboard, 24-site test on the console |
 | 16 November | rc9 to rc11: your games and trophies, a page for each game, cheats and patches, captures, Discord, the console's health, emoji |
 | 17 November | rc12: the touch pad as a laptop's, key codes for web games and emulators, the animated starting screen, a race in the IPC found and fixed |
+| 18 November | rc14: the browser updates itself, the engine's pipes become pairs of sockets (no page loaded once the console's pipes ran out), ○ as the "back" of YouTube's page for televisions |
 
 Some of the problems that had to be solved on the way, each documented where it is solved:
 
@@ -280,7 +282,7 @@ Some of the problems that had to be solved on the way, each documented where it 
 | --- | --- |
 | **Tested** | One PS5, system software **13.60**, with etaHEN and ShadowMountPlus |
 | **Needs** | A jailbroken PS5 with an **ELF loader on port 9021** (etaHEN starts one) and **ShadowMountPlus**, both running **every time the browser is opened**, not only to install it |
-| **Other firmwares** | Not tested. Almost everything finds the system's functions by name. The PS5's own keyboard is bound for 13.60; elsewhere the browser's own keyboard is used |
+| **Other firmwares** | Not tested by us. A user reports it running on **11.20**; another that it does not start on **12.20** (no logs yet). Almost everything finds the system's functions by name. The PS5's own keyboard is bound for 13.60; elsewhere the browser's own keyboard is used |
 | **Storage** | About 450 MB on the console |
 | **Display** | 1080p interface at 60 Hz; video up to 2160p |
 
@@ -334,7 +336,7 @@ Every release is also tried against 24 of the most used sites, one after another
    nc -w 3 <your PS5's IP> 9021 < BrowserPS5.elf
    ```
 5. **Wait for the two notifications** on the PS5: *"installing, about half a minute"* and then *"is installed"*. Do not open the browser in between.
-6. **Open BrowserPS5** from **Games** on the home screen. ShadowMountPlus adds it about 15 seconds after the install. The icon and background may only show after the PS5 restarts.
+6. **Open BrowserPS5 RN** from **Games** on the home screen. ShadowMountPlus adds it about 15 seconds after the install. The icon and background may only show after the PS5 restarts.
 
 After the PS5 restarts, load your jailbreak as usual before opening the browser: it needs the ELF loader on port 9021 and ShadowMountPlus running each time ([why](#console)).
 
@@ -344,7 +346,11 @@ The installer writes about 450 MB and takes half a minute. It writes only inside
 
 ## Updating and uninstalling
 
-**Updating**: send the newer `BrowserPS5.elf` the same way as the first time, **with the browser closed**. Your favorites, history, settings, logins and unfinished downloads stay. If the browser is open, the installer writes nothing and says so in a notification.
+**Updating**: from 1.0.0-rc14 on the browser updates itself. A few seconds after the first page of a session it asks GitHub for this project's list of releases (every 6 hours at most). When there is a newer one, its installer is downloaded in the background while you browse and checked against the size and the SHA-256 the release gives. The next time you open the browser it says so, closes, installs (about half a minute) and opens again. Your favorites, history, settings, logins and unfinished downloads stay. If an update does not install, the browser tries once more at a later start and then leaves that release alone: install it by hand.
+
+To turn this off, make an empty file named `no-updates` in `/user/homebrew/browserps5-rn/data` (by FTP). 1.0.0-rc13 and earlier do not update themselves.
+
+**By hand**: send the newer `BrowserPS5.elf` the same way as the first time, **with the browser closed**. If the browser is open, the installer writes nothing and says so in a notification.
 
 **Uninstalling**: send `BrowserPS5-uninstall.elf` the same way:
 
@@ -376,11 +382,15 @@ It asks ShadowMountPlus to take the tile off the home screen and deletes what th
 
 Every one of these is listed in *Settings → Controller*, with the cursor's speed, haptics, sounds and the light bar.
 
+**In a game played with keys** (*Menu → Controller as keyboard*, kept for each site): the left stick and the D-pad are the direction keys, the right stick is the mouse, R2 the mouse's button and R3 Enter; ✕ is space, □ △ ○ keys of their own, L1 Q, R1 E, L2 Shift and Options Esc.
+
+**On YouTube's page for televisions**, ○ is the page's own "back": from a film to the screen it was opened from, and from the page's first screen out to the browser.
+
 ---
 
 ## Downloads
 
-- Files go to `/data/downloads`, videos, music and pictures to `/data/media`, and `.pkg` files to `/data/pkg`. Each folder can be changed in *Settings → Downloads*, and the browser can ask where to save every file. **Nothing is installed by the browser**: a `.pkg` is only saved.
+- Files go to `/data/downloads`, videos, music and pictures to `/data/media`, and `.pkg` files to `/data/pkg`. Each folder can be changed in *Settings → Downloads*, and the browser can ask where to save every file. **The browser installs no package**: a `.pkg` is only saved.
 - *Fast downloads* (on by default) brings large files over several connections. If the server does not allow it, or it is not faster, the browser goes back to one connection by itself.
 - While a download waits for the network it says so in the list, and goes on by itself when the network returns.
 - **Pause**, **Continue**, **Try again** and **Delete** are on each line of *Settings → Downloads*. Delete only removes files inside the download folders.
@@ -394,7 +404,8 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 | --- | --- |
 | `/data/homebrew/PPSA97024/` | The title: `eboot.bin`, the browser itself (`browser.elf`), fonts, `sce_sys/` (icon, backgrounds, `param.json`), and its own logs |
 | `/user/homebrew/lib/libWebKitFull.so.SOVERSION` | The engine's library |
-| `/user/homebrew/browserps5-rn/full/`, `pdfjs/` | The engine's processes and the PDF reader |
+| `/user/homebrew/browserps5-rn/full/`, `pdfjs/`, `adblock/` | The engine's processes, the PDF reader and the ad blocker's lists |
+| `/user/homebrew/browserps5-rn/update/` | The browser's own updates: a newer release's installer while it waits, and what happened to the last one (`update-log.txt`) |
 | `/user/homebrew/browserps5-rn/data/` | **Yours**: favorites, history, settings, saved logins, cookies and site data, extensions, unfinished downloads' maps |
 | `/user/homebrew/lib/libEGL.so.1`, `libvulkan.so.1` | Mesa, shared with other homebrew: written only if the console has none |
 | `/user/homebrew/etc/`, `/user/homebrew/share/fonts/` | Certificates (Mozilla's CA list) and fonts, shared the same way |
@@ -404,12 +415,12 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 
 ## Privacy and security
 
-- Everything you do stays **on your console**. BrowserPS5 has no telemetry, no account and no server of its own; it talks to the sites you open and to the search engine you chose.
+- Everything you do stays **on your console**. BrowserPS5 RN has no telemetry, no account and no server of its own; it talks to the sites you open and to the search engine you chose, and, to update itself, it asks GitHub for this project's list of releases (see *Updating and uninstalling*; it can be turned off).
 - HTTPS certificates are **always verified**. There is no "accept any certificate" mode.
 - **Pages cannot reach the console's own services.** A jailbroken PS5 listens on its local network (FTP, the ELF loader, other tools) with no password; a web page that tried to connect to them is refused. Only an address you type yourself may open them.
 - Private tabs keep their cookies and site data in memory only, and leave no history, no saved session and no saved login.
 - Saved logins are kept on the console, in the browser's data folder. Anyone with access to the console's files (FTP on a jailbroken console) can read that folder: treat the console as you would an unlocked PC.
-- The browser changes no PS5 system setting and installs nothing.
+- The browser changes no PS5 system setting, and installs nothing but its own updates.
 
 ---
 
@@ -420,7 +431,7 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 - Up to **6 tabs**, sharing 1 GiB: a very heavy page may be loaded again when you come back to it.
 - *Open beside the game* shows the page in the **PS5's own side card**, a much smaller browser than this one: simple pages only.
 - A download can only go on from where it stopped if the server gives parts of a file, and while its link is still valid.
-- Tested on firmware **13.60** only.
+- Tested on firmware **13.60** only. A user reports it running on 11.20, another that it does not start on 12.20: reports from other firmwares are welcome.
 
 ---
 
@@ -428,18 +439,21 @@ Every one of these is listed in *Settings → Controller*, with the cursor's spe
 
 | What you see | What to do |
 | --- | --- |
-| No BrowserPS5 tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
+| No BrowserPS5 RN tile after installing | ShadowMountPlus is not running, or has not scanned yet: start it and wait about 15 s |
 | The tile has no icon or background | Restart the PS5 once |
 | The installer's notifications never come | Make sure the ELF loader listens on port 9021 (load your jailbreak again) and that the IP is the PS5's |
-| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | **With 1.0.0-rc12**: a folder the engine needs is missing on a console that never had an earlier BrowserPS5. Run the installer of **1.0.0-rc13** or later (your data stays), or create **`/user/homebrew/browserps5/data/tmp`** by hand (FTP or a file manager), and open the browser again. **If it still closes**: make sure the ELF loader answers on port 9021 (load etaHEN or your loader again); then please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
-| *"is open: nothing was installed"* | Close BrowserPS5 (Options → Close application) and send the installer again |
+| The loading screen shows and the browser closes, or *"Game or App Error"* comes right after starting it | **With 1.0.0-rc12**: a folder the engine needs is missing on a console that never had an earlier BrowserPS5 RN. Run the installer of **1.0.0-rc13** or later (your data stays), or create **`/user/homebrew/browserps5/data/tmp`** by hand (FTP or a file manager), and open the browser again. **If it still closes**: make sure the ELF loader answers on port 9021 (load etaHEN or your loader again); then please open an issue with `browser-title.txt` (below), your console and how you load your payloads |
+| *"is open: nothing was installed"* | Close BrowserPS5 RN (Options → Close application) and send the installer again |
+| No page loads, not even the start page (1.0.0-rc13 and earlier) | Restart the console, and install this release: it no longer happens |
 | A site says the browser is not supported | Try *Menu → Desktop version*; some sites only accept the browsers they know by name |
-| A video service will not play | It needs DRM, which BrowserPS5 does not have |
+| A video service will not play | It needs DRM, which BrowserPS5 RN does not have |
 | A download stays at *waiting for the network* | The console lost its connection: it goes on by itself when the network is back |
 | Downloads are slow | Use a network cable: over Wi-Fi the console takes about 27 MB/s at most |
 | The cursor moves or clicks when a finger brushes the touch pad | Put an empty file named `no-touch-cursor` in `/data/homebrew/PPSA97024/` (by FTP): the pad is then only its press |
 
 The browser's own logs are in `/data/homebrew/PPSA97024/` (`browser-run.txt`, `browser-title.txt`, `web-stderr.txt`). They are kept for the last four sessions and help when reporting a problem.
+
+**Reporting a problem**: send `BrowserPS5-check.elf` the same way as the installer. It only reads: the firmware, what is installed, whether the ELF loader answers, and how the last start went. The report comes out in your payload sender's output and is saved as `/data/homebrew/PPSA97024/BrowserPS5-check.txt`; pages' addresses are left out of it. Paste it into the issue.
 
 ---
 
@@ -474,10 +488,10 @@ The tree keeps the folder names it had while each part was first proven on the c
 
 ## Licences and thanks
 
-BrowserPS5 is free software under the **GNU General Public License, version 3 or later** ([LICENSE](LICENSE)). It comes with **no warranty**. What changed in each version is in the [CHANGELOG](CHANGELOG.md).
+BrowserPS5 RN is free software under the **GNU General Public License, version 3 or later** ([LICENSE](LICENSE)). It comes with **no warranty**. What changed in each version is in the [CHANGELOG](CHANGELOG.md).
 
 It is built on WebKit and on many other open projects; they keep their own licences, listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Pages reach the PS5's GPU through **RADV on the PS5**, the work of Mihawk ([PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)) on the foundation of BlackBearReloaded's [ps5-native-app-boilerplate](https://github.com/blackbearreloaded/ps5-native-app-boilerplate). The engine's locks, and the idea of keeping pages away from the console's own services, come from rikleigh's [Parallax Browser](https://github.com/rikleigh/parallax-browser). The toolchain is the [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk). Thank you.
 
-PlayStation, PS5 and DualSense are trademarks of Sony Interactive Entertainment. WebKit is a trademark of Apple Inc. YouTube, WhatsApp, Telegram and the other names are trademarks of their owners. BrowserPS5 is independent of all of them.
+PlayStation, PS5 and DualSense are trademarks of Sony Interactive Entertainment. WebKit is a trademark of Apple Inc. YouTube, WhatsApp, Telegram and the other names are trademarks of their owners. BrowserPS5 RN is independent of all of them.

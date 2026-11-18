@@ -1,6 +1,6 @@
 # Third-party notices
 
-BrowserPS5 is free software under the GNU General Public License, version 3 or later (`LICENSE`). It is built on the projects below, which keep their own copyright and licence terms. This list names what the release carries and where each one comes from; it does not replace the licence texts, which are in each project's sources and, for the files installed on the console, beside them (`/user/homebrew/etc/ssl/LICENSE`, the `LICENSE` files in the fonts' folders and in the PDF reader's folder).
+BrowserPS5 RN is free software under the GNU General Public License, version 3 or later (`LICENSE`). It is built on the projects below, which keep their own copyright and licence terms. This list names what the release carries and where each one comes from; it does not replace the licence texts, which are in each project's sources and, for the files installed on the console, beside them (`/user/homebrew/etc/ssl/LICENSE`, the `LICENSE` files in the fonts' folders and in the PDF reader's folder).
 
 ## In the engine (`eboot.bin`, `libWebKitFull.so`, `WebProcess.elf`, `NetworkProcess.elf`)
 
@@ -79,4 +79,4 @@ WebKit, cairo, GLib, GStreamer, FFmpeg and the other components under the LGPL a
 
 ## Trademarks
 
-PlayStation, PS5 and DualSense are trademarks of Sony Interactive Entertainment. WebKit is a trademark of Apple Inc. BrowserPS5 is independent and is not endorsed by Sony, Apple or the WebKit project. The app's artwork was made for this project.
+PlayStation, PS5 and DualSense are trademarks of Sony Interactive Entertainment. WebKit is a trademark of Apple Inc. BrowserPS5 RN is independent and is not endorsed by Sony, Apple or the WebKit project. The app's artwork was made for this project.

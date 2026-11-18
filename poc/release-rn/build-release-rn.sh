@@ -6,6 +6,7 @@
 #     BrowserPS5.elf                 the installer: everything, packed with xz, in one ELF (install.c)
 #     BrowserPS5-uninstall.elf       takes the browser off the console; the user's data stays (uninstall.c)
 #     BrowserPS5-uninstall-all.elf   the same, and the user's data
+#     BrowserPS5-check.elf           what the console has of the browser and how its last start went, as text (check.c)
 #     send.ps1                       sends an ELF to the console from Windows, for who has no sender
 #     README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-NOTICES.md
 #     SHA256SUMS.txt
@@ -83,12 +84,12 @@ EOF
 echo "pack: $(wc -l < "$W/files.txt") files, $(stat -c %s "$W/pack.tar") bytes, packed $(stat -c %s "$W/pack.tar.xz"), sha256 $SHA"
 
 PS5_PAYLOAD_SDK=$SDK make -C "$HERE" WORK="$W" OUT="$OUT" all
-python3 -I "$POC/common/scrub-paths.py" --check "$OUT"/BrowserPS5.elf "$OUT"/BrowserPS5-uninstall.elf "$OUT"/BrowserPS5-uninstall-all.elf \
+python3 -I "$POC/common/scrub-paths.py" --check "$OUT"/BrowserPS5.elf "$OUT"/BrowserPS5-uninstall.elf "$OUT"/BrowserPS5-uninstall-all.elf "$OUT"/BrowserPS5-check.elf \
     || { echo "error: the installer or an uninstaller has the build machine's user name in it" >&2; exit 1; }
 for f in send.ps1 README.md CHANGELOG.md THIRD-PARTY-NOTICES.md LICENSE; do
     [[ -f "$HERE/$f" ]] && cp "$HERE/$f" "$OUT/"
 done
-(cd "$OUT" && rm -f SHA256SUMS.txt && sha256sum BrowserPS5.elf BrowserPS5-uninstall.elf BrowserPS5-uninstall-all.elf > SHA256SUMS.txt)
+(cd "$OUT" && rm -f SHA256SUMS.txt && sha256sum BrowserPS5.elf BrowserPS5-uninstall.elf BrowserPS5-uninstall-all.elf BrowserPS5-check.elf > SHA256SUMS.txt)
 (cd "$RN/release" && rm -f "BrowserPS5-$VERSION.zip" && zip -q -r "BrowserPS5-$VERSION.zip" "BrowserPS5-$VERSION")
 ls -la --time-style=+%H:%M "$OUT" | awk '{print $5, $7}'
 echo "zip: $(stat -c %s "$RN/release/BrowserPS5-$VERSION.zip") bytes, sha256 $(sha256sum "$RN/release/BrowserPS5-$VERSION.zip" | cut -d' ' -f1)"

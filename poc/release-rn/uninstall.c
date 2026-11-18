@@ -23,7 +23,8 @@ along with this program; see the file COPYING. If not, see
 //      no answer from it, the notification says to delete the tile by hand
 //      (Options, Delete).
 //   2. What the installer wrote is removed: the title's folder, the engine's
-//      library and processes and the PDF reader. Only those paths, all
+//      library and processes, the PDF reader and the ad blocker's lists, and
+//      the folder of the browser's own updates. Only those paths, all
 //      inside /user/homebrew/ and /data/homebrew/ (remove_files' own code
 //      and rule).
 //
@@ -41,7 +42,7 @@ along with this program; see the file COPYING. If not, see
 // it says which of its paths are there, and whether ShadowMountPlus's API
 // answers.
 
-#define POC_NAME "BrowserPS5"
+#define POC_NAME "BrowserPS5 RN"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -126,6 +127,11 @@ main(void) {
     "/user/homebrew/browserps5-rn/full",
     "/user/homebrew/browserps5-rn/plus",
     "/user/homebrew/browserps5-rn/pdfjs",
+    // 2026-11-18 (1.0.0-rc14): two folders that stayed behind. The ad blocker's lists are the installer's (since
+    // 1.0.0-rc5); the update folder is the browser's own (from 1.0.0-rc14: a fetched installer may wait there,
+    // 116 MB, with its notes). Neither is the user's data.
+    "/user/homebrew/browserps5-rn/adblock",
+    "/user/homebrew/browserps5-rn/update",
     "/user/homebrew/browserps5-rn/engine-env.txt",
     "/user/homebrew/browserps5-rn/release.txt",
     "/user/homebrew/lib/libWebKitFull.so.SOVERSION",

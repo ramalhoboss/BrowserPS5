@@ -6,7 +6,7 @@
 #   bash run-feel-rn.sh [menu.tar] [seconds to wait, default 300]
 #   TITLE=1: installs out/title-rn.tar first.   LIB=name.tar: a libWebKit from results/.
 #   TITLE_TAR=name.tar: another title from out/.   EXTRA_TAR=name.tar: one more tar after the menu.
-poc=/c/Users/<you>/Desktop/BrowserPS5-WebKit/poc; ps5=192.168.1.50; ID=${RN_ID:-PPSA97024}  # the games tab's title again since 2026-11-14 (PPSA97025, the media tab's: 4 GiB of memory in all)
+poc=/c/Users/<you>/Desktop/BrowserPS5/BrowserPS5-WebKit/poc; ps5=192.168.1.50; ID=${RN_ID:-PPSA97024}  # the games tab's title again since 2026-11-14 (PPSA97025, the media tab's: 4 GiB of memory in all)
 rn=$poc/browser-rn/out; work=$(mktemp -d); menu=${1:-menu-rn-plus-feel.tar}; wait_s=${2:-300}
 # 2026-11-11 16:25: RN's standard set is the plus engine: its menus by default (a menu of the old
 # engine over the plus title has no pages: BACK=menu-rn.tar and the old title for those).

@@ -657,6 +657,23 @@ apply_patch WebCore/platform/network/curl/CurlContext.cpp "$HERE/security/CurlCo
 apply_patch WebCore/platform/network/curl/CurlRequest.cpp "$HERE/security/CurlRequest.cpp.patch"
 apply_patch WebCore/platform/network/curl/CurlStream.cpp "$HERE/security/CurlStream.cpp.patch"
 
+# 2026-11-17: the curl thread waits 50 ms at a time, not with no end. It
+# waited in curl_multi_poll() for INT_MAX ms, counting on curl_multi_wakeup()
+# for a new request and on the resolver's own pipe for a name resolved. Both
+# are a byte written to a pipe, and on the console a write to a pipe can fail
+# (libc-fixes.c, "pipe() and pipe2()": the system's pool for pipes had run
+# out): the thread slept with every request queued behind it and no page
+# loaded, until a signal happened to interrupt its poll (the stack dump of a
+# diagnostic run: the start page came in a second later). Now a wake-up that
+# is lost costs 50 ms at most; the thread sleeps in between, 20 times a second
+# when there is nothing to do (the WebSockets' thread of the same port wakes
+# every 20 ms: CurlStreamScheduler.cpp). The pipes themselves are pairs of
+# sockets now (libc-fixes.c): this is for the day something else loses a
+# wake-up.
+patch_source WebCore/platform/network/curl/CurlRequestScheduler.cpp \
+    's|^        const int selectTimeoutMS = INT_MAX;$|        const int selectTimeoutMS = 50; // BrowserPS5 (poc/webkit/build-webkit.sh): INT_MAX; a lost wake-up left every request waiting|' \
+    "the curl thread's wait with no end"
+
 # 2026-11-11: the wall clock with an offset (the console's clock was 23 min
 # ahead: the title asks the network for the time, title/web_host.cpp).
 apply_patch WTF/wtf/CurrentTime.cpp "$HERE/runtime/CurrentTime.cpp.patch"
@@ -910,7 +927,7 @@ cmake -S "$WEBKIT_SRC" -B "$BUILD" -G Ninja \
     -DOpenGLES2_INCLUDE_DIR="$MESA_SOFT/include" \
     -DCMAKE_C_FLAGS="-include $POSIX_HDR" \
     -DCMAKE_CXX_FLAGS="-include $POSIX_HDR" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--no-pie -Wl,--version-script=$HERE/libwebkit.ver -Wl,--wrap=readlink -Wl,-u,__wrap_readlink -Wl,--wrap=pthread_create -Wl,-u,__wrap_pthread_create$IPC_WRAP$SHARED_MEDIA" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--no-pie -Wl,--version-script=$HERE/libwebkit.ver -Wl,--wrap=readlink -Wl,-u,__wrap_readlink -Wl,--wrap=pthread_create -Wl,-u,__wrap_pthread_create -Wl,--wrap=pipe -Wl,-u,__wrap_pipe -Wl,--wrap=pipe2 -Wl,-u,__wrap_pipe2$IPC_WRAP$SHARED_MEDIA" \
     -DCMAKE_C_STANDARD_LIBRARIES="$DEP_GROUP" \
     -DCMAKE_CXX_STANDARD_LIBRARIES="$DEP_GROUP" \
     "${CMAKE_CURL[@]}" \

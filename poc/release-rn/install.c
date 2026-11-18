@@ -38,10 +38,12 @@ along with this program; see the file COPYING. If not, see
 // The title is not put on the home screen here: ShadowMountPlus does that,
 // about 15 s after the title's folder appears (Games tab).
 
-#define POC_NAME "BrowserPS5"
+#define POC_NAME "BrowserPS5 RN"  // (as the PS5 shows the app; it is in every notification)
 
 #include <pthread.h>
 #include <signal.h>
+
+#include <sys/socket.h>
 
 #include <lzma.h>
 
@@ -206,6 +208,24 @@ temp_folder(void) {
 }
 
 
+// 2026-11-17: what the unpacked tar goes through is a pair of sockets, where it was a pipe. Measured on FW 13.60:
+// a console that has been running for long can reach a state in which pipe() still succeeds and every write to
+// the pipe fails (ENOMEM), until it is restarted; sockets were not affected (poc/pipe_probe). An installer run
+// in that state ended with "unpacking: -1" and nothing installed. The buffers are made larger than a socket's
+// default so that the megabyte blocks do not go through in 8 KB steps. A pipe only if there is no socket pair.
+static int
+tar_channel(int fds[2]) {
+  const int size = 256 << 10;
+
+  if(socketpair(AF_UNIX, SOCK_STREAM, 0, fds)) {
+    return pipe(fds);
+  }
+  setsockopt(fds[1], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+  setsockopt(fds[0], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+  return 0;
+}
+
+
 int
 main(void) {
   static const char stamp[] = RELEASE_VERSION "\n" RELEASE_PACK_SHA256 "\n";
@@ -221,7 +241,7 @@ main(void) {
   signal(SIGPIPE, SIG_IGN);
   step_down();
   POC_NOTIFY(RELEASE_VERSION ": installing, about half a minute. Do not open it yet.");
-  if(pipe(fds) || pthread_create(&thread, 0, unpack_thread, (void*)(intptr_t)fds[1])) {
+  if(tar_channel(fds) || pthread_create(&thread, 0, unpack_thread, (void*)(intptr_t)fds[1])) {
     POC_NOTIFY("was NOT installed: the installer could not start (errno %d).", errno);
     return 1;
   }

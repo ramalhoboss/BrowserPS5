@@ -20,7 +20,7 @@ OUT ?= .
 HB := $(PS5_PAYLOAD_SDK)/target/user/homebrew
 CFLAGS := -Wall -Werror -O1 -I$(COMMON) -I$(WORK)
 
-all: $(OUT)/BrowserPS5.elf $(OUT)/BrowserPS5-uninstall.elf $(OUT)/BrowserPS5-uninstall-all.elf
+all: $(OUT)/BrowserPS5.elf $(OUT)/BrowserPS5-uninstall.elf $(OUT)/BrowserPS5-uninstall-all.elf $(OUT)/BrowserPS5-check.elf
 
 $(OUT)/BrowserPS5.elf: install.c ../install_tar/main.c $(COMMON)/poc_log.h $(WORK)/release.h $(WORK)/pack.tar.xz
 	$(CC) $(CFLAGS) -I$(HB)/include -o $@ install.c $(HB)/lib/liblzma.a -lSceSystemService
@@ -30,6 +30,10 @@ $(OUT)/BrowserPS5-uninstall.elf: uninstall.c ../remove_files/main.c $(COMMON)/po
 
 $(OUT)/BrowserPS5-uninstall-all.elf: uninstall.c ../remove_files/main.c $(COMMON)/poc_log.h
 	$(CC) $(CFLAGS) -DREMOVE_DATA -o $@ uninstall.c -lSceSystemService
+
+# What the console has of the browser and how its last start went, as text (reads only; check.c).
+$(OUT)/BrowserPS5-check.elf: check.c $(COMMON)/poc_log.h
+	$(CC) $(CFLAGS) -o $@ check.c
 
 # A test's: says what the uninstaller would remove, and removes nothing (never in the release's folder).
 dry: $(WORK)/BrowserPS5-uninstall-dry.elf
